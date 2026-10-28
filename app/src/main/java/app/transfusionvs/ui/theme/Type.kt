@@ -8,16 +8,15 @@ import androidx.compose.ui.text.font.FontWeight
 import app.transfusionvs.R
 
 /**
- * Inter (SIL Open Font License, bundled in res/font; licence in assets/licenses).
- * One variable font file; each weight below sets its "wght" axis.
+ * Inter 4.1 (SIL Open Font License, bundled in res/font; licence in assets/licenses).
+ * One static file per weight the app uses, so every renderer (phones and the screenshot
+ * tests) draws the same weights. The files keep the card's slashed zero and tabular figures.
  */
 val Inter = FontFamily(
-    Font(R.font.inter, FontWeight.Normal),
-    Font(R.font.inter, FontWeight.Medium),
-    Font(R.font.inter, FontWeight.SemiBold),
-    Font(R.font.inter, FontWeight.Bold),
-    Font(R.font.inter, FontWeight.ExtraBold),
-    Font(R.font.inter, FontWeight.Black),
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_bold, FontWeight.Bold),
+    Font(R.font.inter_black, FontWeight.Black),
 )
 
 /** Clock times and big numbers: tabular figures and the card's slashed zero. */
