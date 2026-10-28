@@ -46,6 +46,10 @@ import androidx.compose.ui.unit.sp
 import app.transfusionvs.R
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.theme.Tvs
+import app.transfusionvs.ui.theme.TvsShape
+import app.transfusionvs.ui.theme.TvsSize
+import app.transfusionvs.ui.theme.TvsSpace
+import app.transfusionvs.ui.theme.TvsFont
 
 /** A running bed the nurse can mark as stopped. */
 data class BedChoice(val transfusionId: Long, val bedLabel: String, val colorIndex: Int)
@@ -87,64 +91,64 @@ fun ReactionScreen(
         Column(
             Modifier.fillMaxWidth().background(Tvs.Red)
                 .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(start = 8.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
+                .padding(start = TvsSpace.s8, end = TvsSpace.s16, top = TvsSpace.s6, bottom = TvsSpace.s16),
         ) {
             Box(
-                Modifier.heightIn(min = 56.dp).clickable(onClick = onBack).padding(horizontal = 8.dp),
+                Modifier.heightIn(min = TvsSize.Touch).clickable(onClick = onBack).padding(horizontal = TvsSpace.s8),
                 contentAlignment = Alignment.CenterStart,
-            ) { Text(backLabel, color = Tvs.White, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
-            Row(Modifier.padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = Tvs.White, modifier = Modifier.size(34.dp))
-                Spacer(Modifier.width(12.dp))
-                Text("Suspected transfusion reaction", color = Tvs.White, fontSize = 24.sp, lineHeight = 29.sp, fontWeight = FontWeight.Black)
+            ) { Text(backLabel, color = Tvs.White, fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Bold) }
+            Row(Modifier.padding(start = TvsSpace.s8), verticalAlignment = Alignment.CenterVertically) {
+                Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = Tvs.White, modifier = Modifier.size(TvsSize.IconLarge))
+                Spacer(Modifier.width(TvsSpace.s12))
+                Text("Suspected transfusion reaction", color = Tvs.White, fontSize = TvsFont.Title, lineHeight = TvsFont.TitleLine, fontWeight = FontWeight.Black)
             }
         }
 
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(TvsSpace.s16),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s18),
         ) {
             // STOP & CALL IF YOU SEE
             Column(
-                Modifier.fillMaxWidth().background(Tvs.Pink, RoundedCornerShape(16.dp)).padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                Modifier.fillMaxWidth().background(Tvs.Pink, TvsShape.Card).padding(TvsSpace.s18),
+                verticalArrangement = Arrangement.spacedBy(TvsSpace.s14),
             ) {
                 CapsLabel("Stop & call if you see", Tvs.Red)
                 WARNING_SIGNS.forEach { sign ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(9.dp).background(Tvs.Red, CircleShape))
-                        Spacer(Modifier.width(14.dp))
-                        Text(sign, color = Tvs.Navy, fontSize = 18.sp)
+                        Box(Modifier.size(TvsSize.Bullet).background(Tvs.Red, CircleShape))
+                        Spacer(Modifier.width(TvsSpace.s14))
+                        Text(sign, color = Tvs.Navy, fontSize = TvsFont.Lead)
                     }
                 }
             }
 
             // DO NOW — tap each step as it's done
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
                 CapsLabel("Do now", Tvs.Navy)
                 DO_NOW.forEachIndexed { i, (title, body) ->
                     Row(
-                        Modifier.fillMaxWidth().heightIn(min = 64.dp)
-                            .background(if (done[i]) Tvs.Panel else Tvs.White, RoundedCornerShape(12.dp))
+                        Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge)
+                            .background(if (done[i]) Tvs.Panel else Tvs.White, TvsShape.Control)
                             .clickable { done[i] = !done[i] }
-                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                            .padding(vertical = TvsSpace.s8, horizontal = TvsSpace.s4),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         val circle = if (i == DO_NOW.lastIndex) Tvs.Navy else Tvs.Red
                         Box(
-                            Modifier.size(36.dp).background(if (done[i]) Tvs.Green else circle, CircleShape),
+                            Modifier.size(TvsSize.BadgeLarge).background(if (done[i]) Tvs.Green else circle, CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(if (done[i]) "✓" else "${i + 1}", color = Tvs.White, fontSize = 17.sp, fontWeight = FontWeight.Black)
+                            Text(if (done[i]) "✓" else "${i + 1}", color = Tvs.White, fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Black)
                         }
-                        Spacer(Modifier.width(14.dp))
+                        Spacer(Modifier.width(TvsSpace.s14))
                         Text(
                             buildAnnotatedString {
                                 withStyle(SpanStyle(fontWeight = FontWeight.Black)) { append(title) }
                                 append("\n")
                                 append(body)
                             },
-                            color = Tvs.Navy, fontSize = 18.sp, lineHeight = 24.sp,
+                            color = Tvs.Navy, fontSize = TvsFont.Lead, lineHeight = TvsFont.StepLine,
                         )
                     }
                 }
@@ -152,18 +156,18 @@ fun ReactionScreen(
 
             // Transfusion stopped → cancels that bed's remaining alarms
             if (beds.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (beds.size > 1) Text("Which bed was stopped?", color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s10)) {
+                    if (beds.size > 1) Text("Which bed was stopped?", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
                     beds.forEach { bed ->
                         Button(
                             onClick = { confirm = bed.transfusionId },
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
-                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge),
+                            shape = TvsShape.Card,
                             colors = ButtonDefaults.buttonColors(containerColor = Tvs.Red, contentColor = Tvs.White),
                         ) {
-                            BedDot(bed.colorIndex, 14.dp)
-                            Spacer(Modifier.width(10.dp))
-                            Text("Transfusion stopped — ${bed.bedLabel}", fontSize = 18.sp, fontWeight = FontWeight.Black)
+                            BedDot(bed.colorIndex, TvsSize.DotCompact)
+                            Spacer(Modifier.width(TvsSpace.s10))
+                            Text("Transfusion stopped — ${bed.bedLabel}", fontSize = TvsFont.Lead, fontWeight = FontWeight.Black)
                         }
                     }
                 }

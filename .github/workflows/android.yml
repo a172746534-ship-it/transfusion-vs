@@ -17,6 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Design-token guard (no hard-coded styles in screens)
+        run: bash scripts/check-design-tokens.sh
+
       - uses: actions/setup-java@v6
         with:
           distribution: temurin

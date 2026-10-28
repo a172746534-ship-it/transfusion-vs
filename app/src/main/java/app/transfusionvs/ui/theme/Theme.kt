@@ -19,6 +19,11 @@ object Tvs {
     /** Setup check "OK" and "on time" (not on the card). */
     val Green = Color(0xFF1E8E3E)
 
+    /** Secondary text on navy (subtitles on the header and alarm). */
+    val OnNavyMuted = White.copy(alpha = 0.85f)
+    /** Faint panel on navy (bed rows on the alarm). */
+    val OnNavyTint = White.copy(alpha = 0.08f)
+
     /** Auto-assigned bed colours. Red is kept for reactions and overdue only. */
     val BedColors = listOf(
         Color(0xFF1D4E9E), // blue

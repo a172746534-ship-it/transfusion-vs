@@ -60,6 +60,10 @@ import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.TopBar
 import app.transfusionvs.ui.theme.Tvs
 import kotlinx.coroutines.launch
+import app.transfusionvs.ui.theme.TvsShape
+import app.transfusionvs.ui.theme.TvsSize
+import app.transfusionvs.ui.theme.TvsSpace
+import app.transfusionvs.ui.theme.TvsFont
 
 /** Setup check: live permission checklist, per-brand steps, and real test alarms. */
 @Composable
@@ -139,16 +143,16 @@ fun SetupContent(
         )
 
         Column(
-            Modifier.padding(16.dp).windowInsetsPadding(WindowInsets.navigationBars),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            Modifier.padding(TvsSpace.s16).windowInsetsPadding(WindowInsets.navigationBars),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s16),
         ) {
             if (ringing) {
                 Box(
-                    Modifier.fillMaxWidth().background(Tvs.Red, RoundedCornerShape(16.dp))
+                    Modifier.fillMaxWidth().background(Tvs.Red, TvsShape.Card)
                         .clickable(onClick = onOpenAlarm)
-                        .padding(18.dp),
+                        .padding(TvsSpace.s18),
                 ) {
-                    Text("Alarm ringing — tap to open", color = Tvs.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    Text("Alarm ringing — tap to open", color = Tvs.White, fontSize = TvsFont.Lead, fontWeight = FontWeight.Black)
                 }
             }
 
@@ -163,26 +167,26 @@ fun SetupContent(
                 CapsLabel("${guide.brand} — extra steps", Tvs.Navy)
                 Text(
                     "Android can't report these, so do each one by hand, then run a test below.",
-                    color = Tvs.Muted, fontSize = 14.sp,
+                    color = Tvs.Muted, fontSize = TvsFont.Caption,
                 )
                 guide.steps.forEachIndexed { i, step ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         NumberBadge(i + 1)
-                        Spacer(Modifier.width(12.dp))
-                        Text(step.text, color = Tvs.Navy, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                        Spacer(Modifier.width(TvsSpace.s12))
+                        Text(step.text, color = Tvs.Navy, fontSize = TvsFont.Body, modifier = Modifier.weight(1f))
                         if (step.intents.isNotEmpty()) {
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(TvsSpace.s8))
                             OutlinedButton(
                                 onClick = { onOpenStep(step) },
-                                modifier = Modifier.heightIn(min = 56.dp),
-                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.heightIn(min = TvsSize.Touch),
+                                shape = TvsShape.Control,
                             ) { Text("Open", fontWeight = FontWeight.Bold) }
                         }
                     }
                 }
                 Text(
                     "Never use \"Force stop\" on this app — Android then cancels its alarms until you open it again.",
-                    color = Tvs.Red, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    color = Tvs.Red, fontSize = TvsFont.Caption, fontWeight = FontWeight.Bold,
                 )
             }
 
@@ -191,23 +195,23 @@ fun SetupContent(
                 CapsLabel("Test", Tvs.Navy)
                 Button(
                     onClick = { onTest(MINUTE_MS, "Lock the phone now and wait — it must ring even on silent.") },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchXL),
+                    shape = TvsShape.Card,
                     colors = ButtonDefaults.buttonColors(containerColor = Tvs.Navy, contentColor = Tvs.White),
-                ) { Text("Test alarm in 1 minute", fontSize = 20.sp, fontWeight = FontWeight.Black) }
-                Text("Long tests (overnight, after swiping the app away, or after a reboot):", color = Tvs.Muted, fontSize = 14.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ) { Text("Test alarm in 1 minute", fontSize = TvsFont.Heading, fontWeight = FontWeight.Black) }
+                Text("Long tests (overnight, after swiping the app away, or after a reboot):", color = Tvs.Muted, fontSize = TvsFont.Caption)
+                Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
                     listOf(2, 6).forEach { h ->
                         OutlinedButton(
                             onClick = {
                                 onTest(h * 60 * MINUTE_MS, "Swipe the app away or restart the phone — it must still ring on time.")
                             },
-                            modifier = Modifier.weight(1f).heightIn(min = 56.dp),
-                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).heightIn(min = TvsSize.Touch),
+                            shape = TvsShape.Control,
                         ) { Text("Test in $h h", fontWeight = FontWeight.Bold) }
                     }
                 }
-                message?.let { Text(it, color = Tvs.Blue, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+                message?.let { Text(it, color = Tvs.Blue, fontSize = TvsFont.BodySmall, fontWeight = FontWeight.Bold) }
             }
 
             // 4. What happened to the tests
@@ -217,14 +221,14 @@ fun SetupContent(
                     tests.forEach { t ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("Set for ${Labels.clock(t.scheduledAt)}", color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                Text(testStatus(t), color = statusColor(t), fontSize = 14.sp)
+                                Text("Set for ${Labels.clock(t.scheduledAt)}", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
+                                Text(testStatus(t), color = statusColor(t), fontSize = TvsFont.Caption)
                             }
                             if (t.status == CheckpointStatus.PENDING) {
                                 OutlinedButton(
                                     onClick = { onCancelTest(t.id) },
-                                    modifier = Modifier.heightIn(min = 56.dp),
-                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.heightIn(min = TvsSize.Touch),
+                                    shape = TvsShape.Control,
                                 ) { Text("Cancel") }
                             }
                         }
@@ -232,7 +236,7 @@ fun SetupContent(
                 }
             }
 
-            Text("Transfusion VS $versionName", color = Tvs.Muted, fontSize = 12.sp)
+            Text("Transfusion VS $versionName", color = Tvs.Muted, fontSize = TvsFont.Footnote)
         }
     }
 }
@@ -240,26 +244,26 @@ fun SetupContent(
 @Composable
 private fun Card(content: @Composable () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().background(Tvs.White, RoundedCornerShape(16.dp)).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        Modifier.fillMaxWidth().background(Tvs.White, TvsShape.Card).padding(TvsSpace.s16),
+        verticalArrangement = Arrangement.spacedBy(TvsSpace.s14),
     ) { content() }
 }
 
 @Composable
 private fun CheckRow(item: CheckItem, onFix: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(16.dp).background(if (item.ok) Tvs.Green else Tvs.Red, CircleShape))
-        Spacer(Modifier.width(12.dp))
+        Box(Modifier.size(TvsSize.Dot).background(if (item.ok) Tvs.Green else Tvs.Red, CircleShape))
+        Spacer(Modifier.width(TvsSpace.s12))
         Column(Modifier.weight(1f)) {
-            Text(item.title, color = Tvs.Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            Text(item.detail, color = Tvs.Muted, fontSize = 14.sp)
+            Text(item.title, color = Tvs.Navy, fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Bold)
+            Text(item.detail, color = Tvs.Muted, fontSize = TvsFont.Caption)
         }
         if (!item.ok) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(TvsSpace.s8))
             Button(
                 onClick = onFix,
-                modifier = Modifier.heightIn(min = 56.dp),
-                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.heightIn(min = TvsSize.Touch),
+                shape = TvsShape.Control,
                 colors = ButtonDefaults.buttonColors(containerColor = Tvs.Red, contentColor = Tvs.White),
             ) { Text("Fix", fontWeight = FontWeight.Black) }
         }
@@ -268,8 +272,8 @@ private fun CheckRow(item: CheckItem, onFix: () -> Unit) {
 
 @Composable
 private fun NumberBadge(n: Int) {
-    Box(Modifier.size(28.dp).background(Tvs.Navy, CircleShape), contentAlignment = Alignment.Center) {
-        Text("$n", color = Tvs.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
+    Box(Modifier.size(TvsSize.Badge).background(Tvs.Navy, CircleShape), contentAlignment = Alignment.Center) {
+        Text("$n", color = Tvs.White, fontWeight = FontWeight.Black, fontSize = TvsFont.Caption)
     }
 }
 

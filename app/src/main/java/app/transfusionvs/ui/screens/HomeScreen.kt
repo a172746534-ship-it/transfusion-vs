@@ -57,6 +57,10 @@ import app.transfusionvs.ui.components.TopBar
 import app.transfusionvs.ui.components.rememberNow
 import app.transfusionvs.ui.theme.TimeFigures
 import app.transfusionvs.ui.theme.Tvs
+import app.transfusionvs.ui.theme.TvsShape
+import app.transfusionvs.ui.theme.TvsSize
+import app.transfusionvs.ui.theme.TvsSpace
+import app.transfusionvs.ui.theme.TvsFont
 
 @Composable
 fun HomeScreen(
@@ -120,8 +124,8 @@ fun HomeContent(
 
         LazyColumn(
             Modifier.weight(1f),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(TvsSpace.s16),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s14),
         ) {
             if (ringing) {
                 item {
@@ -142,13 +146,13 @@ fun HomeContent(
             if (home != null && list.isEmpty()) {
                 item {
                     Column(
-                        Modifier.fillMaxWidth().background(Tvs.White, RoundedCornerShape(16.dp)).padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        Modifier.fillMaxWidth().background(Tvs.White, TvsShape.Card).padding(TvsSpace.s20),
+                        verticalArrangement = Arrangement.spacedBy(TvsSpace.s6),
                     ) {
-                        Text("No transfusion running", color = Tvs.Navy, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                        Text("No transfusion running", color = Tvs.Navy, fontSize = TvsFont.Heading, fontWeight = FontWeight.Black)
                         Text(
                             "Take the baseline vital signs first, then tap Start transfusion.",
-                            color = Tvs.Muted, fontSize = 15.sp,
+                            color = Tvs.Muted, fontSize = TvsFont.BodySmall,
                         )
                     }
                 }
@@ -156,25 +160,25 @@ fun HomeContent(
             item {
                 OutlinedButton(
                     onClick = onSettings,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                ) { Text("Settings", color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
+                    shape = TvsShape.Card,
+                ) { Text("Settings", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold) }
             }
         }
 
         Column(
             Modifier.fillMaxWidth().background(Tvs.Panel)
                 .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = TvsSpace.s16, vertical = TvsSpace.s12),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
             ReactionBanner(onClick = onReaction)
             Button(
                 onClick = onStart,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
-                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge),
+                shape = TvsShape.Card,
                 colors = ButtonDefaults.buttonColors(containerColor = Tvs.Navy, contentColor = Tvs.White),
-            ) { Text("Start transfusion", fontSize = 20.sp, fontWeight = FontWeight.Black) }
+            ) { Text("Start transfusion", fontSize = TvsFont.Heading, fontWeight = FontWeight.Black) }
         }
     }
 }
@@ -182,10 +186,10 @@ fun HomeContent(
 @Composable
 private fun Alert(text: String, color: androidx.compose.ui.graphics.Color, textColor: androidx.compose.ui.graphics.Color = Tvs.White, onClick: () -> Unit) {
     Box(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp).background(color, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick).padding(16.dp),
+        Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch).background(color, TvsShape.Card)
+            .clickable(onClick = onClick).padding(TvsSpace.s16),
         contentAlignment = Alignment.CenterStart,
-    ) { Text(text, color = textColor, fontSize = 17.sp, fontWeight = FontWeight.Black) }
+    ) { Text(text, color = textColor, fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Black) }
 }
 
 /** One card per transfusion: bed + colour, mini timeline, next checkpoint with countdown, overdue in red. */
@@ -203,21 +207,21 @@ private fun TransfusionCard(
     val endPrompt = rows.filter { it.type == CheckpointType.END && it.status == CheckpointStatus.PENDING }
     val next = rows.filter { it.status == CheckpointStatus.PENDING && it.type.rings }.minByOrNull { it.scheduledAt }
     val overdue = ringing.isNotEmpty() || missed.isNotEmpty()
-    val shape = RoundedCornerShape(16.dp)
+    val shape = TvsShape.Card
 
     Column(
         Modifier.fillMaxWidth()
             .background(Tvs.White, shape)
-            .border(if (overdue) 3.dp else 0.dp, if (overdue) Tvs.Red else Tvs.White, shape)
+            .border(if (overdue) TvsSpace.s3 else 0.dp, if (overdue) Tvs.Red else Tvs.White, shape)
             .clickable(onClick = onOpen)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(TvsSpace.s16),
+        verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(18.dp).background(Tvs.bedColor(t.colorIndex), CircleShape))
-            Spacer(Modifier.width(10.dp))
+            Box(Modifier.size(TvsSize.DotLarge).background(Tvs.bedColor(t.colorIndex), CircleShape))
+            Spacer(Modifier.width(TvsSpace.s10))
             Column(Modifier.weight(1f)) {
-                Text(t.bedLabel, color = Tvs.Navy, fontSize = 24.sp, fontWeight = FontWeight.Black)
+                Text(t.bedLabel, color = Tvs.Navy, fontSize = TvsFont.Title, fontWeight = FontWeight.Black)
                 Text(
                     when (t.status) {
                         TransfusionStatus.RUNNING ->
@@ -225,25 +229,25 @@ private fun TransfusionCard(
                         TransfusionStatus.ENDED -> "Ended ${t.endAt?.let { Labels.clock(it) } ?: ""}"
                         TransfusionStatus.STOPPED_REACTION -> "Stopped — reaction"
                     },
-                    color = Tvs.Muted, fontSize = 14.sp,
+                    color = Tvs.Muted, fontSize = TvsFont.Caption,
                 )
             }
-            Text("›", color = Tvs.Muted, fontSize = 28.sp)
+            Text("›", color = Tvs.Muted, fontSize = TvsFont.Glyph)
         }
 
         CardTimeline(TimelineBuilder.live(t, rows, now), compact = true)
 
         if (next != null && t.status == TransfusionStatus.RUNNING) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Next: ", color = Tvs.Muted, fontSize = 16.sp)
+                Text("Next: ", color = Tvs.Muted, fontSize = TvsFont.Body)
                 Text(
                     "${Labels.title(next.type, next.offsetMin)} at ${Labels.clock(next.scheduledAt)}",
-                    color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold, style = TimeFigures,
+                    color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold, style = TimeFigures,
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(TvsSpace.s8))
                 Text(
                     Timeliness.countdown(next.scheduledAt - now),
-                    color = Tvs.Blue, fontSize = 16.sp, fontWeight = FontWeight.Black, style = TimeFigures,
+                    color = Tvs.Blue, fontSize = TvsFont.Body, fontWeight = FontWeight.Black, style = TimeFigures,
                 )
             }
         }
@@ -251,7 +255,7 @@ private fun TransfusionCard(
         if (ringing.isNotEmpty()) {
             Text(
                 "Ringing now: " + ringing.joinToString { Labels.title(it.type, it.offsetMin) },
-                color = Tvs.Red, fontSize = 16.sp, fontWeight = FontWeight.Black,
+                color = Tvs.Red, fontSize = TvsFont.Body, fontWeight = FontWeight.Black,
             )
         }
         if (missed.isNotEmpty()) {
@@ -279,15 +283,15 @@ private fun ActionBlock(
     onAck: () -> Unit,
 ) {
     Column(
-        Modifier.fillMaxWidth().background(background, RoundedCornerShape(12.dp)).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth().background(background, TvsShape.Control).padding(TvsSpace.s12),
+        verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
     ) {
-        Text(text, color = textColor, fontSize = 16.sp, fontWeight = FontWeight.Black)
+        Text(text, color = textColor, fontSize = TvsFont.Body, fontWeight = FontWeight.Black)
         Button(
             onClick = onAck,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
+            shape = TvsShape.Control,
             colors = ButtonDefaults.buttonColors(containerColor = Tvs.White, contentColor = Tvs.Navy),
-        ) { Text("Measured & documented ✓", fontSize = 17.sp, fontWeight = FontWeight.Black) }
+        ) { Text("Measured & documented ✓", fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Black) }
     }
 }

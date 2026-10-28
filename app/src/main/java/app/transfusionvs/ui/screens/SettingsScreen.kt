@@ -52,6 +52,10 @@ import app.transfusionvs.ui.components.TopBar
 import app.transfusionvs.ui.theme.TimeFigures
 import app.transfusionvs.ui.theme.Tvs
 import kotlinx.coroutines.launch
+import app.transfusionvs.ui.theme.TvsShape
+import app.transfusionvs.ui.theme.TvsSize
+import app.transfusionvs.ui.theme.TvsSpace
+import app.transfusionvs.ui.theme.TvsFont
 
 /** A snapshot of every setting shown on the screen. */
 data class SettingsValues(
@@ -138,34 +142,34 @@ fun SettingsContent(
     Column(Modifier.fillMaxSize().background(Tvs.Panel)) {
         TopBar(caps = "Settings", title = "Alarm settings", onBack = onBack)
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(TvsSpace.s16),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s16),
         ) {
             Panel {
                 CapsLabel("Alarm", Tvs.Navy)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
                     ChoiceChip("Sound + vibrate", v.soundOn, { onChange(v.copy(soundOn = true)) }, Modifier.weight(1f))
                     ChoiceChip("Vibrate only", !v.soundOn, { onChange(v.copy(soundOn = false)) }, Modifier.weight(1f))
                 }
                 if (!v.soundOn) {
                     Text(
                         "Night mode: alarms vibrate but make NO sound. Keep the phone on you.",
-                        color = Tvs.Red, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        color = Tvs.Red, fontSize = TvsFont.Caption, fontWeight = FontWeight.Bold,
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Alarm sound", color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text(soundTitle, color = Tvs.Muted, fontSize = 14.sp)
+                        Text("Alarm sound", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
+                        Text(soundTitle, color = Tvs.Muted, fontSize = TvsFont.Caption)
                     }
                     OutlinedButton(
                         onClick = onPickSound,
-                        modifier = Modifier.heightIn(min = 56.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.heightIn(min = TvsSize.Touch),
+                        shape = TvsShape.Control,
                     ) { Text("Change", fontWeight = FontWeight.Bold) }
                 }
-                Text("Snooze length", color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Snooze length", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
                     Settings.SNOOZE_RANGE.forEach { m ->
                         ChoiceChip("$m min", v.snoozeMin == m, { onChange(v.copy(snoozeMin = m)) }, Modifier.weight(1f))
                     }
@@ -188,8 +192,8 @@ fun SettingsContent(
                     onMinus = { if (v.toleranceMin > Settings.TOLERANCE_RANGE.first) onChange(v.copy(toleranceMin = v.toleranceMin - 1)) },
                     onPlus = { if (v.toleranceMin < Settings.TOLERANCE_RANGE.last) onChange(v.copy(toleranceMin = v.toleranceMin + 1)) },
                 )
-                Text("Pre-alert (gentle notification + short vibration)", color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Pre-alert (gentle notification + short vibration)", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
                     Settings.PRE_ALERT_CHOICES.forEach { m ->
                         ChoiceChip(if (m == 0) "Off" else "$m min", v.preAlertMin == m, { onChange(v.copy(preAlertMin = m)) }, Modifier.weight(1f))
                     }
@@ -225,10 +229,10 @@ fun SettingsContent(
 
             Button(
                 onClick = onSetup,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
+                shape = TvsShape.Card,
                 colors = ButtonDefaults.buttonColors(containerColor = Tvs.Navy, contentColor = Tvs.White),
-            ) { Text("Setup check & test alarm", fontSize = 17.sp, fontWeight = FontWeight.Black) }
+            ) { Text("Setup check & test alarm", fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Black) }
             Spacer(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
         }
     }
@@ -236,17 +240,17 @@ fun SettingsContent(
 
 @Composable
 private fun Stepper(title: String, hint: String?, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Text(title, color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             StepButton("−", onMinus)
             Text(
-                value, style = TimeFigures, color = Tvs.Navy, fontSize = 18.sp, fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 92.dp),
+                value, style = TimeFigures, color = Tvs.Navy, fontSize = TvsFont.Lead, fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = TvsSize.StepperValue),
             )
             StepButton("+", onPlus)
         }
-        if (hint != null) Text(hint, color = Tvs.Muted, fontSize = 13.sp)
+        if (hint != null) Text(hint, color = Tvs.Muted, fontSize = TvsFont.Label)
     }
 }
 
@@ -254,10 +258,10 @@ private fun Stepper(title: String, hint: String?, value: String, onMinus: () -> 
 private fun StepButton(label: String, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
-        modifier = Modifier.size(56.dp),
-        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.size(TvsSize.Touch),
+        shape = TvsShape.Control,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-    ) { Text(label, fontSize = 24.sp, fontWeight = FontWeight.Black, color = Tvs.Navy) }
+    ) { Text(label, fontSize = TvsFont.Title, fontWeight = FontWeight.Black, color = Tvs.Navy) }
 }
 
 private fun soundTitle(context: Context, uri: String?): String {

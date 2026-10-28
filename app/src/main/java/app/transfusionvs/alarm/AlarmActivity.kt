@@ -59,6 +59,10 @@ import app.transfusionvs.ui.theme.Tvs
 import app.transfusionvs.ui.theme.TvsTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import app.transfusionvs.ui.theme.TvsShape
+import app.transfusionvs.ui.theme.TvsSize
+import app.transfusionvs.ui.theme.TvsSpace
+import app.transfusionvs.ui.theme.TvsFont
 
 /**
  * The alarm screen, shown over the lock screen with the screen turned on and kept on.
@@ -159,8 +163,8 @@ fun AlarmContent(
 
     Box(Modifier.fillMaxSize().background(Tvs.Navy).safeDrawingPadding()) {
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(TvsSpace.s20),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s16),
         ) {
             CapsLabel(if (isTest) "Test alarm" else "Blood transfusion running", Tvs.Amber)
             Text(
@@ -169,10 +173,10 @@ fun AlarmContent(
                     beds.size == 1 -> beds[0].title
                     else -> "${beds.size} beds due now"
                 },
-                color = Tvs.White, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black,
+                color = Tvs.White, fontSize = TvsFont.AlarmTitle, lineHeight = TvsFont.AlarmTitleLine, fontWeight = FontWeight.Black,
             )
             if (beds.size == 1) {
-                Text(beds[0].subtitle, color = Tvs.White.copy(alpha = 0.85f), fontSize = 17.sp)
+                Text(beds[0].subtitle, color = Tvs.OnNavyMuted, fontSize = TvsFont.BodyLarge)
             }
 
             MeasureDocumentBlocks()
@@ -180,7 +184,7 @@ fun AlarmContent(
             if (snoozedUntil != null) {
                 Text(
                     "Snoozed — rings again at ${Labels.clock(snoozedUntil)}",
-                    color = Tvs.Amber, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                    color = Tvs.Amber, fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Bold,
                 )
             }
 
@@ -193,13 +197,13 @@ fun AlarmContent(
             if (canSnooze) {
                 OutlinedButton(
                     onClick = onSnooze,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
+                    shape = TvsShape.Card,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Tvs.White),
-                ) { Text("Snooze $snoozeMin min", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+                ) { Text("Snooze $snoozeMin min", fontSize = TvsFont.Lead, fontWeight = FontWeight.Bold) }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(TvsSpace.s8))
             ReactionBanner(onClick = { showReaction = true })
         }
     }
@@ -209,17 +213,17 @@ fun AlarmContent(
 private fun BedRow(bed: RingBed, rows: List<CheckpointWithBed>, onAck: () -> Unit) {
     val due = rows.filter { it.id in bed.checkpointIds }.minOfOrNull { it.scheduledAt }
     Column(
-        Modifier.fillMaxWidth().background(Tvs.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp)).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        Modifier.fillMaxWidth().background(Tvs.OnNavyTint, TvsShape.Card).padding(TvsSpace.s14),
+        verticalArrangement = Arrangement.spacedBy(TvsSpace.s10),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(16.dp).background(Tvs.bedColor(bed.colorIndex), CircleShape))
-            Spacer(Modifier.size(10.dp))
+            Box(Modifier.size(TvsSize.Dot).background(Tvs.bedColor(bed.colorIndex), CircleShape))
+            Spacer(Modifier.size(TvsSpace.s10))
             Column {
-                Text(bed.shortLabel, color = Tvs.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Text(bed.shortLabel, color = Tvs.White, fontSize = TvsFont.Number, fontWeight = FontWeight.Black)
                 Text(
                     bed.what + (due?.let { " · due ${Labels.clock(it)}" } ?: ""),
-                    color = Tvs.White.copy(alpha = 0.85f), fontSize = 16.sp,
+                    color = Tvs.OnNavyMuted, fontSize = TvsFont.Body,
                 )
             }
         }
@@ -231,10 +235,10 @@ private fun BedRow(bed: RingBed, rows: List<CheckpointWithBed>, onAck: () -> Uni
 private fun AckButton(text: String, big: Boolean, onClick: () -> Unit) {
     Button(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().heightIn(min = if (big) 96.dp else 64.dp),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = if (big) TvsSize.AckHuge else TvsSize.TouchLarge),
+        shape = TvsShape.Card,
         colors = ButtonDefaults.buttonColors(containerColor = Tvs.Amber, contentColor = Tvs.Navy),
     ) {
-        Text(text, fontSize = if (big) 24.sp else 18.sp, fontWeight = FontWeight.Black)
+        Text(text, fontSize = if (big) TvsFont.Title else TvsFont.Lead, fontWeight = FontWeight.Black)
     }
 }

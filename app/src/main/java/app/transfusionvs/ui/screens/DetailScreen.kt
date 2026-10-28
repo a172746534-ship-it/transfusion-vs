@@ -58,6 +58,10 @@ import app.transfusionvs.ui.components.TopBar
 import app.transfusionvs.ui.components.rememberNow
 import app.transfusionvs.ui.theme.TimeFigures
 import app.transfusionvs.ui.theme.Tvs
+import app.transfusionvs.ui.theme.TvsShape
+import app.transfusionvs.ui.theme.TvsSize
+import app.transfusionvs.ui.theme.TvsSpace
+import app.transfusionvs.ui.theme.TvsFont
 
 /** Full timeline in the card layout, every checkpoint with its status, and End / Edit / Stopped. */
 @Composable
@@ -117,15 +121,15 @@ fun DetailContent(
         if (t == null) return@Column
 
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(TvsSpace.s16),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s16),
         ) {
             Panel(background = Tvs.White) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     BedDot(t.colorIndex)
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(TvsSpace.s8))
                     CapsLabel("Time from start", Tvs.Navy)
-                    Text(" · baseline first", color = Tvs.Muted, fontSize = 13.sp)
+                    Text(" · baseline first", color = Tvs.Muted, fontSize = TvsFont.Label)
                 }
                 HourlyPill()
                 CardTimeline(TimelineBuilder.live(t, rows, now))
@@ -141,21 +145,21 @@ fun DetailContent(
             if (t.status == TransfusionStatus.RUNNING) {
                 Button(
                     onClick = { confirmEnd = true },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge),
+                    shape = TvsShape.Card,
                     colors = ButtonDefaults.buttonColors(containerColor = Tvs.Navy, contentColor = Tvs.White),
-                ) { Text("End transfusion", fontSize = 19.sp, fontWeight = FontWeight.Black) }
+                ) { Text("End transfusion", fontSize = TvsFont.Button, fontWeight = FontWeight.Black) }
                 OutlinedButton(
                     onClick = onEdit,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                ) { Text("Edit start time or duration", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Tvs.Navy) }
+                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
+                    shape = TvsShape.Card,
+                ) { Text("Edit start time or duration", fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Bold, color = Tvs.Navy) }
                 Button(
                     onClick = onReaction,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
+                    shape = TvsShape.Card,
                     colors = ButtonDefaults.buttonColors(containerColor = Tvs.Red, contentColor = Tvs.White),
-                ) { Text("⚠ Transfusion stopped (reaction)", fontSize = 17.sp, fontWeight = FontWeight.Black) }
+                ) { Text("⚠ Transfusion stopped (reaction)", fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Black) }
             }
             Spacer(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
         }
@@ -184,7 +188,7 @@ fun DetailContent(
             onDismissRequest = { laterEndVs = true },
             title = { Text("End VS — ${t.bedLabel}", fontWeight = FontWeight.Black) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s12)) {
                     Text("Transfusion ended at ${Labels.clock(endVs.scheduledAt)}.")
                     MeasureDocumentBlocks()
                 }
@@ -192,7 +196,7 @@ fun DetailContent(
             confirmButton = {
                 Button(
                     onClick = { onAcknowledge(listOf(endVs.id)) },
-                    modifier = Modifier.heightIn(min = 56.dp),
+                    modifier = Modifier.heightIn(min = TvsSize.Touch),
                     colors = ButtonDefaults.buttonColors(containerColor = Tvs.Amber, contentColor = Tvs.Navy),
                 ) { Text("Measured & documented ✓", fontWeight = FontWeight.Black) }
             },
@@ -222,20 +226,20 @@ private fun CheckpointRow(c: Checkpoint, now: Long, toleranceMin: Int, onAck: ()
         (c.status == CheckpointStatus.MISSED && c.ackAt == null) ||
         (c.type == CheckpointType.END && c.status == CheckpointStatus.PENDING)
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 Labels.clock(c.scheduledAt),
-                style = TimeFigures, color = Tvs.Navy, fontSize = 18.sp, fontWeight = FontWeight.Black,
-                modifier = Modifier.width(64.dp),
+                style = TimeFigures, color = Tvs.Navy, fontSize = TvsFont.Lead, fontWeight = FontWeight.Black,
+                modifier = Modifier.width(TvsSize.TimeColumn),
             )
             Column(Modifier.weight(1f)) {
-                Text(Labels.title(c.type, c.offsetMin), color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(Labels.title(c.type, c.offsetMin), color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
                 if (c.type == CheckpointType.PLANNED_END || c.type == CheckpointType.LIMIT_WARNING) {
-                    Text(Labels.subtitle(c.type), color = Tvs.Muted, fontSize = 13.sp)
+                    Text(Labels.subtitle(c.type), color = Tvs.Muted, fontSize = TvsFont.Label)
                 }
                 if (c.ackAt != null && c.type != CheckpointType.START) {
-                    Text("Documented ${Labels.clock(c.ackAt)}", color = Tvs.Muted, fontSize = 13.sp)
+                    Text("Documented ${Labels.clock(c.ackAt)}", color = Tvs.Muted, fontSize = TvsFont.Label)
                 }
             }
             if (c.type != CheckpointType.START) StatusPill(status) else StatusPill("logged", Tvs.Navy, Tvs.White)
@@ -243,10 +247,10 @@ private fun CheckpointRow(c: Checkpoint, now: Long, toleranceMin: Int, onAck: ()
         if (needsAck) {
             Button(
                 onClick = onAck,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
+                shape = TvsShape.Control,
                 colors = ButtonDefaults.buttonColors(containerColor = Tvs.Amber, contentColor = Tvs.Navy),
-            ) { Text("Measured & documented ✓", fontSize = 16.sp, fontWeight = FontWeight.Black) }
+            ) { Text("Measured & documented ✓", fontSize = TvsFont.Body, fontWeight = FontWeight.Black) }
         }
     }
 }

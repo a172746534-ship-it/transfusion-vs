@@ -68,6 +68,10 @@ import app.transfusionvs.ui.theme.TimeFigures
 import app.transfusionvs.ui.theme.Tvs
 import java.time.Instant
 import java.time.ZoneId
+import app.transfusionvs.ui.theme.TvsShape
+import app.transfusionvs.ui.theme.TvsSize
+import app.transfusionvs.ui.theme.TvsSpace
+import app.transfusionvs.ui.theme.TvsFont
 
 private val DURATION_CHIPS = listOf(60, 120, 180, 240)
 private val AGO_CHIPS = listOf(0, 5, 10, 15)
@@ -139,8 +143,8 @@ fun StartContent(
             onBack = onBack,
         )
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(TvsSpace.s16),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s16),
         ) {
             // Bed — no patient identifiers
             Panel {
@@ -150,19 +154,19 @@ fun StartContent(
                     onValueChange = { bed = it.take(MAX_BED_LABEL) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Tvs.Navy),
-                    placeholder = { Text("e.g. Bed 12", fontSize = 22.sp) },
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = TvsFont.Number, fontWeight = FontWeight.Bold, color = Tvs.Navy),
+                    placeholder = { Text("e.g. Bed 12", fontSize = TvsFont.Number) },
                     supportingText = { Text("Bed only — no names or MRN", color = Tvs.Red, fontWeight = FontWeight.Bold) },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 )
-                if (editing == null) Text("Colour is assigned automatically.", color = Tvs.Muted, fontSize = 14.sp)
+                if (editing == null) Text("Colour is assigned automatically.", color = Tvs.Muted, fontSize = TvsFont.Caption)
             }
 
             // Start time (T0): now by default, or earlier
             Panel {
                 CapsLabel("Started at", Tvs.Navy)
-                Text(Labels.clock(startAt), style = TimeFigures, color = Tvs.Navy, fontSize = 40.sp, fontWeight = FontWeight.Black)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(Labels.clock(startAt), style = TimeFigures, color = Tvs.Navy, fontSize = TvsFont.Hero, fontWeight = FontWeight.Black)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
                     AGO_CHIPS.forEach { ago ->
                         ChoiceChip(
                             text = if (ago == 0) "Now" else "$ago min ago",
@@ -180,7 +184,7 @@ fun StartContent(
             // Planned duration
             Panel {
                 CapsLabel("Planned duration", Tvs.Navy)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
                     DURATION_CHIPS.forEach { m ->
                         ChoiceChip(Labels.duration(m), selected = durationChoice == m, onClick = { durationChoice = m })
                     }
@@ -202,10 +206,10 @@ fun StartContent(
             // Baseline first — required before Start
             if (editing == null) {
                 Row(
-                    Modifier.fillMaxWidth().heightIn(min = 64.dp)
-                        .background(if (baseline) Tvs.White else Tvs.Pink, RoundedCornerShape(16.dp))
+                    Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge)
+                        .background(if (baseline) Tvs.White else Tvs.Pink, TvsShape.Card)
                         .clickable { baseline = !baseline }
-                        .padding(horizontal = 8.dp),
+                        .padding(horizontal = TvsSpace.s8),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(
@@ -213,7 +217,7 @@ fun StartContent(
                         onCheckedChange = { baseline = it },
                         colors = CheckboxDefaults.colors(checkedColor = Tvs.Navy),
                     )
-                    Text("Baseline VS taken", color = Tvs.Navy, fontSize = 19.sp, fontWeight = FontWeight.Black)
+                    Text("Baseline VS taken", color = Tvs.Navy, fontSize = TvsFont.Button, fontWeight = FontWeight.Black)
                 }
             }
 
@@ -223,7 +227,7 @@ fun StartContent(
                 Panel {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CapsLabel("Time from start", Tvs.Navy)
-                        Text(" · baseline first", color = Tvs.Muted, fontSize = 13.sp)
+                        Text(" · baseline first", color = Tvs.Muted, fontSize = TvsFont.Label)
                     }
                     HourlyPill()
                     CardTimeline(TimelineBuilder.preview(startAt, config))
@@ -231,19 +235,19 @@ fun StartContent(
                     Text(
                         "Then hourly until you tap End. Time-limit warning at ${Labels.clock(warnAt)} " +
                             "(${Labels.duration(config.limitMin)} limit).",
-                        color = Tvs.Muted, fontSize = 14.sp,
+                        color = Tvs.Muted, fontSize = TvsFont.Caption,
                     )
                     if (startAt < openedAt - 15 * MINUTE_MS) {
                         Text(
                             "Checks that are already past will ring once, together, right after you start.",
-                            color = Tvs.Red, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            color = Tvs.Red, fontSize = TvsFont.Caption, fontWeight = FontWeight.Bold,
                         )
                     }
                 }
             }
         }
 
-        Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(16.dp)) {
+        Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(TvsSpace.s16)) {
             Button(
                 onClick = {
                     duration?.let { d ->
@@ -251,8 +255,8 @@ fun StartContent(
                     }
                 },
                 enabled = canSubmit,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
-                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge),
+                shape = TvsShape.Card,
                 colors = ButtonDefaults.buttonColors(containerColor = Tvs.Navy, contentColor = Tvs.White),
             ) {
                 Text(
@@ -261,7 +265,7 @@ fun StartContent(
                         !baseline -> "Tick \"Baseline VS taken\" first"
                         else -> "Start transfusion"
                     },
-                    fontSize = 19.sp, fontWeight = FontWeight.Black,
+                    fontSize = TvsFont.Button, fontWeight = FontWeight.Black,
                 )
             }
         }
@@ -293,6 +297,6 @@ fun StartContent(
 
 /** Bed colour dot used in headers and lists. */
 @Composable
-fun BedDot(colorIndex: Int, size: androidx.compose.ui.unit.Dp = 16.dp) {
+fun BedDot(colorIndex: Int, size: androidx.compose.ui.unit.Dp = TvsSize.Dot) {
     Box(Modifier.size(size).background(Tvs.bedColor(colorIndex), CircleShape))
 }

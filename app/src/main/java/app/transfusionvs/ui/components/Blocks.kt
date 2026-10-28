@@ -23,13 +23,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.transfusionvs.ui.theme.Tvs
+import app.transfusionvs.ui.theme.TvsShape
+import app.transfusionvs.ui.theme.TvsSize
+import app.transfusionvs.ui.theme.TvsSpace
+import app.transfusionvs.ui.theme.TvsFont
 
 /** The card's "① MEASURE → ② DOCUMENT" blocks. */
 @Composable
 fun MeasureDocumentBlocks(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         StepBlock(
@@ -37,7 +41,7 @@ fun MeasureDocumentBlocks(modifier: Modifier = Modifier) {
             background = Tvs.Blue, content = Tvs.White, badge = Tvs.White, badgeText = Tvs.Blue,
             modifier = Modifier.weight(1f).fillMaxHeight(),
         )
-        Text("›", color = Tvs.Outline, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Text("›", color = Tvs.Outline, fontSize = TvsFont.Glyph, fontWeight = FontWeight.Bold)
         StepBlock(
             number = "2", title = "DOCUMENT", body = "in Cerner, right away",
             background = Tvs.Amber, content = Tvs.Navy, badge = Tvs.Navy, badgeText = Tvs.White,
@@ -59,18 +63,18 @@ private fun StepBlock(
 ) {
     Column(
         modifier = modifier
-            .background(background, RoundedCornerShape(16.dp))
-            .padding(14.dp),
+            .background(background, TvsShape.Card)
+            .padding(TvsSpace.s14),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(26.dp).background(badge, CircleShape), contentAlignment = Alignment.Center) {
-                Text(number, color = badgeText, fontWeight = FontWeight.Black, fontSize = 15.sp)
+            Box(Modifier.size(TvsSize.BadgeSmall).background(badge, CircleShape), contentAlignment = Alignment.Center) {
+                Text(number, color = badgeText, fontWeight = FontWeight.Black, fontSize = TvsFont.BodySmall)
             }
-            Spacer(Modifier.size(8.dp))
-            Text(title, color = content, fontWeight = FontWeight.Black, fontSize = 18.sp)
+            Spacer(Modifier.size(TvsSpace.s8))
+            Text(title, color = content, fontWeight = FontWeight.Black, fontSize = TvsFont.Lead)
         }
-        Spacer(Modifier.height(6.dp))
-        Text(body, color = content, fontSize = 15.sp)
+        Spacer(Modifier.height(TvsSpace.s6))
+        Text(body, color = content, fontSize = TvsFont.BodySmall)
     }
 }
 
@@ -81,8 +85,8 @@ fun CapsLabel(text: String, color: Color, modifier: Modifier = Modifier) {
         text.uppercase(),
         modifier = modifier,
         color = color,
-        fontSize = 13.sp,
+        fontSize = TvsFont.Label,
         fontWeight = FontWeight.Black,
-        letterSpacing = 1.6.sp,
+        letterSpacing = TvsFont.CapsTracking,
     )
 }

@@ -36,6 +36,10 @@ import app.transfusionvs.schedule.StatusKind
 import app.transfusionvs.schedule.StatusView
 import app.transfusionvs.ui.theme.Tvs
 import kotlinx.coroutines.delay
+import app.transfusionvs.ui.theme.TvsShape
+import app.transfusionvs.ui.theme.TvsSize
+import app.transfusionvs.ui.theme.TvsSpace
+import app.transfusionvs.ui.theme.TvsFont
 
 /** Navy top bar like the card's header: optional back, optional drop icon, amber caps label, title. */
 @Composable
@@ -51,23 +55,23 @@ fun TopBar(
     Column(
         Modifier.fillMaxWidth().background(background)
             .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(start = 8.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
+            .padding(start = TvsSpace.s8, end = TvsSpace.s16, top = TvsSpace.s6, bottom = TvsSpace.s16),
     ) {
         if (onBack != null) {
             Box(
-                Modifier.heightIn(min = 56.dp).clickable(onClick = onBack).padding(horizontal = 8.dp),
+                Modifier.heightIn(min = TvsSize.Touch).clickable(onClick = onBack).padding(horizontal = TvsSpace.s8),
                 contentAlignment = Alignment.CenterStart,
-            ) { Text("‹  Back", color = Tvs.White, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+            ) { Text("‹  Back", color = Tvs.White, fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Bold) }
         }
-        Row(Modifier.padding(start = 8.dp, top = if (onBack == null) 12.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = TvsSpace.s8, top = if (onBack == null) TvsSpace.s12 else 0.dp), verticalAlignment = Alignment.CenterVertically) {
             if (showDrop) {
-                Icon(painterResource(R.drawable.ic_drop), contentDescription = null, tint = Color.Unspecified, modifier = Modifier.size(36.dp))
-                Spacer(Modifier.width(12.dp))
+                Icon(painterResource(R.drawable.ic_drop), contentDescription = null, tint = Color.Unspecified, modifier = Modifier.size(TvsSize.IconXL))
+                Spacer(Modifier.width(TvsSpace.s12))
             }
             Column {
                 CapsLabel(caps, capsColor)
-                Text(title, color = Tvs.White, fontSize = 24.sp, lineHeight = 29.sp, fontWeight = FontWeight.Black)
-                if (subtitle != null) Text(subtitle, color = Tvs.White.copy(alpha = 0.85f), fontSize = 15.sp)
+                Text(title, color = Tvs.White, fontSize = TvsFont.Title, lineHeight = TvsFont.TitleLine, fontWeight = FontWeight.Black)
+                if (subtitle != null) Text(subtitle, color = Tvs.OnNavyMuted, fontSize = TvsFont.BodySmall)
             }
         }
     }
@@ -77,17 +81,17 @@ fun TopBar(
 @Composable
 fun ReactionBanner(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(
-        modifier.fillMaxWidth().heightIn(min = 64.dp)
-            .background(Tvs.Red, RoundedCornerShape(16.dp))
+        modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge)
+            .background(Tvs.Red, TvsShape.Card)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = TvsSpace.s16, vertical = TvsSpace.s12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = Tvs.White, modifier = Modifier.size(30.dp))
-        Spacer(Modifier.width(14.dp))
+        Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = Tvs.White, modifier = Modifier.size(TvsSize.IconMedium))
+        Spacer(Modifier.width(TvsSpace.s14))
         Column {
-            Text("SUSPECTED REACTION? STOP the transfusion & call", color = Tvs.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
-            Text("Warning signs and what to do — tap here", color = Tvs.White, fontSize = 14.sp)
+            Text("SUSPECTED REACTION? STOP the transfusion & call", color = Tvs.White, fontSize = TvsFont.BodySmall, fontWeight = FontWeight.Black)
+            Text("Warning signs and what to do — tap here", color = Tvs.White, fontSize = TvsFont.Caption)
         }
     }
 }
@@ -95,16 +99,16 @@ fun ReactionBanner(onClick: () -> Unit, modifier: Modifier = Modifier) {
 /** Big glove-friendly choice chip (min 56 dp). */
 @Composable
 fun ChoiceChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = TvsShape.Control
     Box(
-        modifier.heightIn(min = 56.dp)
+        modifier.heightIn(min = TvsSize.Touch)
             .background(if (selected) Tvs.Navy else Tvs.White, shape)
-            .border(1.5.dp, if (selected) Tvs.Navy else Tvs.Outline, shape)
+            .border(TvsSize.Border, if (selected) Tvs.Navy else Tvs.Outline, shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = TvsSpace.s16),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = if (selected) Tvs.White else Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(text, color = if (selected) Tvs.White else Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -112,8 +116,8 @@ fun ChoiceChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: M
 @Composable
 fun Panel(modifier: Modifier = Modifier, background: Color = Tvs.White, content: @Composable () -> Unit) {
     Column(
-        modifier.fillMaxWidth().background(background, RoundedCornerShape(16.dp)).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier.fillMaxWidth().background(background, TvsShape.Card).padding(TvsSpace.s16),
+        verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
     ) { content() }
 }
 
@@ -121,12 +125,12 @@ fun Panel(modifier: Modifier = Modifier, background: Color = Tvs.White, content:
 @Composable
 fun HourlyPill() {
     Row(
-        Modifier.background(Tvs.Navy, RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 6.dp),
+        Modifier.background(Tvs.Navy, TvsShape.Pill).padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s6),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(painterResource(R.drawable.ic_clock), contentDescription = null, tint = Tvs.White, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(6.dp))
-        Text("Hourly = same minute as start", color = Tvs.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Icon(painterResource(R.drawable.ic_clock), contentDescription = null, tint = Tvs.White, modifier = Modifier.size(TvsSize.IconSmall))
+        Spacer(Modifier.width(TvsSpace.s6))
+        Text("Hourly = same minute as start", color = Tvs.White, fontSize = TvsFont.Label, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -144,8 +148,8 @@ fun StatusPill(status: StatusView) {
 
 @Composable
 fun StatusPill(text: String, bg: Color, fg: Color) {
-    Box(Modifier.background(bg, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 5.dp)) {
-        Text(text, color = fg, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    Box(Modifier.background(bg, TvsShape.Pill).padding(horizontal = TvsSpace.s10, vertical = TvsSpace.s5)) {
+        Text(text, color = fg, fontSize = TvsFont.Label, fontWeight = FontWeight.Bold)
     }
 }
 
