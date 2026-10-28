@@ -49,11 +49,15 @@ jobs:
 
       - name: Verify signature (same key every build)
         run: |
+          set -o pipefail
+          rm -f "$RUNNER_TEMP/release.p12"
           APK=app/build/outputs/apk/release/app-release.apk
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          "$BT/apksigner" verify --print-certs "$APK" | grep -E "Signer #1 certificate (DN|SHA-256)"
+          echo "apksigner from $BT"
+          # Fails the build if the APK is not properly signed. The certificate digest printed
+          # here is public and must be identical on every build (same key = updates install over).
+          "$BT/apksigner" verify --verbose --print-certs "$APK"
           cp "$APK" "TransfusionVS-${{ github.run_number }}.apk"
-          rm -f "$RUNNER_TEMP/release.p12"
 
       - uses: actions/upload-artifact@v7
         with:
