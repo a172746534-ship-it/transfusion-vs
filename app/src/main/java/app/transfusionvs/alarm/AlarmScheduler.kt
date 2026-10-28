@@ -32,13 +32,6 @@ class AlarmScheduler(private val context: Context) {
         setAlarmClock(pendingIntent(KIND_RING_NOW, 0, create = true)!!, now + 1_000)
     }
 
-    fun cancelRingNow() {
-        pendingIntent(KIND_RING_NOW, 0, create = false)?.let {
-            alarmManager.cancel(it)
-            it.cancel()
-        }
-    }
-
     fun cancel(checkpointId: Long) {
         for (kind in AlarmKind.entries) {
             pendingIntent(kind.name, checkpointId, create = false)?.let {

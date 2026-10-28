@@ -208,17 +208,6 @@ class Engine(
         open.forEach { scheduler.cancel(it.id) }
     }
 
-    /** "Delete all data": cancels every alarm, stops any ringing, and erases all transfusions and the log. */
-    suspend fun deleteAllData() {
-        mutex.withLock {
-            dao.activeCheckpoints().forEach { scheduler.cancel(it.id) }
-            scheduler.cancelRingNow()
-            dao.deleteAllTransfusions()
-        }
-        AlarmService.stop(context)
-        Notifications.cancelAll(context)
-    }
-
     /** Re-posts notifications the user swiped away (they come back until acknowledged). */
     suspend fun refreshNotifications() {
         syncRinging(canStartService = false)
@@ -235,6 +224,9 @@ class Engine(
     }
 
     private suspend fun refreshLocked(now: Long) {
+        // 0. Finished transfusions are deleted a day later (Cerner is the record, not the phone).
+        dao.deleteFinishedBefore(now - RETENTION_MS)
+
         // 1. Missed timer: 10 min after the first ring (snoozes don't extend it).
         val timedOut = Grouping.timedOut(dao.activeCheckpoints(), now, settings.missedTimeoutMin)
         if (timedOut.isNotEmpty()) {
@@ -325,5 +317,8 @@ class Engine(
     companion object {
         /** Size of the bed colour palette (ui/theme/Theme.kt → Tvs.BedColors). */
         const val BED_COLOR_COUNT = 8
+
+        /** How long a finished transfusion stays on the phone. */
+        const val RETENTION_MS = 24 * 60 * 60 * 1000L
     }
 }

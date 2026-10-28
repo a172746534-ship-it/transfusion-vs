@@ -93,23 +93,24 @@ interface TvsDao {
     @Query("$WITH_BED WHERE c.type = 'TEST' ORDER BY c.scheduledAt DESC LIMIT 10")
     fun observeTests(): Flow<List<CheckpointWithBed>>
 
-    // ---- Log & stats ----
+    // ---- Housekeeping ----
 
-    /** Every checkpoint of real (non-test) transfusions, newest first. */
+    /**
+     * Deletes transfusions (and their checkpoints, ON DELETE CASCADE) that finished before
+     * [cutoff] and need nothing more: nothing ringing, no unacknowledged missed check, no
+     * End VS still to document. Cerner is the record; the phone keeps nothing long-term.
+     */
     @Query(
         """
-        SELECT c.id, c.transfusionId, c.type, c.offsetMin, c.scheduledAt, c.firedAt, c.ackAt,
-               c.snoozeCount, c.status,
-               t.bedLabel, t.colorIndex, t.startAt, t.endAt, t.plannedDurationMin,
-               t.status AS transfusionStatus
-        FROM checkpoint c JOIN transfusion t ON t.id = c.transfusionId
-        WHERE t.isTest = 0
-        ORDER BY c.scheduledAt DESC
+        DELETE FROM transfusion
+        WHERE status != 'RUNNING' AND endAt IS NOT NULL AND endAt < :cutoff
+          AND id NOT IN (
+              SELECT transfusionId FROM checkpoint
+              WHERE status = 'RINGING'
+                 OR (status = 'MISSED' AND ackAt IS NULL)
+                 OR (type = 'END' AND status = 'PENDING')
+          )
         """,
     )
-    fun observeLog(): Flow<List<LogRow>>
-
-    /** "Delete all data": checkpoints go with their transfusion (ON DELETE CASCADE). */
-    @Query("DELETE FROM transfusion")
-    suspend fun deleteAllTransfusions()
+    suspend fun deleteFinishedBefore(cutoff: Long): Int
 }

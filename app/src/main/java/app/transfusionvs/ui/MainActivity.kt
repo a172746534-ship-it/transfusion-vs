@@ -22,7 +22,6 @@ import app.transfusionvs.data.TransfusionStatus
 import app.transfusionvs.ui.screens.BedChoice
 import app.transfusionvs.ui.screens.DetailScreen
 import app.transfusionvs.ui.screens.HomeScreen
-import app.transfusionvs.ui.screens.LogScreen
 import app.transfusionvs.ui.screens.ReactionScreen
 import app.transfusionvs.ui.screens.SettingsScreen
 import app.transfusionvs.ui.screens.SetupScreen
@@ -53,7 +52,6 @@ private sealed interface Route {
     data object Home : Route
     data object Setup : Route
     data object Start : Route
-    data object Log : Route
     data object Settings : Route
     data class Detail(val id: Long) : Route
     data class Edit(val id: Long) : Route
@@ -65,7 +63,6 @@ private fun encode(r: Route): String = when (r) {
     Route.Home -> "home"
     Route.Setup -> "setup"
     Route.Start -> "start"
-    Route.Log -> "log"
     Route.Settings -> "settings"
     is Route.Detail -> "detail:${r.id}"
     is Route.Edit -> "edit:${r.id}"
@@ -77,7 +74,6 @@ private fun decode(s: String): Route {
     return when (s.substringBefore(':')) {
         "setup" -> Route.Setup
         "start" -> Route.Start
-        "log" -> Route.Log
         "settings" -> Route.Settings
         "detail" -> arg?.let { Route.Detail(it) } ?: Route.Home
         "edit" -> arg?.let { Route.Edit(it) } ?: Route.Home
@@ -110,11 +106,9 @@ private fun AppNavigation(firstRun: Boolean) {
             onOpen = { push(Route.Detail(it)) },
             onReaction = { push(Route.Reaction(null)) },
             onSetup = { push(Route.Setup) },
-            onLog = { push(Route.Log) },
             onSettings = { push(Route.Settings) },
         )
         Route.Setup -> SetupScreen(onBack = ::pop)
-        Route.Log -> LogScreen(vm, onBack = ::pop)
         Route.Settings -> SettingsScreen(onBack = ::pop, onSetup = { push(Route.Setup) })
         Route.Start -> StartScreen(vm, editing = null, onDone = ::home, onBack = ::pop)
         is Route.Detail -> DetailScreen(

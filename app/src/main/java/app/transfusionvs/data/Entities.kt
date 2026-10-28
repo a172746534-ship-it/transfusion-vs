@@ -76,25 +76,6 @@ data class TransfusionWithCheckpoints(
     val checkpoints: List<Checkpoint>,
 )
 
-/** One line of the Log (and of the CSV export): a checkpoint with its transfusion. */
-data class LogRow(
-    val id: Long,
-    val transfusionId: Long,
-    val type: CheckpointType,
-    val offsetMin: Int,
-    val scheduledAt: Long,
-    val firedAt: Long?,
-    val ackAt: Long?,
-    val snoozeCount: Int,
-    val status: CheckpointStatus,
-    val bedLabel: String,
-    val colorIndex: Int,
-    val startAt: Long,
-    val endAt: Long?,
-    val plannedDurationMin: Int,
-    val transfusionStatus: TransfusionStatus,
-)
-
 /** A checkpoint joined with its bed, for alarm screens and notifications. */
 data class CheckpointWithBed(
     val id: Long,

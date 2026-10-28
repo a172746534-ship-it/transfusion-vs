@@ -138,11 +138,8 @@ target SDK before using it. Do not rely on memory.
    - A "Transfusion stopped" button: cancels that bed's remaining alarms and marks it
      STOPPED_REACTION. No clinical details are stored.
 
-7. **Log & stats**
-   - Per day / week / month: % on-time, average delay, missed count.
-   - The list of checkpoints.
-   - CSV export through the Android share sheet.
-   - "Delete all data", with a confirmation step.
+7. ~~**Log & stats**~~ — **removed 2026-10-28** (Cerner is the record; see the Decisions log).
+   Finished transfusions are deleted automatically 24 h after they end.
 
 8. **Settings**
    - on-time tolerance (default ±5 min)
@@ -212,7 +209,7 @@ Theme and touch: light theme only; the alarm screen is navy. Minimum 56dp touch 
    - **Phase 1:** skeleton + CI/signing + alarm engine + Setup check + "Test alarm in 1 minute".
      STOP here so I can test on my real phone: locked, silent, and overnight.
    - **Phase 2:** the Start / Home / Detail / Alarm / Reaction screens with the full design.
-   - **Phase 3:** Log & stats, CSV export, Settings.
+   - **Phase 3:** Settings (Log & stats and CSV were dropped — see Decisions log).
    - **Phase 4:** polish, and run through the checklist below.
 4. Don't add features that aren't in this spec without asking me first. Keep the code
    readable and commented.
@@ -290,18 +287,11 @@ Theme and touch: light theme only; the alarm screen is navy. Minimum 56dp touch 
   detail/edit, missed, End, reaction stop) — v0.2.0.
 
 ### Phase 3 decisions
-- **What the stats count:** VS documentation only — the 15/30-min, hourly and End checks
-  and the End VS. START and the time-limit warning are not counted. Test alarms never are.
-- **On time** = documented within ±tolerance; **late** = after that; **missed** = no answer
-  within the missed timer (a later "documented" still shows its delay, but stays missed).
-- **Average delay** = scheduled → documented, over checks that were documented.
-- **Per day / week / month:** the log is grouped into those periods (newest first); the
-  week starts on the phone's locale first day (Saturday on Arabic-Egypt phones).
-- **CSV:** one line per checkpoint, oldest first, phone timezone; UTF-8 with BOM so Excel
-  shows Arabic bed labels; cells that look like formulas are neutralised. Shared through
-  the share sheet from the private cache (only the latest export is kept).
-- **Delete all data** erases transfusions and the log (settings stay), cancels all alarms;
-  the confirmation warns if transfusions are still running.
+- **Log & stats, CSV export and "Delete all data" were removed** at the maintainer's request:
+  "Cerner is responsible for that." The app keeps no history: the reminder side only.
+- **Auto-cleanup:** a finished transfusion (ended or stopped) is deleted 24 h after its end,
+  unless something still needs action (ringing, a missed check not acknowledged, End VS
+  not documented). Runs on every refresh (alarm, boot, app open).
 - **Settings ranges:** tolerance ±1–15 min, snooze 1–2 min, missed 5–30 min, limit 1–8 h
   (15-min steps), warning 5–60 min (always shorter than the limit). Every change re-arms.
 - **Alarm sound:** the system alarm-sound picker; "default" follows the phone's setting.

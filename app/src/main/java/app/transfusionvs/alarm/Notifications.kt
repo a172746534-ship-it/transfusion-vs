@@ -107,9 +107,6 @@ object Notifications {
 
     fun cancelAlarm(context: Context) = manager(context).cancel(ID_ALARM)
 
-    /** After "Delete all data". */
-    fun cancelAll(context: Context) = manager(context).cancelAll()
-
     // ---- Overdue (missed, not yet acknowledged) ----
 
     /** One persistent "Overdue — Bed X" notification per bed, until it is acknowledged. */

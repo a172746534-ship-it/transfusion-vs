@@ -65,7 +65,6 @@ fun HomeScreen(
     onOpen: (Long) -> Unit,
     onReaction: () -> Unit,
     onSetup: () -> Unit,
-    onLog: () -> Unit,
     onSettings: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -125,15 +124,11 @@ fun HomeScreen(
                 }
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    listOf("Log & stats" to onLog, "Settings" to onSettings).forEach { (label, onClick) ->
-                        OutlinedButton(
-                            onClick = onClick,
-                            modifier = Modifier.weight(1f).heightIn(min = 56.dp),
-                            shape = RoundedCornerShape(16.dp),
-                        ) { Text(label, color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
-                    }
-                }
+                OutlinedButton(
+                    onClick = onSettings,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                ) { Text("Settings", color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
             }
         }
 
