@@ -265,3 +265,22 @@ Theme and touch: light theme only; the alarm screen is navy. Minimum 56dp touch 
 - **Phase 1 test tools:** "Test alarm in 1 minute" plus "in 2 h" / "in 6 h" for the overnight
   and reboot tests. Test alarms are excluded from stats.
 - **Release build** is not minified (reliability over size) at least until Phase 4.
+
+### 2026-10-28 — Phase 1 tested on the maintainer's phone
+- Locked + silent, Snooze, Missed timer, 6-hour idle and reboot tests all passed (v0.1.0).
+  Other brands still to be tested by colleagues.
+
+### Phase 2 decisions
+- **Navigation:** a small back stack inside MainActivity (no navigation library).
+- **Font:** Inter (SIL OFL, from Google Fonts; licence in app/src/main/assets/licenses).
+  Times and big numbers use tabular figures and the slashed zero, like the card.
+- **Bed colours:** 8 auto-assigned colours (lowest one not used by a running bed).
+  Red is reserved for reactions and overdue states.
+- **Start time:** chips Now / 5 / 10 / 15 min ago, or "Pick time…". A picked clock time
+  means its most recent past occurrence (T0 is never in the future).
+- **Custom duration:** 10–600 min.
+- **End VS prompt:** an in-app prompt (no alarm) shown right after End. If postponed
+  ("Later"), it stays on the Home card until documented.
+- **Reaction screen** also opens from the alarm screen, over the lock screen (no unlock
+  needed). Its DO NOW ticks live only on screen; nothing clinical is stored.
+- **Overdue / ringing** checkpoints can be acknowledged from the Home card and Detail too.

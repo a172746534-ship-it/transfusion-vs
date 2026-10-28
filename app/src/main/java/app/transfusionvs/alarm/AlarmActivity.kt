@@ -34,7 +34,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +52,9 @@ import app.transfusionvs.data.Settings
 import app.transfusionvs.schedule.Labels
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.MeasureDocumentBlocks
+import app.transfusionvs.ui.components.ReactionBanner
+import app.transfusionvs.ui.screens.BedChoice
+import app.transfusionvs.ui.screens.ReactionScreen
 import app.transfusionvs.ui.theme.Tvs
 import app.transfusionvs.ui.theme.TvsTheme
 import kotlinx.coroutines.delay
@@ -107,7 +112,9 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
         }
     }
     LaunchedEffect(rows) { if (rows?.isEmpty() == true) onAllDone() }
-    BackHandler { /* blocked: acknowledge or snooze */ }
+    var showReaction by rememberSaveable { mutableStateOf(false) }
+    // Back never dismisses the alarm (acknowledge or snooze); it only closes the reaction view.
+    BackHandler { showReaction = false }
 
     val list = rows ?: emptyList()
     val beds = RingSpec.groupByBed(list)
@@ -115,6 +122,20 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
     val canSnooze = audible.isNotEmpty() && audible.all { it.snoozeCount < Settings.MAX_SNOOZES }
     val snoozedUntil = list.mapNotNull { it.snoozeUntil }.filter { it > now }.minOrNull()
     val isTest = beds.isNotEmpty() && beds.all { it.isTest }
+
+    if (showReaction) {
+        // Works over the lock screen too: no unlock needed in an emergency.
+        ReactionScreen(
+            beds = beds.filter { !it.isTest }.map { BedChoice(it.transfusionId, it.bedLabel, it.colorIndex) },
+            onStopped = { id ->
+                app.scope.launch { app.engine.stopForReaction(id) }
+                showReaction = false
+            },
+            onBack = { showReaction = false },
+            backLabel = "‹  Back to alarm",
+        )
+        return
+    }
 
     Box(Modifier.fillMaxSize().background(Tvs.Navy).safeDrawingPadding()) {
         Column(
@@ -162,7 +183,7 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
             }
 
             Spacer(Modifier.height(8.dp))
-            ReactionBanner()
+            ReactionBanner(onClick = { showReaction = true })
         }
     }
 }
@@ -175,7 +196,7 @@ private fun BedRow(bed: RingBed, rows: List<CheckpointWithBed>, onAck: () -> Uni
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(14.dp).background(Tvs.Amber, CircleShape))
+            Box(Modifier.size(16.dp).background(Tvs.bedColor(bed.colorIndex), CircleShape))
             Spacer(Modifier.size(10.dp))
             Column {
                 Text(bed.shortLabel, color = Tvs.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
@@ -198,16 +219,5 @@ private fun AckButton(text: String, big: Boolean, onClick: () -> Unit) {
         colors = ButtonDefaults.buttonColors(containerColor = Tvs.Amber, contentColor = Tvs.Navy),
     ) {
         Text(text, fontSize = if (big) 24.sp else 18.sp, fontWeight = FontWeight.Black)
-    }
-}
-
-/** The card's red "Suspected reaction?" bar. (The full reaction screen arrives in Phase 2.) */
-@Composable
-private fun ReactionBanner() {
-    Column(
-        Modifier.fillMaxWidth().background(Tvs.Red, RoundedCornerShape(16.dp)).padding(16.dp),
-    ) {
-        Text("⚠ SUSPECTED REACTION? STOP the transfusion & call", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp)
-        Text("Keep the IV line open · call the doctor now", color = Color.White, fontSize = 15.sp)
     }
 }

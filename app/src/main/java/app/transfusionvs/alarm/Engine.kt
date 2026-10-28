@@ -67,6 +67,7 @@ class Engine(
                 when {
                     c.status == RINGING -> c.copy(status = ACKED, ackAt = now, snoozeUntil = null)
                     c.status == MISSED && c.ackAt == null -> c.copy(ackAt = now)
+                    c.status == PENDING && c.type == CheckpointType.END -> c.copy(status = ACKED, ackAt = now)
                     else -> null
                 }
             }
@@ -123,6 +124,88 @@ class Engine(
             closeFinishedTestsLocked(now)
         }
         syncRinging(canStartService = false)
+    }
+
+    // ---- Transfusions (called from visible screens, so the ringing service may be started) ----
+
+    /** Start is only offered after "Baseline VS taken". T0 is never in the future. */
+    suspend fun startTransfusion(bedLabel: String, startAt: Long, plannedDurationMin: Int): Long {
+        val now = now()
+        val id = mutex.withLock {
+            val used = dao.runningColors().toSet()
+            val color = (0 until BED_COLOR_COUNT).firstOrNull { it !in used } ?: (used.size % BED_COLOR_COUNT)
+            dao.insertTransfusion(
+                Transfusion(
+                    bedLabel = bedLabel.trim(),
+                    colorIndex = color,
+                    startAt = ScheduleCalculator.truncateToMinute(minOf(startAt, now)),
+                    plannedDurationMin = plannedDurationMin,
+                    baselineConfirmed = true,
+                ),
+            )
+        }
+        update(canStartService = true) // creates the checkpoints; passed ones ring as one alarm
+        return id
+    }
+
+    /** Editing the start time or duration reschedules everything still pending. */
+    suspend fun editTransfusion(id: Long, bedLabel: String, startAt: Long, plannedDurationMin: Int) {
+        val now = now()
+        mutex.withLock {
+            val t = dao.transfusion(id)
+            if (t != null && t.status == TransfusionStatus.RUNNING) {
+                dao.updateTransfusion(
+                    t.copy(
+                        bedLabel = bedLabel.trim(),
+                        startAt = ScheduleCalculator.truncateToMinute(minOf(startAt, now)),
+                        plannedDurationMin = plannedDurationMin,
+                    ),
+                )
+            }
+        }
+        update(canStartService = true)
+    }
+
+    /** End: logs the end time, cancels what is still pending, and creates the End VS prompt. */
+    suspend fun endTransfusion(id: Long) {
+        val now = now()
+        mutex.withLock {
+            val t = dao.transfusion(id)
+            if (t != null && t.status == TransfusionStatus.RUNNING) {
+                dao.updateTransfusion(t.copy(status = TransfusionStatus.ENDED, endAt = now))
+                cancelOpenLocked(id, includeRinging = false)
+                dao.insertCheckpoints(
+                    listOf(
+                        Checkpoint(
+                            transfusionId = id, type = CheckpointType.END,
+                            offsetMin = ((now - t.startAt) / MINUTE_MS).toInt(), scheduledAt = now,
+                        ),
+                    ),
+                )
+            }
+        }
+        update(canStartService = true)
+    }
+
+    /** "Transfusion stopped (reaction)": cancels that bed's remaining alarms. No clinical details are stored. */
+    suspend fun stopForReaction(id: Long) {
+        val now = now()
+        mutex.withLock {
+            val t = dao.transfusion(id)
+            if (t != null && t.status != TransfusionStatus.STOPPED_REACTION) {
+                dao.updateTransfusion(t.copy(status = TransfusionStatus.STOPPED_REACTION, endAt = t.endAt ?: now))
+                cancelOpenLocked(id, includeRinging = true)
+            }
+        }
+        update(canStartService = true)
+    }
+
+    private suspend fun cancelOpenLocked(transfusionId: Long, includeRinging: Boolean) {
+        val open = dao.checkpointsFor(transfusionId).filter {
+            it.status == PENDING || (includeRinging && it.status == RINGING)
+        }
+        dao.updateCheckpoints(open.map { it.copy(status = CANCELLED, snoozeUntil = null) })
+        open.forEach { scheduler.cancel(it.id) }
     }
 
     /** Re-posts notifications the user swiped away (they come back until acknowledged). */
@@ -227,4 +310,9 @@ class Engine(
 
     private fun canSnoozeCounts(snoozeCounts: List<Int>) =
         snoozeCounts.isNotEmpty() && snoozeCounts.all { it < Settings.MAX_SNOOZES }
+
+    companion object {
+        /** Size of the bed colour palette (ui/theme/Theme.kt → Tvs.BedColors). */
+        const val BED_COLOR_COUNT = 8
+    }
 }

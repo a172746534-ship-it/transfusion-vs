@@ -55,12 +55,13 @@ import app.transfusionvs.setup.CheckItem
 import app.transfusionvs.setup.OemGuides
 import app.transfusionvs.setup.SetupChecks
 import app.transfusionvs.ui.components.CapsLabel
+import app.transfusionvs.ui.components.TopBar
 import app.transfusionvs.ui.theme.Tvs
 import kotlinx.coroutines.launch
 
 /** Setup check: live permission checklist, per-brand steps, and real test alarms. */
 @Composable
-fun SetupScreen() {
+fun SetupScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val app = context.app
 
@@ -94,22 +95,12 @@ fun SetupScreen() {
     }
 
     Column(Modifier.fillMaxSize().background(Tvs.Panel).verticalScroll(rememberScrollState())) {
-        // Header
-        Column(
-            Modifier.fillMaxWidth().background(Tvs.Navy)
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = 20.dp, vertical = 18.dp),
-        ) {
-            CapsLabel("Setup check", Tvs.Amber)
-            Text(
-                "Make sure alarms can't be missed",
-                color = Tvs.White, fontSize = 26.sp, lineHeight = 31.sp, fontWeight = FontWeight.Black,
-            )
-            Text(
-                "${checks.count { it.ok }} of ${checks.size} ready",
-                color = Tvs.White.copy(alpha = 0.8f), fontSize = 15.sp,
-            )
-        }
+        TopBar(
+            caps = "Setup check",
+            title = "Make sure alarms can't be missed",
+            subtitle = "${checks.count { it.ok }} of ${checks.size} ready",
+            onBack = onBack,
+        )
 
         Column(
             Modifier.padding(16.dp).windowInsetsPadding(WindowInsets.navigationBars),
@@ -207,7 +198,7 @@ fun SetupScreen() {
                 }
             }
 
-            Text("Transfusion VS ${BuildConfig.VERSION_NAME} · Phase 1", color = Tvs.Muted, fontSize = 12.sp)
+            Text("Transfusion VS ${BuildConfig.VERSION_NAME}", color = Tvs.Muted, fontSize = 12.sp)
         }
     }
 }

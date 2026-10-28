@@ -31,4 +31,21 @@ object Labels {
     /** Clock time in the phone's current timezone. */
     fun clock(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
         Instant.ofEpochMilli(epochMs).atZone(zone).format(hhmm)
+
+    /** "2 h", "90 min", "1 h 30 min". */
+    fun duration(minutes: Int): String = when {
+        minutes % 60 == 0 -> "${minutes / 60} h"
+        minutes < 60 -> "$minutes min"
+        else -> "${minutes / 60} h ${minutes % 60} min"
+    }
+
+    /**
+     * The start-time picker gives a clock time; T0 is its most recent occurrence that is not in
+     * the future (a transfusion that "started at 23:50" picked at 00:10 started yesterday).
+     */
+    fun mostRecentPast(hour: Int, minute: Int, now: Long, zone: ZoneId = ZoneId.systemDefault()): Long {
+        val today = Instant.ofEpochMilli(now).atZone(zone).withHour(hour).withMinute(minute).withSecond(0).withNano(0)
+        val candidate = if (today.toInstant().toEpochMilli() > now) today.minusDays(1) else today
+        return candidate.toInstant().toEpochMilli()
+    }
 }

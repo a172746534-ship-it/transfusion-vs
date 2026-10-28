@@ -33,7 +33,7 @@ object ArmPlanner {
         for (c in active) {
             when (c.status) {
                 CheckpointStatus.PENDING -> {
-                    if (c.type == CheckpointType.START) continue
+                    if (!c.type.rings) continue
                     if (c.scheduledAt > now) {
                         requests += AlarmRequest(AlarmKind.CHECKPOINT, c.id, c.scheduledAt)
                         val pre = c.scheduledAt - preAlertMin * MINUTE_MS
@@ -71,7 +71,7 @@ object Grouping {
      * everything in the same minute is promoted together and shown on one alarm screen.
      */
     fun dueNow(active: List<Checkpoint>, now: Long): List<Checkpoint> = active.filter {
-        it.status == CheckpointStatus.PENDING && it.type != CheckpointType.START && it.scheduledAt <= now + 1_000
+        it.status == CheckpointStatus.PENDING && it.type.rings && it.scheduledAt <= now + 1_000
     }
 
     fun snoozeOver(active: List<Checkpoint>, now: Long): List<Checkpoint> = active.filter {

@@ -1,19 +1,24 @@
 package app.transfusionvs.data
 
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import androidx.room.Relation
 
 // No patient identifiers and no vital values are ever stored: documentation stays in Cerner.
 // All times are epoch millis; they are shown with java.time in the device timezone.
 
 enum class TransfusionStatus { RUNNING, ENDED, STOPPED_REACTION }
 
-enum class CheckpointType {
-    START, M15, M30, HOURLY, PLANNED_END, LIMIT_WARNING,
+enum class CheckpointType(
+    /** False for START (logged at Start) and END (an in-app prompt): they never ring. */
+    val rings: Boolean = true,
+) {
+    START(rings = false), M15, M30, HOURLY, PLANNED_END, LIMIT_WARNING,
     /** Internal: the End VS prompt shown when End is tapped. */
-    END,
+    END(rings = false),
     /** Internal: "Test alarm" from Setup check; never counted in stats. */
     TEST,
 }
@@ -62,6 +67,13 @@ data class Checkpoint(
     /** While RINGING: silent until this time (snoozed). Null = audible. */
     val snoozeUntil: Long? = null,
     val status: CheckpointStatus = CheckpointStatus.PENDING,
+)
+
+/** A transfusion with all of its checkpoints, for Home and Detail. */
+data class TransfusionWithCheckpoints(
+    @Embedded val transfusion: Transfusion,
+    @Relation(parentColumn = "id", entityColumn = "transfusionId")
+    val checkpoints: List<Checkpoint>,
 )
 
 /** A checkpoint joined with its bed, for alarm screens and notifications. */

@@ -3,6 +3,7 @@ package app.transfusionvs.data
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -29,6 +30,32 @@ interface TvsDao {
 
     @Query("SELECT * FROM transfusion WHERE status = 'RUNNING'")
     suspend fun runningTransfusions(): List<Transfusion>
+
+    @Query("SELECT colorIndex FROM transfusion WHERE status = 'RUNNING' AND isTest = 0")
+    suspend fun runningColors(): List<Int>
+
+    /**
+     * Home: running transfusions, plus ended ones that still need something
+     * (End VS not yet documented, a missed check not acknowledged, or something ringing).
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM transfusion WHERE isTest = 0 AND (
+            status = 'RUNNING' OR id IN (
+                SELECT transfusionId FROM checkpoint
+                WHERE status = 'RINGING'
+                   OR (status = 'MISSED' AND ackAt IS NULL)
+                   OR (type = 'END' AND status = 'PENDING')
+            )
+        ) ORDER BY startAt
+        """,
+    )
+    fun observeHome(): Flow<List<TransfusionWithCheckpoints>>
+
+    @Transaction
+    @Query("SELECT * FROM transfusion WHERE id = :id")
+    fun observeTransfusion(id: Long): Flow<TransfusionWithCheckpoints?>
 
     // ---- Checkpoints ----
 
