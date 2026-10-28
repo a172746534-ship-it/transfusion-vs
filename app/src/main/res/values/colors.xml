@@ -1,0 +1,6 @@
+<resources>
+    <!-- Sampled from /design -->
+    <color name="navy">#FF13233F</color>
+    <color name="panel">#FFF5F7FB</color>
+    <color name="drop">#FFE8524A</color>
+</resources>

@@ -1,0 +1,21 @@
+# Build output
+build/
+.gradle/
+.kotlin/
+captures/
+*.apk
+*.aab
+
+# IDE / local machine
+.idea/
+*.iml
+local.properties
+.DS_Store
+
+# Signing material — NEVER commit (kept outside the repo; see README)
+*.jks
+*.keystore
+*.p12
+*.pfx
+signing/
+keystore.properties

@@ -1,0 +1,11 @@
+<resources>
+    <!-- Light theme only. Compose draws the screens; this just avoids a white flash. -->
+    <style name="Theme.TransfusionVS" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/panel</item>
+    </style>
+
+    <!-- The alarm screen is navy from the first frame. -->
+    <style name="Theme.TransfusionVS.Alarm" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/navy</item>
+    </style>
+</resources>

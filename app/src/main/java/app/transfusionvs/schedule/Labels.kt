@@ -1,0 +1,34 @@
+package app.transfusionvs.schedule
+
+import app.transfusionvs.data.CheckpointType
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+/** Wording shared by the alarm screen, notifications and lists — same words as the card. */
+object Labels {
+
+    fun title(type: CheckpointType, offsetMin: Int): String = when (type) {
+        CheckpointType.START -> "Start"
+        CheckpointType.M15 -> "15-min check"
+        CheckpointType.M30 -> "30-min check"
+        CheckpointType.HOURLY -> "${offsetMin / 60}-h check"
+        CheckpointType.PLANNED_END -> "End check"
+        CheckpointType.LIMIT_WARNING -> "Time-limit warning"
+        CheckpointType.END -> "End VS"
+        CheckpointType.TEST -> "Test alarm"
+    }
+
+    fun subtitle(type: CheckpointType): String = when (type) {
+        CheckpointType.PLANNED_END -> "Transfusion due to finish — measure end VS"
+        CheckpointType.LIMIT_WARNING -> "Maximum duration is close — plan to finish"
+        CheckpointType.TEST -> "If you can hear and see this, alarms work on this phone"
+        else -> "Measure T · HR · RR · BP · SpO₂ → document in Cerner"
+    }
+
+    private val hhmm = DateTimeFormatter.ofPattern("HH:mm")
+
+    /** Clock time in the phone's current timezone. */
+    fun clock(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+        Instant.ofEpochMilli(epochMs).atZone(zone).format(hhmm)
+}
