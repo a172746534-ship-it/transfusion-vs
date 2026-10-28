@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.transfusionvs.App
 import app.transfusionvs.data.CheckpointWithBed
+import app.transfusionvs.data.LogRow
 import app.transfusionvs.data.TransfusionWithCheckpoints
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -27,6 +28,14 @@ class MainViewModel(private val app: App) : ViewModel() {
         dao.observeRinging().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun transfusion(id: Long): Flow<TransfusionWithCheckpoints?> = dao.observeTransfusion(id)
+
+    /** Every checkpoint of real transfusions, newest first (Log & stats, CSV). */
+    val log: StateFlow<List<LogRow>?> =
+        dao.observeLog().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun deleteAllData() {
+        app.scope.launch { app.engine.deleteAllData() }
+    }
 
     val toleranceMin: Int get() = app.settings.toleranceMin
     val limitMin: Int get() = app.settings.limitMin

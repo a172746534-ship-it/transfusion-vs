@@ -52,6 +52,7 @@ import app.transfusionvs.ui.components.CardTimeline
 import app.transfusionvs.ui.components.HourlyPill
 import app.transfusionvs.ui.components.MeasureDocumentBlocks
 import app.transfusionvs.ui.components.Panel
+import app.transfusionvs.ui.components.StatusPill
 import app.transfusionvs.ui.components.TopBar
 import app.transfusionvs.ui.components.rememberNow
 import app.transfusionvs.ui.theme.TimeFigures
@@ -192,13 +193,6 @@ private fun visibleRows(t: Transfusion, rows: List<Checkpoint>, now: Long): List
 @Composable
 private fun CheckpointRow(c: Checkpoint, now: Long, toleranceMin: Int, onAck: () -> Unit) {
     val status = Timeliness.status(c, now, toleranceMin)
-    val (bg, fg) = when (status.kind) {
-        StatusKind.ON_TIME -> Tvs.Green to Tvs.White
-        StatusKind.LATE -> Tvs.Amber to Tvs.Navy
-        StatusKind.MISSED, StatusKind.RINGING, StatusKind.DUE -> Tvs.Red to Tvs.White
-        StatusKind.SNOOZED -> Tvs.Amber to Tvs.Navy
-        StatusKind.UPCOMING, StatusKind.CANCELLED -> Tvs.Panel to Tvs.Muted
-    }
     val needsAck = c.status == CheckpointStatus.RINGING ||
         (c.status == CheckpointStatus.MISSED && c.ackAt == null) ||
         (c.type == CheckpointType.END && c.status == CheckpointStatus.PENDING)
@@ -219,7 +213,7 @@ private fun CheckpointRow(c: Checkpoint, now: Long, toleranceMin: Int, onAck: ()
                     Text("Documented ${Labels.clock(c.ackAt)}", color = Tvs.Muted, fontSize = 13.sp)
                 }
             }
-            if (c.type != CheckpointType.START) StatusPill(status.text, bg, fg) else StatusPill("logged", Tvs.Navy, Tvs.White)
+            if (c.type != CheckpointType.START) StatusPill(status) else StatusPill("logged", Tvs.Navy, Tvs.White)
         }
         if (needsAck) {
             Button(
@@ -229,12 +223,5 @@ private fun CheckpointRow(c: Checkpoint, now: Long, toleranceMin: Int, onAck: ()
                 colors = ButtonDefaults.buttonColors(containerColor = Tvs.Amber, contentColor = Tvs.Navy),
             ) { Text("Measured & documented ✓", fontSize = 16.sp, fontWeight = FontWeight.Black) }
         }
-    }
-}
-
-@Composable
-private fun StatusPill(text: String, bg: Color, fg: Color) {
-    Box(Modifier.background(bg, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 5.dp)) {
-        Text(text, color = fg, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
 }

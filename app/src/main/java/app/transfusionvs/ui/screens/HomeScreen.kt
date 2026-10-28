@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -64,6 +65,8 @@ fun HomeScreen(
     onOpen: (Long) -> Unit,
     onReaction: () -> Unit,
     onSetup: () -> Unit,
+    onLog: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     val context = LocalContext.current
     val home by vm.home.collectAsStateWithLifecycle()
@@ -122,8 +125,14 @@ fun HomeScreen(
                 }
             }
             item {
-                TextButton(onClick = onSetup, modifier = Modifier.heightIn(min = 56.dp)) {
-                    Text("Setup check", color = Tvs.Navy, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    listOf("Log & stats" to onLog, "Settings" to onSettings).forEach { (label, onClick) ->
+                        OutlinedButton(
+                            onClick = onClick,
+                            modifier = Modifier.weight(1f).heightIn(min = 56.dp),
+                            shape = RoundedCornerShape(16.dp),
+                        ) { Text(label, color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+                    }
                 }
             }
         }

@@ -208,6 +208,17 @@ class Engine(
         open.forEach { scheduler.cancel(it.id) }
     }
 
+    /** "Delete all data": cancels every alarm, stops any ringing, and erases all transfusions and the log. */
+    suspend fun deleteAllData() {
+        mutex.withLock {
+            dao.activeCheckpoints().forEach { scheduler.cancel(it.id) }
+            scheduler.cancelRingNow()
+            dao.deleteAllTransfusions()
+        }
+        AlarmService.stop(context)
+        Notifications.cancelAll(context)
+    }
+
     /** Re-posts notifications the user swiped away (they come back until acknowledged). */
     suspend fun refreshNotifications() {
         syncRinging(canStartService = false)

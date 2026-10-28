@@ -32,6 +32,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.transfusionvs.R
+import app.transfusionvs.schedule.StatusKind
+import app.transfusionvs.schedule.StatusView
 import app.transfusionvs.ui.theme.Tvs
 import kotlinx.coroutines.delay
 
@@ -125,6 +127,25 @@ fun HourlyPill() {
         Icon(painterResource(R.drawable.ic_clock), contentDescription = null, tint = Tvs.White, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
         Text("Hourly = same minute as start", color = Tvs.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** Rounded status label: on time / late +N min / missed / ringing / upcoming. */
+@Composable
+fun StatusPill(status: StatusView) {
+    val (bg, fg) = when (status.kind) {
+        StatusKind.ON_TIME -> Tvs.Green to Tvs.White
+        StatusKind.LATE, StatusKind.SNOOZED -> Tvs.Amber to Tvs.Navy
+        StatusKind.MISSED, StatusKind.RINGING, StatusKind.DUE -> Tvs.Red to Tvs.White
+        StatusKind.UPCOMING, StatusKind.CANCELLED -> Tvs.Panel to Tvs.Muted
+    }
+    StatusPill(status.text, bg, fg)
+}
+
+@Composable
+fun StatusPill(text: String, bg: Color, fg: Color) {
+    Box(Modifier.background(bg, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 5.dp)) {
+        Text(text, color = fg, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
 }
 

@@ -284,3 +284,25 @@ Theme and touch: light theme only; the alarm screen is navy. Minimum 56dp touch 
 - **Reaction screen** also opens from the alarm screen, over the lock screen (no unlock
   needed). Its DO NOW ticks live only on screen; nothing clinical is stored.
 - **Overdue / ringing** checkpoints can be acknowledged from the Home card and Detail too.
+
+### 2026-10-28 — Phase 2 tested on the maintainer's phone
+- All 8 tests passed (update keeps data, start, past start, two beds in one minute,
+  detail/edit, missed, End, reaction stop) — v0.2.0.
+
+### Phase 3 decisions
+- **What the stats count:** VS documentation only — the 15/30-min, hourly and End checks
+  and the End VS. START and the time-limit warning are not counted. Test alarms never are.
+- **On time** = documented within ±tolerance; **late** = after that; **missed** = no answer
+  within the missed timer (a later "documented" still shows its delay, but stays missed).
+- **Average delay** = scheduled → documented, over checks that were documented.
+- **Per day / week / month:** the log is grouped into those periods (newest first); the
+  week starts on the phone's locale first day (Saturday on Arabic-Egypt phones).
+- **CSV:** one line per checkpoint, oldest first, phone timezone; UTF-8 with BOM so Excel
+  shows Arabic bed labels; cells that look like formulas are neutralised. Shared through
+  the share sheet from the private cache (only the latest export is kept).
+- **Delete all data** erases transfusions and the log (settings stay), cancels all alarms;
+  the confirmation warns if transfusions are still running.
+- **Settings ranges:** tolerance ±1–15 min, snooze 1–2 min, missed 5–30 min, limit 1–8 h
+  (15-min steps), warning 5–60 min (always shorter than the limit). Every change re-arms.
+- **Alarm sound:** the system alarm-sound picker; "default" follows the phone's setting.
+  If the chosen sound can't be played, the phone default and then the bundled tone are used.

@@ -92,4 +92,24 @@ interface TvsDao {
 
     @Query("$WITH_BED WHERE c.type = 'TEST' ORDER BY c.scheduledAt DESC LIMIT 10")
     fun observeTests(): Flow<List<CheckpointWithBed>>
+
+    // ---- Log & stats ----
+
+    /** Every checkpoint of real (non-test) transfusions, newest first. */
+    @Query(
+        """
+        SELECT c.id, c.transfusionId, c.type, c.offsetMin, c.scheduledAt, c.firedAt, c.ackAt,
+               c.snoozeCount, c.status,
+               t.bedLabel, t.colorIndex, t.startAt, t.endAt, t.plannedDurationMin,
+               t.status AS transfusionStatus
+        FROM checkpoint c JOIN transfusion t ON t.id = c.transfusionId
+        WHERE t.isTest = 0
+        ORDER BY c.scheduledAt DESC
+        """,
+    )
+    fun observeLog(): Flow<List<LogRow>>
+
+    /** "Delete all data": checkpoints go with their transfusion (ON DELETE CASCADE). */
+    @Query("DELETE FROM transfusion")
+    suspend fun deleteAllTransfusions()
 }
