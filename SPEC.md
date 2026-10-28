@@ -227,6 +227,92 @@ Theme and touch: light theme only; the alarm screen is navy. Minimum 56dp touch 
 
 ---
 
+# Feature 2: Repositioning rounds (fixed 2-hour schedule) — added 2026-10-28
+
+The transfusion feature is in daily use: do NOT break it.
+
+## Why
+Some patients must be repositioned every 2 hours (pressure-injury prevention). Turning happens
+on a fixed ward clock, and turns get late or forgotten during a busy 12-h shift. Same reliable
+alarm behaviour as transfusions.
+
+## Rules
+- Reuse the existing alarm engine (setAlarmClock, the foreground service, the full-screen
+  alarm, re-arm after reboot/update/time change, the missed timeout and Overdue notification).
+  Generalise it for multiple timer types — no second engine.
+- Every #1 reliability requirement applies to turns too. Same privacy rules: bed label only.
+
+## Fixed schedule
+- Slots on a fixed local clock grid = multiples of the interval from 00:00, around the clock.
+  Interval chips 1 h / 2 h (default) / 4 h — all keep 08:00 and 20:00 on the grid.
+  The default ward interval is set in Settings.
+- A late turn does NOT move the schedule (turned 10:25 → next still 12:00).
+- First slot = the next slot after the start; if that is < 30 min away, the following one
+  (start 09:10 → 10:00; start 09:45 → 12:00). Shown in the preview and changeable.
+- Late acknowledge is allowed until the next slot fires; then the slot closes as MISSED and the
+  new slot rings. At the missed timeout the sound stops and an Overdue notification lists
+  the beds not ticked.
+- "Remind me in 30 min" only if it lands before the next slot.
+- Optional stop time, with a quick chip "End of my shift" (the next 08:00 or 20:00); no alarms
+  at or after it. A plan can be restarted at any time.
+- Egypt uses DST: a local slot that doesn't exist is skipped; a repeated hour rings once.
+
+## Positions
+- Left 30° · Back · Right 30°, plus optional Prone and HOB up.
+- Per bed: exclude positions; rotation = the selected positions cycling, order editable.
+  An excluded position is never suggested. The current position is set when starting.
+
+## Round alarm
+- Each slot produces ONE alarm for all due beds: "Turning round · 10:00 · 4 beds".
+- "Start round" stops the sound and shows a checklist: per bed the label, current → next
+  position with icons, a ✓ (turned to the suggestion; a secondary action picks another
+  position), and "Can't turn" with reasons Off unit · Procedure · Asleep/comfort · Unstable ·
+  Other (logged as SKIPPED, not MISSED).
+- Static line: "Check pressure points: occiput · ears · sacrum · heels".
+- Snooze 2 min for the whole round, same limits as transfusions (max 3).
+- A transfusion checkpoint in the same minute → one screen, transfusion items on top.
+- Each type has its own alarm sound and vibration pattern.
+
+## Design
+- Must be indistinguishable from the existing app: built only from the design-system tokens and
+  components; types differ only by icon, label and alarm sound — never by a new colour.
+- Header "REPOSITIONING RUNNING" with a rotation-arrow icon; same timeline composable with
+  slots; Home card / Start / Detail / Alarm mirror their transfusion counterparts.
+- Position icons: one vector set (top-down figure on a bed), same stroke and grid as the others.
+- Screenshot tests (Roborazzi) for every new screen and its transfusion counterpart, reviewed in a
+  PR before the logic is wired; a CI check fails on colours or font sizes hard-coded outside
+  the design system.
+
+## UI structure
+- Home: two sections, "Transfusions" and "Repositioning". The repositioning card shows the bed,
+  current position + icon, last turn, next slot with countdown, and the red overdue state —
+  it doubles as the handover summary.
+- Start opens a type chooser: Transfusion / Repositioning.
+- No Log & stats tab and no CSV (decision 2026-10-28). The plan's Detail shows today's slots
+  and the **longest gap without a turn (last 24 h)**, computed from actual turn times.
+
+## Data
+- New tables with a proper Room migration (v1 → v2) and a migration test; existing transfusion
+  data and pending alarms survive the update.
+- Turn event fields: planId, slotAt, ackAt?, positionFrom, positionTo,
+  status (ACKED / MISSED / SKIPPED), skipReason?, snoozeCount.
+- Kept 24 h like transfusions (each running plan keeps its latest turn).
+
+## Done = all of these pass on the phone
+- Every transfusion test above still passes.
+- The update installs over the current version: running transfusions, their alarms and Settings
+  are kept.
+- Locked + silent: the round alarm rings at 10:00 sharp, with its own sound.
+- Turned at 10:25 → the next alarm is still at 12:00.
+- Started at 09:45 → the first alarm is at 12:00 (changeable).
+- 3 beds on a plan → one round alarm listing all 3.
+- An excluded position is never suggested.
+- A slot never acknowledged → MISSED when the next slot fires.
+- The end-of-shift stop time works.
+- A transfusion and a round in the same minute → one screen, transfusion first.
+
+---
+
 ## Decisions log
 
 ### 2026-10-28 — plan approved
@@ -296,3 +382,20 @@ Theme and touch: light theme only; the alarm screen is navy. Minimum 56dp touch 
   (15-min steps), warning 5–60 min (always shorter than the limit). Every change re-arms.
 - **Alarm sound:** the system alarm-sound picker; "default" follows the phone's setting.
   If the chosen sound can't be played, the phone default and then the bundled tone are used.
+
+### 2026-10-28 — Repositioning: plan approved
+- **No Log & stats / CSV for turns either** (Cerner is the record). Detail shows the longest
+  gap without a turn over the last 24 h instead.
+- **v0.3.0** (published by a command that was stopped, with Log/CSV) was deleted from GitHub;
+  v0.3.1 is the current release.
+- **Design system first (R0):** every font size, colour, radius and spacing used by the screens
+  becomes a named token with its exact current value (zero visual change, proven by Roborazzi
+  baselines recorded before the refactor). The off-8dp spacings already in the transfusion
+  screens (6/10/14/18) stay, as named tokens — zero visual change wins over re-spacing.
+- **Engine:** one generic alarm-item core with per-type sources (transfusion, turn).
+  Transfusion items: silence = miss = first ring + timeout (unchanged). Turn items: silence at
+  the timeout (Overdue shown), MISSED when the next slot fires.
+- **Sounds:** transfusion keeps the chosen/default alarm sound and the long vibration;
+  turns get a separate bundled chime and a double-pulse vibration. One picker per type.
+- **Screenshot tooling** (test-only, free, not in the APK): Robolectric + Roborazzi;
+  CI moves to JDK 21.
