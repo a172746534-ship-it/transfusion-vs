@@ -2,8 +2,9 @@ name: Android build
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
     tags: ["v*"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -19,15 +20,30 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21" # Robolectric (screenshot tests) needs 21 for recent Android versions
 
       # No Gradle wrapper binary is committed; CI installs this exact Gradle version.
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "9.6.1"
 
-      - name: Unit tests
-        run: gradle --no-daemon --stacktrace testDebugUnitTest
+      # Unit tests + screenshot tests. app/src/test/screenshots/MODE says whether to record new
+      # reference images or verify against the committed ones (any pixel difference fails).
+      - name: Unit + screenshot tests
+        run: |
+          MODE=$(tr -d '[:space:]' < app/src/test/screenshots/MODE 2>/dev/null || echo record)
+          echo "Screenshot mode: $MODE"
+          gradle --no-daemon --stacktrace "${MODE}RoborazziDebug"
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshots-${{ github.run_number }}
+          path: |
+            app/src/test/screenshots/*.png
+            app/build/outputs/roborazzi/
+          if-no-files-found: ignore
 
       - name: Decode signing key
         env:

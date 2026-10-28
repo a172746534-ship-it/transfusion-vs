@@ -17,4 +17,6 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.21" apply false
     id("com.google.devtools.ksp") version "2.3.12" apply false
     id("androidx.room") version "2.8.5" apply false
+    // Screenshot tests (test-only, never in the APK).
+    id("io.github.takahirom.roborazzi") version "1.77.0" apply false
 }

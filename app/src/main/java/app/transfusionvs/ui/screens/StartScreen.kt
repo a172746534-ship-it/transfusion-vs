@@ -77,11 +77,34 @@ private const val MAX_BED_LABEL = 16
  * Start transfusion, or Edit when [editing] is given. Start is enabled only after
  * "Baseline VS taken" is ticked. The preview shows the real clock times, like the card's example row.
  */
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun StartScreen(vm: MainViewModel, editing: Transfusion?, onDone: () -> Unit, onBack: () -> Unit) {
-    val context = LocalContext.current
     val openedAt = rememberSaveable { System.currentTimeMillis() }
+    StartContent(
+        editing = editing,
+        limitMin = vm.limitMin,
+        warnBeforeMin = vm.warnBeforeMin,
+        openedAt = openedAt,
+        onSubmit = { bed, startAt, duration ->
+            if (editing == null) vm.start(bed, startAt, duration) else vm.edit(editing.id, bed, startAt, duration)
+            onDone()
+        },
+        onBack = onBack,
+    )
+}
+
+/** Stateless Start / Edit (rendered by the screenshot tests with a fixed [openedAt]). */
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+fun StartContent(
+    editing: Transfusion?,
+    limitMin: Int,
+    warnBeforeMin: Int,
+    openedAt: Long,
+    onSubmit: (bed: String, startAt: Long, durationMin: Int) -> Unit,
+    onBack: () -> Unit,
+) {
+    val context = LocalContext.current
 
     var bed by rememberSaveable { mutableStateOf(editing?.bedLabel ?: "") }
     var startAt by rememberSaveable { mutableLongStateOf(editing?.startAt ?: ScheduleCalculator.truncateToMinute(openedAt)) }
@@ -196,7 +219,7 @@ fun StartScreen(vm: MainViewModel, editing: Transfusion?, onDone: () -> Unit, on
 
             // Preview with real clock times
             if (duration != null) {
-                val config = ScheduleConfig(duration, vm.limitMin, vm.warnBeforeMin)
+                val config = ScheduleConfig(duration, limitMin, warnBeforeMin)
                 Panel {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CapsLabel("Time from start", Tvs.Navy)
@@ -210,7 +233,7 @@ fun StartScreen(vm: MainViewModel, editing: Transfusion?, onDone: () -> Unit, on
                             "(${Labels.duration(config.limitMin)} limit).",
                         color = Tvs.Muted, fontSize = 14.sp,
                     )
-                    if (startAt < System.currentTimeMillis() - 15 * MINUTE_MS) {
+                    if (startAt < openedAt - 15 * MINUTE_MS) {
                         Text(
                             "Checks that are already past will ring once, together, right after you start.",
                             color = Tvs.Red, fontSize = 14.sp, fontWeight = FontWeight.Bold,
@@ -224,8 +247,7 @@ fun StartScreen(vm: MainViewModel, editing: Transfusion?, onDone: () -> Unit, on
             Button(
                 onClick = {
                     duration?.let { d ->
-                        if (editing == null) vm.start(bed, startAt, d) else vm.edit(editing.id, bed, startAt, d)
-                        onDone()
+                        onSubmit(bed, startAt, d)
                     }
                 },
                 enabled = canSubmit,

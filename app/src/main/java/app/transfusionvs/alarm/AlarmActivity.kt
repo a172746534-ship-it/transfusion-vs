@@ -112,11 +112,31 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
         }
     }
     LaunchedEffect(rows) { if (rows?.isEmpty() == true) onAllDone() }
+    AlarmContent(
+        rows = rows ?: emptyList(),
+        now = now,
+        snoozeMin = app.settings.snoozeMin,
+        onAcknowledge = { ids -> app.scope.launch { app.engine.acknowledge(ids) } },
+        onSnooze = { app.scope.launch { app.engine.snooze() } },
+        onStopForReaction = { id -> app.scope.launch { app.engine.stopForReaction(id) } },
+    )
+}
+
+/** Stateless alarm screen (rendered by the screenshot tests with fake data). */
+@Composable
+fun AlarmContent(
+    rows: List<CheckpointWithBed>,
+    now: Long,
+    snoozeMin: Int,
+    onAcknowledge: (List<Long>) -> Unit,
+    onSnooze: () -> Unit,
+    onStopForReaction: (Long) -> Unit,
+) {
     var showReaction by rememberSaveable { mutableStateOf(false) }
     // Back never dismisses the alarm (acknowledge or snooze); it only closes the reaction view.
     BackHandler { showReaction = false }
 
-    val list = rows ?: emptyList()
+    val list = rows
     val beds = RingSpec.groupByBed(list)
     val audible = list.filter { it.snoozeUntil == null || it.snoozeUntil <= now }
     val canSnooze = audible.isNotEmpty() && audible.all { it.snoozeCount < Settings.MAX_SNOOZES }
@@ -128,7 +148,7 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
         ReactionScreen(
             beds = beds.filter { !it.isTest }.map { BedChoice(it.transfusionId, it.bedLabel, it.colorIndex) },
             onStopped = { id ->
-                app.scope.launch { app.engine.stopForReaction(id) }
+                onStopForReaction(id)
                 showReaction = false
             },
             onBack = { showReaction = false },
@@ -165,17 +185,14 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
             }
 
             if (beds.size == 1) {
-                AckButton("Measured & documented ✓", big = true) {
-                    app.scope.launch { app.engine.acknowledge(beds[0].checkpointIds) }
-                }
+                AckButton("Measured & documented ✓", big = true) { onAcknowledge(beds[0].checkpointIds) }
             } else {
-                beds.forEach { bed -> BedRow(bed, list) { app.scope.launch { app.engine.acknowledge(bed.checkpointIds) } } }
+                beds.forEach { bed -> BedRow(bed, list) { onAcknowledge(bed.checkpointIds) } }
             }
 
             if (canSnooze) {
-                val snoozeMin = app.settings.snoozeMin
                 OutlinedButton(
-                    onClick = { app.scope.launch { app.engine.snooze() } },
+                    onClick = onSnooze,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Tvs.White),

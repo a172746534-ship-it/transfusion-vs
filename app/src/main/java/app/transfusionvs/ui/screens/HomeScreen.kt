@@ -76,6 +76,38 @@ fun HomeScreen(
         setupProblems = SetupChecks.evaluate(context).count { !it.ok }
         onPauseOrDispose { }
     }
+    HomeContent(
+        home = home,
+        ringing = ringing.isNotEmpty(),
+        setupProblems = setupProblems,
+        now = now,
+        onStart = onStart,
+        onOpen = onOpen,
+        onReaction = onReaction,
+        onSetup = onSetup,
+        onSettings = onSettings,
+        onOpenAlarm = {
+            context.startActivity(Intent(context, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        },
+        onAcknowledge = vm::acknowledge,
+    )
+}
+
+/** Stateless Home (rendered by the screenshot tests with fake data). */
+@Composable
+fun HomeContent(
+    home: List<TransfusionWithCheckpoints>?,
+    ringing: Boolean,
+    setupProblems: Int,
+    now: Long,
+    onStart: () -> Unit,
+    onOpen: (Long) -> Unit,
+    onReaction: () -> Unit,
+    onSetup: () -> Unit,
+    onSettings: () -> Unit,
+    onOpenAlarm: () -> Unit,
+    onAcknowledge: (List<Long>) -> Unit,
+) {
     val list = home.orEmpty()
     val anyRunning = list.any { it.transfusion.status == TransfusionStatus.RUNNING }
 
@@ -91,11 +123,9 @@ fun HomeScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            if (ringing.isNotEmpty()) {
+            if (ringing) {
                 item {
-                    Alert("Alarm ringing — tap to open", Tvs.Red) {
-                        context.startActivity(Intent(context, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    }
+                    Alert("Alarm ringing — tap to open", Tvs.Red, onClick = onOpenAlarm)
                 }
             }
             if (setupProblems > 0) {
@@ -107,7 +137,7 @@ fun HomeScreen(
                 }
             }
             items(list, key = { it.transfusion.id }) { t ->
-                TransfusionCard(t, now, onOpen = { onOpen(t.transfusion.id) }, onAcknowledge = vm::acknowledge)
+                TransfusionCard(t, now, onOpen = { onOpen(t.transfusion.id) }, onAcknowledge = onAcknowledge)
             }
             if (home != null && list.isEmpty()) {
                 item {

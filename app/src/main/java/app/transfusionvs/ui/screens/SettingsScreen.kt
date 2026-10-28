@@ -31,7 +31,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,23 +53,42 @@ import app.transfusionvs.ui.theme.TimeFigures
 import app.transfusionvs.ui.theme.Tvs
 import kotlinx.coroutines.launch
 
+/** A snapshot of every setting shown on the screen. */
+data class SettingsValues(
+    val soundOn: Boolean,
+    val soundUri: String?,
+    val snoozeMin: Int,
+    val missedTimeoutMin: Int,
+    val toleranceMin: Int,
+    val preAlertMin: Int,
+    val limitMin: Int,
+    val warnBeforeMin: Int,
+) {
+    companion object {
+        fun from(s: Settings) = SettingsValues(
+            s.soundOn, s.alarmSoundUri, s.snoozeMin, s.missedTimeoutMin, s.toleranceMin, s.preAlertMin, s.limitMin, s.warnBeforeMin,
+        )
+    }
+}
+
 /** Every change is saved at once and re-arms all alarms. */
 @Composable
 fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
     val context = LocalContext.current
     val app = context.app
     val s = app.settings
+    var values by remember { mutableStateOf(SettingsValues.from(s)) }
 
-    var soundOn by remember { mutableStateOf(s.soundOn) }
-    var soundUri by remember { mutableStateOf(s.alarmSoundUri) }
-    var snooze by remember { mutableIntStateOf(s.snoozeMin) }
-    var missed by remember { mutableIntStateOf(s.missedTimeoutMin) }
-    var tolerance by remember { mutableIntStateOf(s.toleranceMin) }
-    var preAlert by remember { mutableIntStateOf(s.preAlertMin) }
-    var limit by remember { mutableIntStateOf(s.limitMin) }
-    var warn by remember { mutableIntStateOf(s.warnBeforeMin) }
-
-    fun rearm() {
+    fun save(v: SettingsValues) {
+        s.soundOn = v.soundOn
+        s.alarmSoundUri = v.soundUri
+        s.snoozeMin = v.snoozeMin
+        s.missedTimeoutMin = v.missedTimeoutMin
+        s.toleranceMin = v.toleranceMin
+        s.preAlertMin = v.preAlertMin
+        s.limitMin = v.limitMin
+        s.warnBeforeMin = v.warnBeforeMin
+        values = SettingsValues.from(s)
         app.scope.launch { app.engine.rearm(canStartService = true) }
     }
 
@@ -79,11 +97,44 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
             val picked = result.data?.let { IntentCompat.getParcelableExtra(it, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java) }
             // The phone's default alarm sound is stored as "no choice", so it follows the phone's setting.
             val value = picked?.takeIf { it != android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI }?.toString()
-            s.alarmSoundUri = value
-            soundUri = value
+            save(values.copy(soundUri = value))
         }
     }
 
+    SettingsContent(
+        values = values,
+        soundTitle = soundTitle(context, values.soundUri),
+        onChange = ::save,
+        onPickSound = {
+            val existing = values.soundUri?.let(Uri::parse) ?: android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI
+            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, existing)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Alarm sound")
+            try {
+                picker.launch(intent)
+            } catch (e: ActivityNotFoundException) {
+                // No sound picker on this phone: the default alarm sound stays.
+            }
+        },
+        onBack = onBack,
+        onSetup = onSetup,
+    )
+}
+
+/** Stateless Settings (rendered by the screenshot tests). */
+@Composable
+fun SettingsContent(
+    values: SettingsValues,
+    soundTitle: String,
+    onChange: (SettingsValues) -> Unit,
+    onPickSound: () -> Unit,
+    onBack: () -> Unit,
+    onSetup: () -> Unit,
+) {
+    val v = values
     Column(Modifier.fillMaxSize().background(Tvs.Panel)) {
         TopBar(caps = "Settings", title = "Alarm settings", onBack = onBack)
         Column(
@@ -93,10 +144,10 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
             Panel {
                 CapsLabel("Alarm", Tvs.Navy)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ChoiceChip("Sound + vibrate", soundOn, { soundOn = true; s.soundOn = true }, Modifier.weight(1f))
-                    ChoiceChip("Vibrate only", !soundOn, { soundOn = false; s.soundOn = false }, Modifier.weight(1f))
+                    ChoiceChip("Sound + vibrate", v.soundOn, { onChange(v.copy(soundOn = true)) }, Modifier.weight(1f))
+                    ChoiceChip("Vibrate only", !v.soundOn, { onChange(v.copy(soundOn = false)) }, Modifier.weight(1f))
                 }
-                if (!soundOn) {
+                if (!v.soundOn) {
                     Text(
                         "Night mode: alarms vibrate but make NO sound. Keep the phone on you.",
                         color = Tvs.Red, fontSize = 14.sp, fontWeight = FontWeight.Bold,
@@ -105,23 +156,10 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Alarm sound", color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text(soundTitle(context, soundUri), color = Tvs.Muted, fontSize = 14.sp)
+                        Text(soundTitle, color = Tvs.Muted, fontSize = 14.sp)
                     }
                     OutlinedButton(
-                        onClick = {
-                            val existing = soundUri?.let(Uri::parse) ?: android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI
-                            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
-                                .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
-                                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-                                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
-                                .putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, existing)
-                                .putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Alarm sound")
-                            try {
-                                picker.launch(intent)
-                            } catch (e: ActivityNotFoundException) {
-                                // No sound picker on this phone: the default alarm sound stays.
-                            }
-                        },
+                        onClick = onPickSound,
                         modifier = Modifier.heightIn(min = 56.dp),
                         shape = RoundedCornerShape(12.dp),
                     ) { Text("Change", fontWeight = FontWeight.Bold) }
@@ -129,15 +167,15 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
                 Text("Snooze length", color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Settings.SNOOZE_RANGE.forEach { m ->
-                        ChoiceChip("$m min", snooze == m, { snooze = m; s.snoozeMin = m }, Modifier.weight(1f))
+                        ChoiceChip("$m min", v.snoozeMin == m, { onChange(v.copy(snoozeMin = m)) }, Modifier.weight(1f))
                     }
                 }
                 Stepper(
                     title = "Missed after",
                     hint = "Ringing stops and the check is marked missed (an Overdue reminder stays).",
-                    value = "$missed min",
-                    onMinus = { if (missed > Settings.MISSED_RANGE.first) { missed--; s.missedTimeoutMin = missed; rearm() } },
-                    onPlus = { if (missed < Settings.MISSED_RANGE.last) { missed++; s.missedTimeoutMin = missed; rearm() } },
+                    value = "${v.missedTimeoutMin} min",
+                    onMinus = { if (v.missedTimeoutMin > Settings.MISSED_RANGE.first) onChange(v.copy(missedTimeoutMin = v.missedTimeoutMin - 1)) },
+                    onPlus = { if (v.missedTimeoutMin < Settings.MISSED_RANGE.last) onChange(v.copy(missedTimeoutMin = v.missedTimeoutMin + 1)) },
                 )
             }
 
@@ -146,14 +184,14 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
                 Stepper(
                     title = "On-time tolerance",
                     hint = "Documented within this many minutes of the scheduled time counts as on time.",
-                    value = "±$tolerance min",
-                    onMinus = { if (tolerance > Settings.TOLERANCE_RANGE.first) { tolerance--; s.toleranceMin = tolerance } },
-                    onPlus = { if (tolerance < Settings.TOLERANCE_RANGE.last) { tolerance++; s.toleranceMin = tolerance } },
+                    value = "±${v.toleranceMin} min",
+                    onMinus = { if (v.toleranceMin > Settings.TOLERANCE_RANGE.first) onChange(v.copy(toleranceMin = v.toleranceMin - 1)) },
+                    onPlus = { if (v.toleranceMin < Settings.TOLERANCE_RANGE.last) onChange(v.copy(toleranceMin = v.toleranceMin + 1)) },
                 )
                 Text("Pre-alert (gentle notification + short vibration)", color = Tvs.Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Settings.PRE_ALERT_CHOICES.forEach { m ->
-                        ChoiceChip(if (m == 0) "Off" else "$m min", preAlert == m, { preAlert = m; s.preAlertMin = m; rearm() }, Modifier.weight(1f))
+                        ChoiceChip(if (m == 0) "Off" else "$m min", v.preAlertMin == m, { onChange(v.copy(preAlertMin = m)) }, Modifier.weight(1f))
                     }
                 }
             }
@@ -163,23 +201,24 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
                 Stepper(
                     title = "Maximum duration",
                     hint = null,
-                    value = Labels.duration(limit),
+                    value = Labels.duration(v.limitMin),
                     onMinus = {
-                        if (limit > Settings.LIMIT_RANGE.first) {
-                            limit -= 15; s.limitMin = limit
-                            if (warn >= limit) { warn = limit - 5; s.warnBeforeMin = warn }
-                            rearm()
+                        if (v.limitMin > Settings.LIMIT_RANGE.first) {
+                            val limit = v.limitMin - 15
+                            onChange(v.copy(limitMin = limit, warnBeforeMin = minOf(v.warnBeforeMin, limit - 5)))
                         }
                     },
-                    onPlus = { if (limit < Settings.LIMIT_RANGE.last) { limit += 15; s.limitMin = limit; rearm() } },
+                    onPlus = { if (v.limitMin < Settings.LIMIT_RANGE.last) onChange(v.copy(limitMin = v.limitMin + 15)) },
                 )
                 Stepper(
                     title = "Warn before the limit",
                     hint = "An alarm this long before the maximum duration.",
-                    value = "$warn min",
-                    onMinus = { if (warn > Settings.WARN_RANGE.first) { warn -= 5; s.warnBeforeMin = warn; rearm() } },
+                    value = "${v.warnBeforeMin} min",
+                    onMinus = { if (v.warnBeforeMin > Settings.WARN_RANGE.first) onChange(v.copy(warnBeforeMin = v.warnBeforeMin - 5)) },
                     onPlus = {
-                        if (warn < Settings.WARN_RANGE.last && warn + 5 < limit) { warn += 5; s.warnBeforeMin = warn; rearm() }
+                        if (v.warnBeforeMin < Settings.WARN_RANGE.last && v.warnBeforeMin + 5 < v.limitMin) {
+                            onChange(v.copy(warnBeforeMin = v.warnBeforeMin + 5))
+                        }
                     },
                 )
             }

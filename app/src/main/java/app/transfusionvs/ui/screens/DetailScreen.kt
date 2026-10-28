@@ -41,6 +41,7 @@ import app.transfusionvs.data.CheckpointStatus
 import app.transfusionvs.data.CheckpointType
 import app.transfusionvs.data.Transfusion
 import app.transfusionvs.data.TransfusionStatus
+import app.transfusionvs.data.TransfusionWithCheckpoints
 import app.transfusionvs.schedule.Labels
 import app.transfusionvs.schedule.MINUTE_MS
 import app.transfusionvs.schedule.StatusKind
@@ -70,6 +71,30 @@ fun DetailScreen(
     val flow = remember(id) { vm.transfusion(id) }
     val item by flow.collectAsStateWithLifecycle(initialValue = null)
     val now by rememberNow(15_000)
+    DetailContent(
+        item = item,
+        now = now,
+        toleranceMin = vm.toleranceMin,
+        onBack = onBack,
+        onEdit = onEdit,
+        onReaction = onReaction,
+        onEnd = vm::end,
+        onAcknowledge = vm::acknowledge,
+    )
+}
+
+/** Stateless Detail (rendered by the screenshot tests with fake data). */
+@Composable
+fun DetailContent(
+    item: TransfusionWithCheckpoints?,
+    now: Long,
+    toleranceMin: Int,
+    onBack: () -> Unit,
+    onEdit: () -> Unit,
+    onReaction: () -> Unit,
+    onEnd: (Long) -> Unit,
+    onAcknowledge: (List<Long>) -> Unit,
+) {
     var confirmEnd by rememberSaveable { mutableStateOf(false) }
     var laterEndVs by rememberSaveable { mutableStateOf(false) }
 
@@ -109,7 +134,7 @@ fun DetailScreen(
             Panel {
                 CapsLabel("Checkpoints", Tvs.Navy)
                 visibleRows(t, rows, now).forEach { c ->
-                    CheckpointRow(c, now, vm.toleranceMin, onAck = { vm.acknowledge(listOf(c.id)) })
+                    CheckpointRow(c, now, toleranceMin, onAck = { onAcknowledge(listOf(c.id)) })
                 }
             }
 
@@ -143,7 +168,7 @@ fun DetailScreen(
             text = { Text("End time ${Labels.clock(System.currentTimeMillis())} is logged and the remaining alarms are cancelled.") },
             confirmButton = {
                 TextButton(onClick = {
-                    vm.end(t.id)
+                    onEnd(t.id)
                     confirmEnd = false
                     laterEndVs = false
                 }) { Text("End transfusion", fontWeight = FontWeight.Black) }
@@ -166,7 +191,7 @@ fun DetailScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { vm.acknowledge(listOf(endVs.id)) },
+                    onClick = { onAcknowledge(listOf(endVs.id)) },
                     modifier = Modifier.heightIn(min = 56.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Tvs.Amber, contentColor = Tvs.Navy),
                 ) { Text("Measured & documented ✓", fontWeight = FontWeight.Black) }

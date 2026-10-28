@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
     id("androidx.room")
+    id("io.github.takahirom.roborazzi")
 }
 
 // CI sets these; local builds fall back to safe defaults.
@@ -53,11 +54,21 @@ android {
         compose = true
         buildConfig = true
     }
+
+    testOptions {
+        // Robolectric screenshot tests render the real resources (fonts, icons).
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 room {
     // Exported schemas let later versions migrate the database without losing data.
     schemaDirectory("$projectDir/schemas")
+}
+
+roborazzi {
+    // Reference screenshots live in the repo so CI can verify "no visual change".
+    outputDir.set(file("src/test/screenshots"))
 }
 
 dependencies {
@@ -79,4 +90,12 @@ dependencies {
     ksp("androidx.room:room-compiler:2.8.5")
 
     testImplementation("junit:junit:4.13.2")
+
+    // Screenshot tests: Robolectric renders the composables on the JVM, Roborazzi saves/compares PNGs.
+    testImplementation(composeBom)
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    testImplementation("org.robolectric:robolectric:4.17")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.77.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.77.0")
 }

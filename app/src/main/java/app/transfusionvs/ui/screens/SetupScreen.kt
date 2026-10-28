@@ -52,7 +52,9 @@ import app.transfusionvs.data.CheckpointWithBed
 import app.transfusionvs.schedule.Labels
 import app.transfusionvs.schedule.MINUTE_MS
 import app.transfusionvs.setup.CheckItem
+import app.transfusionvs.setup.OemGuide
 import app.transfusionvs.setup.OemGuides
+import app.transfusionvs.setup.OemStep
 import app.transfusionvs.setup.SetupChecks
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.TopBar
@@ -94,6 +96,40 @@ fun SetupScreen(onBack: () -> Unit) {
         message = "Test alarm set for ${Labels.clock(at)}. $hint"
     }
 
+    SetupContent(
+        checks = checks,
+        guide = guide,
+        tests = tests,
+        ringing = ringing.isNotEmpty(),
+        message = message,
+        onBack = onBack,
+        onFix = ::fix,
+        onOpenStep = { SetupChecks.open(context, it.intents) },
+        onTest = ::test,
+        onCancelTest = { id -> app.scope.launch { app.engine.cancelTest(id) } },
+        versionName = BuildConfig.VERSION_NAME,
+        onOpenAlarm = {
+            context.startActivity(Intent(context, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        },
+    )
+}
+
+/** Stateless Setup check (rendered by the screenshot tests with fake data). */
+@Composable
+fun SetupContent(
+    checks: List<CheckItem>,
+    guide: OemGuide,
+    tests: List<CheckpointWithBed>,
+    ringing: Boolean,
+    message: String?,
+    onBack: () -> Unit,
+    onFix: (CheckItem) -> Unit,
+    onOpenStep: (OemStep) -> Unit,
+    onTest: (delayMs: Long, hint: String) -> Unit,
+    onCancelTest: (Long) -> Unit,
+    onOpenAlarm: () -> Unit,
+    versionName: String,
+) {
     Column(Modifier.fillMaxSize().background(Tvs.Panel).verticalScroll(rememberScrollState())) {
         TopBar(
             caps = "Setup check",
@@ -106,12 +142,10 @@ fun SetupScreen(onBack: () -> Unit) {
             Modifier.padding(16.dp).windowInsetsPadding(WindowInsets.navigationBars),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (ringing.isNotEmpty()) {
+            if (ringing) {
                 Box(
                     Modifier.fillMaxWidth().background(Tvs.Red, RoundedCornerShape(16.dp))
-                        .clickable {
-                            context.startActivity(Intent(context, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        }
+                        .clickable(onClick = onOpenAlarm)
                         .padding(18.dp),
                 ) {
                     Text("Alarm ringing — tap to open", color = Tvs.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
@@ -121,7 +155,7 @@ fun SetupScreen(onBack: () -> Unit) {
             // 1. Live checklist
             Card {
                 CapsLabel("This phone", Tvs.Navy)
-                checks.forEach { item -> CheckRow(item, onFix = { fix(item) }) }
+                checks.forEach { item -> CheckRow(item, onFix = { onFix(item) }) }
             }
 
             // 2. Brand-specific steps
@@ -139,7 +173,7 @@ fun SetupScreen(onBack: () -> Unit) {
                         if (step.intents.isNotEmpty()) {
                             Spacer(Modifier.width(8.dp))
                             OutlinedButton(
-                                onClick = { SetupChecks.open(context, step.intents) },
+                                onClick = { onOpenStep(step) },
                                 modifier = Modifier.heightIn(min = 56.dp),
                                 shape = RoundedCornerShape(12.dp),
                             ) { Text("Open", fontWeight = FontWeight.Bold) }
@@ -156,7 +190,7 @@ fun SetupScreen(onBack: () -> Unit) {
             Card {
                 CapsLabel("Test", Tvs.Navy)
                 Button(
-                    onClick = { test(MINUTE_MS, "Lock the phone now and wait — it must ring even on silent.") },
+                    onClick = { onTest(MINUTE_MS, "Lock the phone now and wait — it must ring even on silent.") },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Tvs.Navy, contentColor = Tvs.White),
@@ -166,7 +200,7 @@ fun SetupScreen(onBack: () -> Unit) {
                     listOf(2, 6).forEach { h ->
                         OutlinedButton(
                             onClick = {
-                                test(h * 60 * MINUTE_MS, "Swipe the app away or restart the phone — it must still ring on time.")
+                                onTest(h * 60 * MINUTE_MS, "Swipe the app away or restart the phone — it must still ring on time.")
                             },
                             modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                             shape = RoundedCornerShape(12.dp),
@@ -188,7 +222,7 @@ fun SetupScreen(onBack: () -> Unit) {
                             }
                             if (t.status == CheckpointStatus.PENDING) {
                                 OutlinedButton(
-                                    onClick = { app.scope.launch { app.engine.cancelTest(t.id) } },
+                                    onClick = { onCancelTest(t.id) },
                                     modifier = Modifier.heightIn(min = 56.dp),
                                     shape = RoundedCornerShape(12.dp),
                                 ) { Text("Cancel") }
@@ -198,7 +232,7 @@ fun SetupScreen(onBack: () -> Unit) {
                 }
             }
 
-            Text("Transfusion VS ${BuildConfig.VERSION_NAME}", color = Tvs.Muted, fontSize = 12.sp)
+            Text("Transfusion VS $versionName", color = Tvs.Muted, fontSize = 12.sp)
         }
     }
 }
