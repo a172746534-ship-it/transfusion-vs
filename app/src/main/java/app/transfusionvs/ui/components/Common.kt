@@ -51,6 +51,8 @@ fun TopBar(
     subtitle: String? = null,
     background: Color = Tvs.Navy,
     capsColor: Color = Tvs.Amber,
+    // The header icon: the blood drop for transfusions, the rotation arrow for repositioning.
+    icon: Int? = if (showDrop) R.drawable.ic_drop else null,
 ) {
     Column(
         Modifier.fillMaxWidth().background(background)
@@ -64,8 +66,8 @@ fun TopBar(
             ) { Text("‹  Back", color = Tvs.White, fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Bold) }
         }
         Row(Modifier.padding(start = TvsSpace.s8, top = if (onBack == null) TvsSpace.s12 else 0.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (showDrop) {
-                Icon(painterResource(R.drawable.ic_drop), contentDescription = null, tint = Color.Unspecified, modifier = Modifier.size(TvsSize.IconXL))
+            if (icon != null) {
+                Icon(painterResource(icon), contentDescription = null, tint = Color.Unspecified, modifier = Modifier.size(TvsSize.IconXL))
                 Spacer(Modifier.width(TvsSpace.s12))
             }
             Column {
@@ -123,14 +125,14 @@ fun Panel(modifier: Modifier = Modifier, background: Color = Tvs.White, content:
 
 /** The card's "◷ Hourly = same minute as start" pill. */
 @Composable
-fun HourlyPill() {
+fun HourlyPill(text: String = "Hourly = same minute as start") {
     Row(
         Modifier.background(Tvs.Navy, TvsShape.Pill).padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s6),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(painterResource(R.drawable.ic_clock), contentDescription = null, tint = Tvs.White, modifier = Modifier.size(TvsSize.IconSmall))
         Spacer(Modifier.width(TvsSpace.s6))
-        Text("Hourly = same minute as start", color = Tvs.White, fontSize = TvsFont.Label, fontWeight = FontWeight.Bold)
+        Text(text, color = Tvs.White, fontSize = TvsFont.Label, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -141,7 +143,7 @@ fun StatusPill(status: StatusView) {
         StatusKind.ON_TIME -> Tvs.Green to Tvs.White
         StatusKind.LATE, StatusKind.SNOOZED -> Tvs.Amber to Tvs.Navy
         StatusKind.MISSED, StatusKind.RINGING, StatusKind.DUE -> Tvs.Red to Tvs.White
-        StatusKind.UPCOMING, StatusKind.CANCELLED -> Tvs.Panel to Tvs.Muted
+        StatusKind.UPCOMING, StatusKind.SKIPPED, StatusKind.CANCELLED -> Tvs.Panel to Tvs.Muted
     }
     StatusPill(status.text, bg, fg)
 }

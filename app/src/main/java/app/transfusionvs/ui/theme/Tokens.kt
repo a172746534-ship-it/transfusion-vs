@@ -81,6 +81,8 @@ object TvsSize {
     val Badge = 28.dp
     val BadgeLarge = 36.dp
     val IconSmall = 16.dp
+    /** Position icon in the timeline's label row (the height of a timeline number). */
+    val IconTimeline = 26.dp
     val IconMedium = 30.dp
     val IconLarge = 34.dp
     val IconXL = 36.dp

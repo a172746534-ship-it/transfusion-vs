@@ -51,16 +51,16 @@ class TransfusionScreenshots {
     @Test
     fun home() = shot("transfusion_home") {
         HomeContent(
-            home = Fakes.home, ringing = false, setupProblems = 0, now = Fakes.now,
-            onStart = {}, onOpen = {}, onReaction = {}, onSetup = {}, onSettings = {}, onOpenAlarm = {}, onAcknowledge = {},
+            home = Fakes.home, turns = emptyList(), ringing = false, setupProblems = 0, now = Fakes.now,
+            onStart = {}, onOpen = {}, onOpenTurnPlan = {}, onReaction = {}, onSetup = {}, onSettings = {}, onOpenAlarm = {}, onAcknowledge = {},
         )
     }
 
     @Test
     fun homeEmpty() = shot("transfusion_home_empty") {
         HomeContent(
-            home = emptyList(), ringing = false, setupProblems = 2, now = Fakes.now,
-            onStart = {}, onOpen = {}, onReaction = {}, onSetup = {}, onSettings = {}, onOpenAlarm = {}, onAcknowledge = {},
+            home = emptyList(), turns = emptyList(), ringing = false, setupProblems = 2, now = Fakes.now,
+            onStart = {}, onOpen = {}, onOpenTurnPlan = {}, onReaction = {}, onSetup = {}, onSettings = {}, onOpenAlarm = {}, onAcknowledge = {},
         )
     }
 

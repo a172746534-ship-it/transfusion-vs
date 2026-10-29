@@ -67,10 +67,14 @@ data class SettingsValues(
     val preAlertMin: Int,
     val limitMin: Int,
     val warnBeforeMin: Int,
+    val turnIntervalMin: Int = 120,
+    val turnWindowMin: Int = 15,
+    val turnSoundUri: String? = null,
 ) {
     companion object {
         fun from(s: Settings) = SettingsValues(
             s.soundOn, s.alarmSoundUri, s.snoozeMin, s.missedTimeoutMin, s.toleranceMin, s.preAlertMin, s.limitMin, s.warnBeforeMin,
+            s.turnIntervalMin, s.turnWindowMin, s.turnSoundUri,
         )
     }
 }
@@ -92,6 +96,9 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
         s.preAlertMin = v.preAlertMin
         s.limitMin = v.limitMin
         s.warnBeforeMin = v.warnBeforeMin
+        s.turnIntervalMin = v.turnIntervalMin
+        s.turnWindowMin = v.turnWindowMin
+        s.turnSoundUri = v.turnSoundUri
         values = SettingsValues.from(s)
         app.scope.launch { app.engine.rearm(canStartService = true) }
     }
@@ -104,10 +111,32 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
             save(values.copy(soundUri = value))
         }
     }
+    // Turning rounds have their own sound; "default" there means the bundled turning chime.
+    val turnPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val picked = result.data?.let { IntentCompat.getParcelableExtra(it, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java) }
+            val value = picked?.takeIf { it != android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI }?.toString()
+            save(values.copy(turnSoundUri = value))
+        }
+    }
 
     SettingsContent(
         values = values,
         soundTitle = soundTitle(context, values.soundUri),
+        turnSoundTitle = values.turnSoundUri?.let { soundTitle(context, it) } ?: "Turning chime (built in)",
+        onPickTurnSound = {
+            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, values.turnSoundUri?.let(Uri::parse))
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Turning alarm sound")
+            try {
+                turnPicker.launch(intent)
+            } catch (e: ActivityNotFoundException) {
+                // No sound picker on this phone: the turning chime stays.
+            }
+        },
         onChange = ::save,
         onPickSound = {
             val existing = values.soundUri?.let(Uri::parse) ?: android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI
@@ -133,8 +162,10 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
 fun SettingsContent(
     values: SettingsValues,
     soundTitle: String,
+    turnSoundTitle: String = "Turning chime (built in)",
     onChange: (SettingsValues) -> Unit,
     onPickSound: () -> Unit,
+    onPickTurnSound: () -> Unit = {},
     onBack: () -> Unit,
     onSetup: () -> Unit,
 ) {
@@ -159,7 +190,7 @@ fun SettingsContent(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Alarm sound", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
+                        Text("Transfusion alarm sound", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
                         Text(soundTitle, color = Tvs.Muted, fontSize = TvsFont.Caption)
                     }
                     OutlinedButton(
@@ -225,6 +256,34 @@ fun SettingsContent(
                         }
                     },
                 )
+            }
+
+            Panel {
+                CapsLabel("Repositioning", Tvs.Navy)
+                Text("Ward interval for new plans", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                    Settings.TURN_INTERVALS.forEach { m ->
+                        ChoiceChip(Labels.duration(m), v.turnIntervalMin == m, { onChange(v.copy(turnIntervalMin = m)) }, Modifier.weight(1f))
+                    }
+                }
+                Stepper(
+                    title = "On-time window",
+                    hint = "A turn within this many minutes of its slot counts as on time.",
+                    value = "±${v.turnWindowMin} min",
+                    onMinus = { if (v.turnWindowMin > Settings.TURN_WINDOW_RANGE.first) onChange(v.copy(turnWindowMin = v.turnWindowMin - 5)) },
+                    onPlus = { if (v.turnWindowMin < Settings.TURN_WINDOW_RANGE.last) onChange(v.copy(turnWindowMin = v.turnWindowMin + 5)) },
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Turning alarm sound", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
+                        Text(turnSoundTitle, color = Tvs.Muted, fontSize = TvsFont.Caption)
+                    }
+                    OutlinedButton(
+                        onClick = onPickTurnSound,
+                        modifier = Modifier.heightIn(min = TvsSize.Touch),
+                        shape = TvsShape.Control,
+                    ) { Text("Change", fontWeight = FontWeight.Bold) }
+                }
             }
 
             Button(

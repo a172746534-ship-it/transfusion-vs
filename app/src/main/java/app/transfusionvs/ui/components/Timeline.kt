@@ -65,6 +65,11 @@ fun CardTimeline(points: List<TimelinePoint>, modifier: Modifier = Modifier, com
 
 @Composable
 private fun TimelineLabel(p: TimelinePoint, compact: Boolean) {
+    if (p.position != null) {
+        // Repositioning: the position icon takes the number's place (same height).
+        PositionIcon(p.position, Tvs.Navy, if (compact) TvsSize.IconSmall else TvsSize.IconTimeline)
+        return
+    }
     Row(verticalAlignment = Alignment.Bottom) {
         Text(
             p.number,

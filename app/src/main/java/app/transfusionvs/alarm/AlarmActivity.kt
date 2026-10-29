@@ -63,6 +63,14 @@ import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.TvsFont
+import app.transfusionvs.ui.components.PositionChange
+import app.transfusionvs.ui.components.ChoiceChip
+import app.transfusionvs.data.SkipReason
+import app.transfusionvs.data.Position
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 
 /**
  * The alarm screen, shown over the lock screen with the screen turned on and kept on.
@@ -135,6 +143,14 @@ fun AlarmContent(
     onAcknowledge: (List<Long>) -> Unit,
     onSnooze: () -> Unit,
     onStopForReaction: (Long) -> Unit,
+    round: RoundUi? = null,
+    onStartRound: () -> Unit = {},
+    onTurned: (slotId: Long, Position) -> Unit = { _, _ -> },
+    onCantTurn: (slotId: Long, SkipReason) -> Unit = { _, _ -> },
+    onSnoozeRound: () -> Unit = {},
+    onRemind: () -> Unit = {},
+    /** For screenshots: which beds start with "Other position" / "Can't turn" open. */
+    initiallyOpen: Map<Long, RoundChoice> = emptyMap(),
 ) {
     var showReaction by rememberSaveable { mutableStateOf(false) }
     // Back never dismisses the alarm (acknowledge or snooze); it only closes the reaction view.
@@ -166,6 +182,38 @@ fun AlarmContent(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(TvsSpace.s20),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s16),
         ) {
+            if (beds.isNotEmpty()) {
+                TransfusionSection(beds, list, isTest, canSnooze, snoozedUntil, snoozeMin, onAcknowledge, onSnooze)
+            }
+            // Turning round below any transfusion due in the same minute (transfusion first).
+            if (round != null && round.beds.isNotEmpty()) {
+                if (beds.isNotEmpty()) Spacer(Modifier.height(TvsSpace.s8))
+                RoundSection(
+                    round, big = beds.isEmpty(), snoozeMin = snoozeMin, initiallyOpen = initiallyOpen,
+                    onStartRound = onStartRound, onTurned = onTurned, onCantTurn = onCantTurn,
+                    onSnoozeRound = onSnoozeRound, onRemind = onRemind,
+                )
+            }
+            if (beds.isNotEmpty()) {
+                Spacer(Modifier.height(TvsSpace.s8))
+                ReactionBanner(onClick = { showReaction = true })
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransfusionSection(
+    beds: List<RingBed>,
+    list: List<CheckpointWithBed>,
+    isTest: Boolean,
+    canSnooze: Boolean,
+    snoozedUntil: Long?,
+    snoozeMin: Int,
+    onAcknowledge: (List<Long>) -> Unit,
+    onSnooze: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s16)) {
             CapsLabel(if (isTest) "Test alarm" else "Blood transfusion running", Tvs.Amber)
             Text(
                 when {
@@ -202,10 +250,6 @@ fun AlarmContent(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Tvs.White),
                 ) { Text("Snooze $snoozeMin min", fontSize = TvsFont.Lead, fontWeight = FontWeight.Bold) }
             }
-
-            Spacer(Modifier.height(TvsSpace.s8))
-            ReactionBanner(onClick = { showReaction = true })
-        }
     }
 }
 
@@ -240,5 +284,135 @@ private fun AckButton(text: String, big: Boolean, onClick: () -> Unit) {
         colors = ButtonDefaults.buttonColors(containerColor = Tvs.Amber, contentColor = Tvs.Navy),
     ) {
         Text(text, fontSize = if (big) TvsFont.Title else TvsFont.Lead, fontWeight = FontWeight.Black)
+    }
+}
+
+/** "Turning round · 10:00 · 4 beds": one alarm for every bed due on this slot. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RoundSection(
+    round: RoundUi,
+    big: Boolean,
+    snoozeMin: Int,
+    initiallyOpen: Map<Long, RoundChoice>,
+    onStartRound: () -> Unit,
+    onTurned: (Long, Position) -> Unit,
+    onCantTurn: (Long, SkipReason) -> Unit,
+    onSnoozeRound: () -> Unit,
+    onRemind: () -> Unit,
+) {
+    val open = remember { mutableStateMapOf<Long, RoundChoice>().apply { putAll(initiallyOpen) } }
+    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s16)) {
+        CapsLabel("Repositioning round", Tvs.Amber)
+        Text(
+            "Turning round · ${Labels.clock(round.slotAt)} · ${round.beds.size} bed${if (round.beds.size > 1) "s" else ""}",
+            color = Tvs.White,
+            fontSize = if (big) TvsFont.AlarmTitle else TvsFont.Title,
+            lineHeight = if (big) TvsFont.AlarmTitleLine else TvsFont.TitleLine,
+            fontWeight = FontWeight.Black,
+        )
+        Text("Check pressure points: occiput · ears · sacrum · heels", color = Tvs.OnNavyMuted, fontSize = TvsFont.BodyLarge)
+
+        if (round.snoozedUntil != null) {
+            Text(
+                "Snoozed — rings again at ${Labels.clock(round.snoozedUntil)}",
+                color = Tvs.Amber, fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Bold,
+            )
+        }
+
+        if (!round.started) {
+            // Before "Start round": who and what, then one big button that stops the sound.
+            round.beds.forEach { bed ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(TvsSize.Dot).background(Tvs.bedColor(bed.colorIndex), CircleShape))
+                    Spacer(Modifier.size(TvsSpace.s10))
+                    Text(
+                        bed.bedLabel, color = Tvs.White, fontSize = TvsFont.Lead, fontWeight = FontWeight.Black,
+                        modifier = Modifier.width(TvsSize.StepperValue),
+                    )
+                    PositionChange(bed.from, bed.suggested, Tvs.White, TvsSize.IconSmall, TvsFont.Caption)
+                }
+            }
+            AckButton("Start round", big = true, onClick = onStartRound)
+            if (round.canSnooze) {
+                OutlinedButton(
+                    onClick = onSnoozeRound,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
+                    shape = TvsShape.Card,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Tvs.White),
+                ) { Text("Snooze $snoozeMin min", fontSize = TvsFont.Lead, fontWeight = FontWeight.Bold) }
+            }
+        } else {
+            // The checklist: one row per bed.
+            round.beds.forEach { bed ->
+                RoundBedRow(
+                    bed = bed,
+                    open = open[bed.slotId],
+                    onOpen = { choice -> if (open[bed.slotId] == choice) open.remove(bed.slotId) else open[bed.slotId] = choice },
+                    onTurned = { p -> onTurned(bed.slotId, p) },
+                    onCantTurn = { r -> onCantTurn(bed.slotId, r) },
+                )
+            }
+            if (round.canRemind) {
+                OutlinedButton(
+                    onClick = onRemind,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
+                    shape = TvsShape.Card,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Tvs.White),
+                ) { Text("Remind me in 30 min", fontSize = TvsFont.Lead, fontWeight = FontWeight.Bold) }
+            }
+        }
+    }
+}
+
+/** Mirrors the transfusion bed row: bed, the turn to make, one big ✓, and two secondary actions. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RoundBedRow(
+    bed: RoundBed,
+    open: RoundChoice?,
+    onOpen: (RoundChoice) -> Unit,
+    onTurned: (Position) -> Unit,
+    onCantTurn: (SkipReason) -> Unit,
+) {
+    Column(
+        Modifier.fillMaxWidth().background(Tvs.OnNavyTint, TvsShape.Card).padding(TvsSpace.s14),
+        verticalArrangement = Arrangement.spacedBy(TvsSpace.s10),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(TvsSize.Dot).background(Tvs.bedColor(bed.colorIndex), CircleShape))
+            Spacer(Modifier.size(TvsSpace.s10))
+            Text(bed.bedLabel, color = Tvs.White, fontSize = TvsFont.Number, fontWeight = FontWeight.Black)
+        }
+        PositionChange(bed.from, bed.suggested, Tvs.White)
+        AckButton("✓ Turned to ${bed.suggested.label}", big = false, onClick = { onTurned(bed.suggested) })
+        Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+            listOf(RoundChoice.OTHER_POSITION to "Other position", RoundChoice.CANT_TURN to "Can't turn").forEach { (choice, label) ->
+                OutlinedButton(
+                    onClick = { onOpen(choice) },
+                    modifier = Modifier.weight(1f).heightIn(min = TvsSize.Touch),
+                    shape = TvsShape.Control,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (open == choice) Tvs.White else Tvs.Navy,
+                        contentColor = if (open == choice) Tvs.Navy else Tvs.White,
+                    ),
+                ) { Text(label, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold) }
+            }
+        }
+        when (open) {
+            RoundChoice.OTHER_POSITION -> FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8),
+                verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
+            ) {
+                bed.allowed.filter { it != bed.suggested }.forEach { p -> ChoiceChip(p.label, false, { onTurned(p) }) }
+            }
+            RoundChoice.CANT_TURN -> FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8),
+                verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
+            ) {
+                SkipReason.entries.forEach { r -> ChoiceChip(r.label, false, { onCantTurn(r) }) }
+            }
+            null -> Unit
+        }
     }
 }

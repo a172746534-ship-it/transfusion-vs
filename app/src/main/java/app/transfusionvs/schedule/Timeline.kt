@@ -3,6 +3,7 @@ package app.transfusionvs.schedule
 import app.transfusionvs.data.Checkpoint
 import app.transfusionvs.data.CheckpointStatus
 import app.transfusionvs.data.CheckpointType
+import app.transfusionvs.data.Position
 import app.transfusionvs.data.Transfusion
 
 // Pure models behind the card-style timeline and the per-checkpoint status (unit tested).
@@ -17,6 +18,8 @@ data class TimelinePoint(
     /** Navy-filled chip for start and hourly; outlined for 15 min, 30 min and End. */
     val filledChip: Boolean,
     val dot: DotStyle,
+    /** Repositioning: the position for this slot, shown as an icon instead of a number. */
+    val position: Position? = null,
 )
 
 object TimelineBuilder {
@@ -65,7 +68,7 @@ object TimelineBuilder {
     }
 }
 
-enum class StatusKind { UPCOMING, DUE, RINGING, SNOOZED, ON_TIME, LATE, MISSED, CANCELLED }
+enum class StatusKind { UPCOMING, DUE, RINGING, SNOOZED, ON_TIME, LATE, MISSED, SKIPPED, CANCELLED }
 
 data class StatusView(val kind: StatusKind, val text: String)
 

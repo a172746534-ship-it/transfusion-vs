@@ -2,6 +2,7 @@ package app.transfusionvs.alarm
 
 import app.transfusionvs.data.CheckpointType
 import app.transfusionvs.data.CheckpointWithBed
+import app.transfusionvs.data.Position
 import app.transfusionvs.schedule.Labels
 
 /** One bed on the alarm: it gets its own ✓ button that acknowledges all of its rows. */
@@ -64,3 +65,31 @@ data class RingSpec(
             }
     }
 }
+
+// ---- Repositioning round (one alarm per ward-clock slot, all due beds together) ----
+
+/** One bed on the round: where the patient lies and the suggested next position. */
+data class RoundBed(
+    val planId: Long,
+    val slotId: Long,
+    val bedLabel: String,
+    val colorIndex: Int,
+    val from: Position,
+    val suggested: Position,
+    /** The bed's allowed positions (excluded ones are never offered). */
+    val allowed: List<Position>,
+)
+
+data class RoundUi(
+    val slotAt: Long,
+    val beds: List<RoundBed>,
+    /** "Start round" tapped: the sound is off and the checklist shows. */
+    val started: Boolean,
+    val canSnooze: Boolean,
+    val snoozedUntil: Long?,
+    /** "Remind me in 30 min" — only if it lands before the next slot. */
+    val canRemind: Boolean,
+)
+
+/** Which secondary action is open on a round row. */
+enum class RoundChoice { OTHER_POSITION, CANT_TURN }

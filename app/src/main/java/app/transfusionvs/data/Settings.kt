@@ -51,6 +51,23 @@ class Settings(context: Context) {
         get() = prefs.getString("alarmSoundUri", null)
         set(v) = prefs.edit { putString("alarmSoundUri", v) }
 
+    // ---- Repositioning ----
+
+    /** Default ward interval for new plans: 60, 120 or 240 min. */
+    var turnIntervalMin: Int
+        get() = prefs.getInt("turnIntervalMin", 120).takeIf { it in TURN_INTERVALS } ?: 120
+        set(v) = prefs.edit { putInt("turnIntervalMin", if (v in TURN_INTERVALS) v else 120) }
+
+    /** ± minutes around a slot that still count as "on time". */
+    var turnWindowMin: Int
+        get() = int("turnWindowMin", 15, TURN_WINDOW_RANGE)
+        set(v) = prefs.edit { putInt("turnWindowMin", v.coerceIn(TURN_WINDOW_RANGE)) }
+
+    /** Turn alarm sound; null = the bundled turning chime (distinct from the transfusion alarm). */
+    var turnSoundUri: String?
+        get() = prefs.getString("turnSoundUri", null)
+        set(v) = prefs.edit { putString("turnSoundUri", v) }
+
     var setupSeen: Boolean
         get() = prefs.getBoolean("setupSeen", false)
         set(value) = prefs.edit { putBoolean("setupSeen", value) }
@@ -63,5 +80,7 @@ class Settings(context: Context) {
         val LIMIT_RANGE = 60..480
         val WARN_RANGE = 5..60
         val PRE_ALERT_CHOICES = listOf(0, 1, 2, 5)
+        val TURN_INTERVALS = listOf(60, 120, 240)
+        val TURN_WINDOW_RANGE = 5..30
     }
 }

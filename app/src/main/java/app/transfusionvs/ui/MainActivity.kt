@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -20,6 +21,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.transfusionvs.app
 import app.transfusionvs.data.TransfusionStatus
 import app.transfusionvs.ui.screens.BedChoice
+import app.transfusionvs.ui.screens.ChooserContent
+import app.transfusionvs.ui.screens.TurnDetailContent
+import app.transfusionvs.ui.screens.TurnStartContent
 import app.transfusionvs.ui.screens.DetailScreen
 import app.transfusionvs.ui.screens.HomeScreen
 import app.transfusionvs.ui.screens.ReactionScreen
@@ -53,6 +57,9 @@ private sealed interface Route {
     data object Setup : Route
     data object Start : Route
     data object Settings : Route
+    data object Chooser : Route
+    data object TurnStart : Route
+    data class TurnDetail(val id: Long) : Route
     data class Detail(val id: Long) : Route
     data class Edit(val id: Long) : Route
     /** [id] = the bed to stop, or null to choose among running beds. */
@@ -64,6 +71,9 @@ private fun encode(r: Route): String = when (r) {
     Route.Setup -> "setup"
     Route.Start -> "start"
     Route.Settings -> "settings"
+    Route.Chooser -> "chooser"
+    Route.TurnStart -> "turnstart"
+    is Route.TurnDetail -> "turndetail:${r.id}"
     is Route.Detail -> "detail:${r.id}"
     is Route.Edit -> "edit:${r.id}"
     is Route.Reaction -> "reaction:${r.id ?: ""}"
@@ -75,6 +85,9 @@ private fun decode(s: String): Route {
         "setup" -> Route.Setup
         "start" -> Route.Start
         "settings" -> Route.Settings
+        "chooser" -> Route.Chooser
+        "turnstart" -> Route.TurnStart
+        "turndetail" -> arg?.let { Route.TurnDetail(it) } ?: Route.Home
         "detail" -> arg?.let { Route.Detail(it) } ?: Route.Home
         "edit" -> arg?.let { Route.Edit(it) } ?: Route.Home
         "reaction" -> Route.Reaction(arg)
@@ -102,7 +115,8 @@ private fun AppNavigation(firstRun: Boolean) {
     when (val r = stack.last()) {
         Route.Home -> HomeScreen(
             vm = vm,
-            onStart = { push(Route.Start) },
+            onStart = { push(Route.Chooser) },
+            onOpenTurnPlan = { push(Route.TurnDetail(it)) },
             onOpen = { push(Route.Detail(it)) },
             onReaction = { push(Route.Reaction(null)) },
             onSetup = { push(Route.Setup) },
@@ -111,6 +125,24 @@ private fun AppNavigation(firstRun: Boolean) {
         Route.Setup -> SetupScreen(onBack = ::pop)
         Route.Settings -> SettingsScreen(onBack = ::pop, onSetup = { push(Route.Setup) })
         Route.Start -> StartScreen(vm, editing = null, onDone = ::home, onBack = ::pop)
+        Route.Chooser -> ChooserContent(
+            onTransfusion = { stack = stack.dropLast(1) + Route.Start },
+            onRepositioning = { stack = stack.dropLast(1) + Route.TurnStart },
+            onBack = ::pop,
+        )
+        Route.TurnStart -> {
+            val openedAt = rememberSaveable { System.currentTimeMillis() }
+            // Design stage (R1): the screen renders; starting a plan is wired with the engine in R2.
+            TurnStartContent(editing = null, defaultIntervalMin = vm.turnIntervalMin, openedAt = openedAt, onSubmit = { home() }, onBack = ::pop)
+        }
+        is Route.TurnDetail -> {
+            val flow = remember(r.id) { vm.turnPlan(r.id) }
+            val item by flow.collectAsStateWithLifecycle(initialValue = null)
+            TurnDetailContent(
+                item = item, now = System.currentTimeMillis(), windowMin = vm.turnWindowMin,
+                onBack = ::pop, onEdit = {}, onStop = {}, onRestart = {}, onOpenRound = {},
+            )
+        }
         is Route.Detail -> DetailScreen(
             vm = vm,
             id = r.id,

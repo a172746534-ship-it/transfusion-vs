@@ -43,6 +43,13 @@ object Labels {
      * The start-time picker gives a clock time; T0 is its most recent occurrence that is not in
      * the future (a transfusion that "started at 23:50" picked at 00:10 started yesterday).
      */
+    /** A picked stop time means its next occurrence after [now]. */
+    fun nextOccurrence(hour: Int, minute: Int, now: Long, zone: ZoneId = ZoneId.systemDefault()): Long {
+        val today = Instant.ofEpochMilli(now).atZone(zone).withHour(hour).withMinute(minute).withSecond(0).withNano(0)
+        val candidate = if (today.toInstant().toEpochMilli() <= now) today.plusDays(1) else today
+        return candidate.toInstant().toEpochMilli()
+    }
+
     fun mostRecentPast(hour: Int, minute: Int, now: Long, zone: ZoneId = ZoneId.systemDefault()): Long {
         val today = Instant.ofEpochMilli(now).atZone(zone).withHour(hour).withMinute(minute).withSecond(0).withNano(0)
         val candidate = if (today.toInstant().toEpochMilli() > now) today.minusDays(1) else today

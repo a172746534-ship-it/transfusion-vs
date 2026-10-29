@@ -22,6 +22,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.ui.text.TextStyle
+import app.transfusionvs.ui.theme.Inter
 import app.transfusionvs.ui.theme.Tvs
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
@@ -71,7 +75,13 @@ private fun StepBlock(
                 Text(number, color = badgeText, fontWeight = FontWeight.Black, fontSize = TvsFont.BodySmall)
             }
             Spacer(Modifier.size(TvsSpace.s8))
-            Text(title, color = content, fontWeight = FontWeight.Black, fontSize = TvsFont.Lead)
+            // One line always: on narrow phones the word shrinks a little instead of breaking ("DOCUMEN-T").
+            BasicText(
+                title,
+                style = TextStyle(color = content, fontWeight = FontWeight.Black, fontSize = TvsFont.Lead, fontFamily = Inter),
+                maxLines = 1,
+                autoSize = TextAutoSize.StepBased(minFontSize = TvsFont.Label, maxFontSize = TvsFont.Lead),
+            )
         }
         Spacer(Modifier.height(TvsSpace.s6))
         Text(body, color = content, fontSize = TvsFont.BodySmall)

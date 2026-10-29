@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import app.transfusionvs.App
 import app.transfusionvs.data.CheckpointWithBed
 import app.transfusionvs.data.TransfusionWithCheckpoints
+import app.transfusionvs.data.TurnPlanWithSlots
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -27,6 +30,14 @@ class MainViewModel(private val app: App) : ViewModel() {
         dao.observeRinging().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun transfusion(id: Long): Flow<TransfusionWithCheckpoints?> = dao.observeTransfusion(id)
+
+    // Repositioning: design stage (R1) — screens render, the data and engine are wired in R2.
+    val turns: StateFlow<List<TurnPlanWithSlots>?> = MutableStateFlow(emptyList())
+
+    fun turnPlan(id: Long): Flow<TurnPlanWithSlots?> = flowOf(null)
+
+    val turnIntervalMin: Int get() = app.settings.turnIntervalMin
+    val turnWindowMin: Int get() = app.settings.turnWindowMin
 
     val toleranceMin: Int get() = app.settings.toleranceMin
     val limitMin: Int get() = app.settings.limitMin
