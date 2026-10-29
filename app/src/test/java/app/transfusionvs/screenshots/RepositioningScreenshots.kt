@@ -63,7 +63,7 @@ class RepositioningScreenshots {
 
     /** Started at 09:45: 10:00 is under 30 min away, so the first turn defaults to 12:00. */
     @Test
-    @Config(qualifiers = TALL_PHONE)
+    @Config(qualifiers = XTALL_PHONE)
     fun start() = shot("repositioning_start") {
         TurnStartContent(editing = null, defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = {})
     }

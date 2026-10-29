@@ -1,5 +1,7 @@
 package app.transfusionvs.ui.components
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
@@ -34,7 +36,11 @@ fun PositionIcon(position: Position, tint: Color, size: Dp = TvsSize.IconMedium)
     Icon(painterResource(position.iconRes()), contentDescription = position.label, tint = tint, modifier = Modifier.size(size))
 }
 
-/** "◻ Left 30°  →  ◻ Back": the turn to make, with icons. */
+/**
+ * "◻ Left 30°  →  ◻ Back": the turn to make, with icons. When space is short it wraps between
+ * whole parts, never inside a word.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PositionChange(
     from: Position,
@@ -43,13 +49,18 @@ fun PositionChange(
     iconSize: Dp = TvsSize.IconMedium,
     fontSize: TextUnit = TvsFont.Body,
 ) {
+    FlowRow(itemVerticalAlignment = Alignment.CenterVertically) {
+        PositionLabel(from, color, iconSize, fontSize, FontWeight.Normal)
+        Text("  →  ", color = color, fontSize = fontSize, fontWeight = FontWeight.Black, softWrap = false)
+        PositionLabel(to, color, iconSize, fontSize, FontWeight.Black)
+    }
+}
+
+@Composable
+private fun PositionLabel(p: Position, color: Color, iconSize: Dp, fontSize: TextUnit, weight: FontWeight) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        PositionIcon(from, color, iconSize)
+        PositionIcon(p, color, iconSize)
         Spacer(Modifier.width(TvsSpace.s6))
-        Text(from.label, color = color, fontSize = fontSize)
-        Text("  →  ", color = color, fontSize = fontSize, fontWeight = FontWeight.Black)
-        PositionIcon(to, color, iconSize)
-        Spacer(Modifier.width(TvsSpace.s6))
-        Text(to.label, color = color, fontSize = fontSize, fontWeight = FontWeight.Black)
+        Text(p.label, color = color, fontSize = fontSize, fontWeight = weight, softWrap = false, maxLines = 1)
     }
 }

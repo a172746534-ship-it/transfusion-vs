@@ -168,3 +168,6 @@ const val PHONE = "w393dp-h852dp-xxhdpi"
 
 /** Same width, taller, so long screens are captured whole. */
 const val TALL_PHONE = "w393dp-h1600dp-xxhdpi"
+
+/** For the longest screen (repositioning Start with its preview). */
+const val XTALL_PHONE = "w393dp-h2600dp-xxhdpi"

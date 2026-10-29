@@ -70,6 +70,7 @@ import app.transfusionvs.data.Position
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 
 /**
@@ -323,18 +324,21 @@ private fun RoundSection(
         if (!round.started) {
             // Before "Start round": who and what, then one big button that stops the sound.
             round.beds.forEach { bed ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(TvsSize.Dot).background(Tvs.bedColor(bed.colorIndex), CircleShape))
-                    Spacer(Modifier.size(TvsSpace.s10))
-                    Text(
-                        bed.bedLabel, color = Tvs.White, fontSize = TvsFont.Lead, fontWeight = FontWeight.Black,
-                        modifier = Modifier.width(TvsSize.StepperValue),
-                    )
-                    PositionChange(bed.from, bed.suggested, Tvs.White, TvsSize.IconSmall, TvsFont.Caption)
+                // Same layout and sizes as a transfusion bed row: bed on one line, the turn below.
+                Column(
+                    Modifier.fillMaxWidth().background(Tvs.OnNavyTint, TvsShape.Card).padding(TvsSpace.s14),
+                    verticalArrangement = Arrangement.spacedBy(TvsSpace.s6),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(TvsSize.Dot).background(Tvs.bedColor(bed.colorIndex), CircleShape))
+                        Spacer(Modifier.size(TvsSpace.s10))
+                        Text(bed.bedLabel, color = Tvs.White, fontSize = TvsFont.Number, fontWeight = FontWeight.Black)
+                    }
+                    PositionChange(bed.from, bed.suggested, Tvs.White)
                 }
             }
             AckButton("Start round", big = true, onClick = onStartRound)
-            if (round.canSnooze) {
+            if (round.canSnooze && big) { // next to a transfusion, its Snooze above covers everything
                 OutlinedButton(
                     onClick = onSnoozeRound,
                     modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
@@ -391,6 +395,7 @@ private fun RoundBedRow(
                 OutlinedButton(
                     onClick = { onOpen(choice) },
                     modifier = Modifier.weight(1f).heightIn(min = TvsSize.Touch),
+                    contentPadding = PaddingValues(horizontal = TvsSpace.s8),
                     shape = TvsShape.Control,
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = if (open == choice) Tvs.White else Tvs.Navy,
@@ -404,7 +409,8 @@ private fun RoundBedRow(
                 horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8),
                 verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
             ) {
-                bed.allowed.filter { it != bed.suggested }.forEach { p -> ChoiceChip(p.label, false, { onTurned(p) }) }
+                // Neither the suggestion (that is the big button) nor where the patient already lies.
+                bed.allowed.filter { it != bed.suggested && it != bed.from }.forEach { p -> ChoiceChip(p.label, false, { onTurned(p) }) }
             }
             RoundChoice.CANT_TURN -> FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8),
