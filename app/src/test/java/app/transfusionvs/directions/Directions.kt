@@ -256,15 +256,25 @@ object WardCard {
         }
     }
 
+    /** Instructions must not look like buttons: only the action is a filled block on this screen. */
     @Composable
-    private fun Blocks(p: P) = Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(Modifier.fillMaxWidth().background(if (p.night) Color(0xFF16233D) else Color(0xFF1D4E9E), RoundedCornerShape(14.dp)).padding(12.dp)) {
-            T("1 MEASURE", if (p.night) p.ink else Color.White, 18.sp, display, FontWeight.Black)
-            T("T · HR · RR · BP · SpO₂", if (p.night) p.ink else Color.White, 16.sp, text)
+    private fun Blocks(p: P) = Column(
+        Modifier.fillMaxWidth().border(2.dp, p.alarmInk.copy(alpha = 0.35f), RoundedCornerShape(14.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Step("1", "MEASURE", "T · HR · RR · BP · SpO₂", Color(0xFF8FB4F5), p)
+        Step("2", "DOCUMENT", "in Cerner, right away", p.alarmAction, p)
+    }
+
+    @Composable
+    private fun Step(n: String, title: String, body: String, accent: Color, p: P) = Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(34.dp).background(accent, CircleShape), contentAlignment = Alignment.Center) {
+            T(n, p.alarmBg, 18.sp, display, FontWeight.Black)
         }
-        Column(Modifier.fillMaxWidth().background(if (p.night) Color(0xFF2B2110) else Color(0xFFF5A623), RoundedCornerShape(14.dp)).padding(12.dp)) {
-            T("2 DOCUMENT", if (p.night) p.soon else p.ink, 18.sp, display, FontWeight.Black)
-            T("in Cerner, right away", if (p.night) p.ink else p.ink, 16.sp, text)
+        Spacer(Modifier.width(12.dp))
+        Column {
+            T(title, accent, 18.sp, display, FontWeight.Black)
+            T(body, p.alarmInk, 17.sp, text)
         }
     }
 
