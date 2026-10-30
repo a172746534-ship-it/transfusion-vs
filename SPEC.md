@@ -313,6 +313,17 @@ alarm behaviour as transfusions.
 
 ---
 
+# Design overhaul — added 2026-10-31
+
+The full brief is docs/DESIGN_OVERHAUL.md and the test loop is docs/TEST_LOOP.md; both are the source
+of truth for this work. It **supersedes** the rule "no new colours / indistinguishable from the
+existing design" in Feature 2 and the "light theme only" line under Visual design:
+both features now look like ONE product inside ONE new design system, with day and night themes.
+Clinical content stays frozen, word for word: the VS list, the warning signs, DO NOW 1–5 and both
+schedules. The alarm engine, schedules, data meaning and privacy rules do not change.
+
+---
+
 ## Decisions log
 
 ### 2026-10-28 — plan approved

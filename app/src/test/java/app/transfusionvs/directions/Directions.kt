@@ -67,6 +67,8 @@ data class P(
     val now: Color, val onNow: Color, val overdue: Color, val onOverdue: Color,
     val danger: Color, val onDanger: Color, val typeTx: Color, val typeRp: Color,
     val alarmBg: Color, val alarmInk: Color, val alarmAction: Color, val alarmOnAction: Color,
+    val dangerFill: Color, val onDangerFill: Color, val dangerEdge: Color,
+    val primary: Color, val onPrimary: Color, val primaryEdge: Color,
     val night: Boolean,
 ) {
     val track get() = muted.copy(alpha = 0.3f)
@@ -79,7 +81,8 @@ fun palette(direction: String, theme: String): P {
     return P(
         c("bg"), c("card"), c("ink"), c("muted"), c("calm"), c("on_calm"), c("soon"), c("on_soon"), c("now"), c("on_now"),
         c("overdue"), c("on_overdue"), c("danger"), c("on_danger"), c("type_tx"), c("type_rp"),
-        c("alarm_bg"), c("alarm_ink"), c("alarm_action"), c("alarm_on_action"), theme == "night",
+        c("alarm_bg"), c("alarm_ink"), c("alarm_action"), c("alarm_on_action"),
+        c("danger_fill"), c("on_danger_fill"), c("danger_edge"), c("primary"), c("on_primary"), c("primary_edge"), theme == "night",
     )
 }
 
@@ -133,14 +136,14 @@ private fun Btn(
 
 @Composable
 private fun ReactionBar(p: P, family: FontFamily, bold: FontWeight = FontWeight.Black, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(16.dp)) = Row(
-    Modifier.fillMaxWidth().heightIn(min = 64.dp).background(p.danger, shape).padding(horizontal = 14.dp, vertical = 8.dp),
+    Modifier.fillMaxWidth().heightIn(min = 64.dp).background(p.dangerFill, shape).border(2.dp, p.dangerEdge, shape).padding(horizontal = 14.dp, vertical = 8.dp),
     verticalAlignment = Alignment.CenterVertically,
 ) {
-    Icon(painterResource(R.drawable.ic_warning), null, tint = p.onDanger, modifier = Modifier.size(28.dp))
+    Icon(painterResource(R.drawable.ic_warning), null, tint = p.onDangerFill, modifier = Modifier.size(28.dp))
     Spacer(Modifier.width(12.dp))
     Column {
-        T("SUSPECTED REACTION?", p.onDanger, 16.sp, family, bold)
-        T("STOP the transfusion & call", p.onDanger, 16.sp, family, FontWeight.Normal)
+        T("SUSPECTED REACTION?", p.onDangerFill, 16.sp, family, bold)
+        T("STOP the transfusion & call", p.onDangerFill, 16.sp, family, FontWeight.Normal)
     }
 }
 
@@ -221,7 +224,9 @@ object WardCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(painterResource(b.kind.icon), null, tint = p.type(b.kind), modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(6.dp))
-                    T(b.bed, p.ink, 24.sp, display, FontWeight.Black, Modifier.weight(1f), NUM)
+                    T(b.bed, p.ink, 24.sp, display, FontWeight.Black, features = NUM)
+                    Spacer(Modifier.width(8.dp))
+                    T(b.kind.tag, p.type(b.kind), 16.sp, display, FontWeight.Black, Modifier.weight(1f))
                     T(b.time, p.ink, 26.sp, display, FontWeight.Black, features = NUM)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -238,7 +243,7 @@ object WardCard {
     fun Home(p: P) {
         Column(Modifier.fillMaxSize().background(p.bg)) {
             Column(Modifier.fillMaxWidth().background(if (p.night) p.card else p.ink).padding(horizontal = 16.dp, vertical = 10.dp)) {
-                T("6 BEDS RUNNING · 11:05", if (p.night) p.soon else Color(0xFFF5A623), 14.sp, display, FontWeight.Black, tracking = 1.6.sp, features = NUM)
+                T("6 BEDS RUNNING · 11:05", if (p.night) p.soon else Color(0xFFF5A623), 16.sp, display, FontWeight.Black, tracking = 1.6.sp, features = NUM)
                 T("1 overdue · 1 due now", if (p.night) p.ink else Color.White, 22.sp, display, FontWeight.Black)
             }
             Column(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -246,18 +251,18 @@ object WardCard {
             }
             Column(Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ReactionBar(p, display)
-                Btn("Start", if (p.night) p.soon else p.ink, if (p.night) p.onSoon else Color.White, display, size = 22.sp)
+                Btn("Start", p.primary, p.onPrimary, display, size = 22.sp, border = p.primaryEdge)
             }
         }
     }
 
     @Composable
-    private fun Blocks(p: P) = Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(Modifier.weight(1f).background(if (p.night) Color(0xFF16233D) else Color(0xFF1D4E9E), RoundedCornerShape(14.dp)).padding(12.dp)) {
+    private fun Blocks(p: P) = Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth().background(if (p.night) Color(0xFF16233D) else Color(0xFF1D4E9E), RoundedCornerShape(14.dp)).padding(12.dp)) {
             T("1 MEASURE", if (p.night) p.ink else Color.White, 18.sp, display, FontWeight.Black)
             T("T · HR · RR · BP · SpO₂", if (p.night) p.ink else Color.White, 16.sp, text)
         }
-        Column(Modifier.weight(1f).background(if (p.night) Color(0xFF2B2110) else Color(0xFFF5A623), RoundedCornerShape(14.dp)).padding(12.dp)) {
+        Column(Modifier.fillMaxWidth().background(if (p.night) Color(0xFF2B2110) else Color(0xFFF5A623), RoundedCornerShape(14.dp)).padding(12.dp)) {
             T("2 DOCUMENT", if (p.night) p.soon else p.ink, 18.sp, display, FontWeight.Black)
             T("in Cerner, right away", if (p.night) p.ink else p.ink, 16.sp, text)
         }
@@ -267,13 +272,13 @@ object WardCard {
     fun Alarm(p: P) {
         val rail = Bed("Bed 14", Kind.TX, "11:05", "15-min check", U.NOW, "DUE NOW", 1, 7, 1f)
         Column(Modifier.fillMaxSize().background(p.alarmBg).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            T("BLOOD TRANSFUSION RUNNING", if (p.night) p.alarmAction else Color(0xFFF5A623), 14.sp, display, FontWeight.Black, tracking = 1.6.sp)
+            T("BLOOD TRANSFUSION RUNNING", if (p.night) p.alarmAction else Color(0xFFF5A623), 16.sp, display, FontWeight.Black, tracking = 1.6.sp)
             T("15-min check", p.alarmInk, 34.sp, display, FontWeight.Black)
             Row(verticalAlignment = Alignment.Bottom) {
                 T("Bed 14", p.alarmInk, 56.sp, display, FontWeight.Black, Modifier.weight(1f), NUM)
                 T("11:05", p.alarmInk, 56.sp, display, FontWeight.Black, features = NUM)
             }
-            Rail(rail, p.copy(track = p), height = 30.dp, ink = p.alarmInk, card = p.alarmBg)
+            Rail(rail, p.copy(now = p.alarmAction, onNow = p.alarmOnAction), height = 30.dp, ink = p.alarmInk, card = p.alarmBg)
             Blocks(p)
             Spacer(Modifier.weight(1f))
             Btn("Measured & documented ✓", p.alarmAction, p.alarmOnAction, display, height = 96.dp, size = 24.sp)
@@ -285,7 +290,7 @@ object WardCard {
     @Composable
     fun Round(p: P) {
         Column(Modifier.fillMaxSize().background(p.alarmBg).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            T("REPOSITIONING ROUND", if (p.night) p.alarmAction else Color(0xFFF5A623), 14.sp, display, FontWeight.Black, tracking = 1.6.sp)
+            T("REPOSITIONING ROUND", if (p.night) p.alarmAction else Color(0xFFF5A623), 16.sp, display, FontWeight.Black, tracking = 1.6.sp)
             T("Turning round", p.alarmInk, 34.sp, display, FontWeight.Black)
             Row(verticalAlignment = Alignment.Bottom) {
                 T("10:00", p.alarmInk, 56.sp, display, FontWeight.Black, Modifier.weight(1f), NUM)
@@ -299,8 +304,6 @@ object WardCard {
         }
     }
 }
-
-private fun P.copy(track: P) = this
 
 @Composable
 private fun TurnRow(
@@ -326,11 +329,11 @@ object Halo {
     const val NUM = "tnum"
 
     @Composable
-    private fun Ring(b: Bed, p: P, modifier: Modifier, ink: Color = p.ink, content: @Composable BoxScope.() -> Unit) = Box(modifier, contentAlignment = Alignment.Center) {
+    private fun Ring(b: Bed, p: P, modifier: Modifier, ink: Color = p.ink, weight: Float? = null, content: @Composable BoxScope.() -> Unit) = Box(modifier, contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val unit = min(size.width, size.height) / 96f
             val c = Offset(size.width / 2, size.height / 2)
-            val stroke = when (b.state) { U.CALM -> 7f; U.SOON -> 11f; U.NOW -> 15f; U.OVERDUE -> 10f } * unit
+            val stroke = (weight ?: when (b.state) { U.CALM -> 7f; U.SOON -> 11f; U.NOW -> 15f; U.OVERDUE -> 10f }) * unit
             val r = min(size.width, size.height) / 2 - stroke / 2 - unit * 2
             val color = p.of(b.state)
             if (b.state == U.OVERDUE) {
@@ -365,14 +368,13 @@ object Halo {
             modifier.background(p.card, shape).padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(Modifier.fillMaxWidth().height(84.dp)) {
-                Ring(b, p, Modifier.size(84.dp).align(Alignment.Center)) {
-                    T(b.number, if (b.state == U.OVERDUE) p.onOverdue else p.ink, 30.sp, f, FontWeight.Black, features = NUM)
-                }
-                Column(Modifier.align(Alignment.TopStart), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(painterResource(b.kind.icon), null, tint = p.type(b.kind), modifier = Modifier.size(22.dp))
-                    T(b.kind.tag, p.type(b.kind), 12.sp, f, FontWeight.Black)
-                }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(painterResource(b.kind.icon), null, tint = p.type(b.kind), modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(4.dp))
+                T(b.kind.tag, p.type(b.kind), 16.sp, f, FontWeight.Black)
+            }
+            Ring(b, p, Modifier.size(88.dp)) {
+                T(b.number, if (b.state == U.OVERDUE) p.onOverdue else p.ink, 30.sp, f, FontWeight.Black, features = NUM)
             }
             T(b.time, p.ink, 28.sp, f, FontWeight.Black, features = NUM)
             T(b.stateText, if (b.state == U.CALM) p.muted else if (b.state == U.SOON) p.ink else p.of(b.state), 16.sp, f, FontWeight.Bold, features = NUM, align = TextAlign.Center)
@@ -395,7 +397,7 @@ object Halo {
             }
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ReactionBar(p, f, shape = RoundedCornerShape(24.dp))
-                Btn("Start", p.ink, p.card, f, size = 22.sp, shape = RoundedCornerShape(24.dp))
+                Btn("Start", p.primary, p.onPrimary, f, size = 22.sp, shape = RoundedCornerShape(24.dp), border = p.primaryEdge)
             }
         }
     }
@@ -409,11 +411,11 @@ object Halo {
                 Spacer(Modifier.width(6.dp))
                 T("Blood transfusion running", p.alarmMuted, 16.sp, f, FontWeight.Bold)
             }
-            Ring(b, p.copy(now = p.alarmAction, track = p), Modifier.size(232.dp), ink = p.alarmInk) {
+            Ring(b, p.copy(now = p.alarmAction), Modifier.size(248.dp), ink = p.alarmInk, weight = 7f) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     T("Bed", p.alarmMuted, 20.sp, f, FontWeight.Bold)
-                    T("14", p.alarmInk, 76.sp, f, FontWeight.Black, features = NUM, line = 80.sp)
-                    T("11:05", p.alarmInk, 34.sp, f, FontWeight.Black, features = NUM)
+                    T("14", p.alarmInk, 64.sp, f, FontWeight.Black, features = NUM, line = 68.sp)
+                    T("11:05", p.alarmInk, 40.sp, f, FontWeight.Black, features = NUM)
                 }
             }
             T("15-min check", p.alarmInk, 34.sp, f, FontWeight.Black)
@@ -437,9 +439,9 @@ object Halo {
                 Spacer(Modifier.width(6.dp))
                 T("Repositioning round", p.alarmMuted, 16.sp, f, FontWeight.Bold)
             }
-            Ring(b, p.copy(now = p.alarmAction, track = p), Modifier.size(168.dp), ink = p.alarmInk) {
+            Ring(b, p.copy(now = p.alarmAction), Modifier.size(184.dp), ink = p.alarmInk, weight = 7f) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    T("10:00", p.alarmInk, 44.sp, f, FontWeight.Black, features = NUM)
+                    T("10:00", p.alarmInk, 40.sp, f, FontWeight.Black, features = NUM)
                     T("4 beds", p.alarmMuted, 20.sp, f, FontWeight.Bold)
                 }
             }
@@ -452,7 +454,6 @@ object Halo {
         }
     }
 
-    private fun P.copy(now: Color, track: P) = copy(now = now)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -508,9 +509,9 @@ object Board {
     @Composable
     private fun Line(b: Bed, p: P) {
         val alarm = b.state == U.OVERDUE
-        val bg = if (alarm) p.overdue else p.card
-        val ink = if (alarm) p.onOverdue else p.ink
-        val sub = if (alarm) p.onOverdue else p.muted
+        val bg = if (alarm) p.dangerFill else p.card
+        val ink = if (alarm) p.onDangerFill else p.ink
+        val sub = if (alarm) p.onDangerFill else p.muted
         Column(Modifier.fillMaxWidth().background(bg).padding(horizontal = 12.dp, vertical = 7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 T(b.time, ink, 36.sp, mono, FontWeight.Black, Modifier.width(118.dp))
@@ -519,11 +520,13 @@ object Board {
                         T(b.bed.uppercase(), ink, 26.sp, cond, FontWeight.Bold)
                         Spacer(Modifier.width(6.dp))
                         Icon(painterResource(b.kind.icon), null, tint = if (alarm) ink else p.type(b.kind), modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(3.dp))
+                        T(b.kind.tag, if (alarm) ink else p.type(b.kind), 16.sp, cond, FontWeight.Bold)
                     }
                     T(b.what, sub, 16.sp, cond, FontWeight.Medium)
                 }
                 if (alarm) {
-                    Tag(U.OVERDUE, "+15 MIN", p.copy(overdue = p.onOverdue, onOverdue = p.overdue))
+                    Tag(U.OVERDUE, "+15 MIN", p.copy(overdue = ink, onOverdue = bg))
                 } else {
                     Tag(b.state, b.stateText.removePrefix("SOON · ").uppercase(), p)
                 }
@@ -536,17 +539,17 @@ object Board {
     @Composable
     fun Home(p: P) {
         Column(Modifier.fillMaxSize().background(p.bg)) {
-            Row(Modifier.fillMaxWidth().background(p.ink).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                T("11:05", p.bg, 28.sp, mono, FontWeight.Black)
+            Row(Modifier.fillMaxWidth().background(p.primary).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                T("11:05", p.onPrimary, 28.sp, mono, FontWeight.Black)
                 Spacer(Modifier.width(12.dp))
-                T("6 BEDS · 1 OVERDUE · 1 DUE NOW", p.bg, 17.sp, cond, FontWeight.Bold, tracking = 0.5.sp)
+                T("6 BEDS · 1 OVERDUE · 1 DUE NOW", p.onPrimary, 17.sp, cond, FontWeight.Bold, tracking = 0.5.sp)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 SampleBeds.forEach { Line(it, p) }
             }
             Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ReactionBar(p, cond, FontWeight.Bold, shape = RectangleShape)
-                Btn("START", p.ink, p.bg, cond, size = 26.sp, shape = RectangleShape, weight = FontWeight.Bold)
+                Btn("START", p.primary, p.onPrimary, cond, size = 26.sp, shape = RectangleShape, weight = FontWeight.Bold, border = p.primaryEdge)
             }
         }
     }

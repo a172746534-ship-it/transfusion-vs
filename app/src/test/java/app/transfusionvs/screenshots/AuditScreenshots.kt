@@ -216,6 +216,12 @@ class AuditScreenshots {
         )
     }
 
+    /** System language Arabic: English UI, Latin digits, and does the layout flip right-to-left? */
+    @Test fun arabic_phone() {
+        variant("w360_f10_ar", "home_both_features", "ar-rEG-w360dp-h800dp-xxhdpi", 1f) { Home(tx = Fakes.home, turns = TurnFakes.home) }
+        variant("w360_f10_ar", "alarm_1bed", "ar-rEG-w360dp-h800dp-xxhdpi", 1f) { Alarm(listOf(Fakes.ringing(Fakes.bed14, CheckpointType.M15, 15))) }
+    }
+
     /** The app has no dark theme: the night qualifier must look identical. Kept as proof. */
     @Test fun dark_system_setting() {
         variant("w360_f10_night", "home_both_features", "w360dp-h800dp-night-xxhdpi", 1f) { Home(tx = Fakes.home, turns = TurnFakes.home) }
