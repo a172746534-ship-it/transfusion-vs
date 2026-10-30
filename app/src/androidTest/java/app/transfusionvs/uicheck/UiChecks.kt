@@ -3,6 +3,8 @@ package app.transfusionvs.uicheck
 import android.content.Intent
 import android.util.Log
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -76,9 +78,11 @@ class UiChecks {
             if (minOf(w, h) < minTarget) out += "TOUCH $name '${label(n)}' ${w.toInt()}x${h.toInt()}dp < ${minTarget.toInt()}dp"
             if (label(n).isBlank()) out += "NOLABEL $name action without a label at ${n.boundsInRoot}"
         }
+        // Whole rectangles, also below the fold (boundsInRoot is clipped to the scroll viewport).
+        fun rect(n: SemanticsNode) = Rect(n.positionInRoot, Size(n.size.width.toFloat(), n.size.height.toFloat()))
         for (i in targets.indices) for (j in i + 1 until targets.size) {
-            val a = targets[i].boundsInRoot
-            val b = targets[j].boundsInRoot
+            val a = rect(targets[i])
+            val b = rect(targets[j])
             if (a.overlaps(b)) continue
             val dx = maxOf(a.left - b.right, b.left - a.right, 0f)
             val dy = maxOf(a.top - b.bottom, b.top - a.bottom, 0f)
@@ -91,7 +95,17 @@ class UiChecks {
             if (!action(results)) return@forEach
             val r = results.firstOrNull() ?: return@forEach
             val text = r.layoutInput.text.text
-            if (r.hasVisualOverflow) out += "TRUNCATED $name '$text'"
+            // Measured from the laid-out lines: hasVisualOverflow also reports text that fits.
+            val w = n.size.width + 1f
+            val h = n.size.height + 1f
+            val cut = r.multiParagraph.height > h || (0 until r.lineCount).any { r.getLineRight(it) > w || r.isLineEllipsized(it) }
+            if (cut) out += "TRUNCATED $name '${text.take(60)}'"
+            for (line in 0 until r.lineCount - 1) {
+                val end = r.getLineEnd(line)
+                if (end in 1 until text.length && text[end - 1].isLetterOrDigit() && text[end].isLetterOrDigit()) {
+                    out += "MIDWORD $name '${text.take(60)}' breaks inside a word at line ${line + 1}"
+                }
+            }
             val sp = r.layoutInput.style.fontSize.value
             if (!sp.isNaN() && sp < 16f) out += "SMALLTEXT $name '${text.take(40)}' ${sp}sp < 16sp"
         }

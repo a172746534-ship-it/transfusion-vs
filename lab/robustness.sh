@@ -69,11 +69,14 @@ if dump | grep -q 'Bed77'; then echo "PASS process death keeps the typed bed"; e
 
 # --- Monkey (debug build: LeakCanary and StrictMode are on) --------------------------------------
 adb shell pm clear $PKG; grant
+adb shell input keyevent KEYCODE_HOME; sleep 20   # let the launcher settle: its own ANRs are not ours
 adb logcat -c
-adb shell monkey -p $PKG --throttle 25 --pct-syskeys 0 --pct-anyevent 0 -s 4242 -v 20000 > "$OUT/monkey.txt" 2>&1
+# --ignore-*: a launcher ANR on a slow emulator must not end the run. Crashes and ANRs of this app are
+# still counted from the log below, and that count must be zero.
+adb shell monkey -p $PKG --throttle 25 --pct-syskeys 0 --pct-anyevent 0 --ignore-crashes --ignore-timeouts -s 4242 -v 20000 > "$OUT/monkey.txt" 2>&1
 tail -3 "$OUT/monkey.txt"
 adb logcat -d > "$OUT/monkey.logcat.txt"
-echo "crashes: $(grep -c 'FATAL EXCEPTION' "$OUT/monkey.logcat.txt")" | tee "$OUT/monkey.summary.txt"
+echo "crashes: $(grep -A2 'FATAL EXCEPTION' "$OUT/monkey.logcat.txt" | grep -c "Process: $PKG")" | tee "$OUT/monkey.summary.txt"
 echo "anrs: $(grep -c 'ANR in app.transfusionvs' "$OUT/monkey.logcat.txt")" | tee -a "$OUT/monkey.summary.txt"
 echo "strictmode: $(grep -c 'StrictMode policy violation' "$OUT/monkey.logcat.txt")" | tee -a "$OUT/monkey.summary.txt"
 grep -c 'Monkey finished' "$OUT/monkey.txt" | sed 's/^/monkey finished: /' | tee -a "$OUT/monkey.summary.txt"

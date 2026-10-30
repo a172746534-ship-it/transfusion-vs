@@ -165,6 +165,29 @@ def wait_alarm(timeout_s):
     return False
 
 
+def diagnose(name):
+    """Everything needed to tell a real failure from a test problem, before anything else changes."""
+    parts = {
+        "alarm": sh(f"dumpsys alarm | grep -A4 {PKG} | head -60"),
+        "notification": sh(f"dumpsys notification --noredact | grep -A12 'pkg={PKG}' | head -80"),
+        "services": sh(f"dumpsys activity services {PKG} | head -40"),
+        "audio": "\n".join(l.strip() for l in sh("dumpsys audio").splitlines() if "usage=" in l and "state:" in l)[:1500],
+        "users": sh("dumpsys user | grep -iE 'state:|running' | head -6"),
+        "logcat": run(f"adb logcat -d -b all | grep -E '{PKG}|FullScreen|NotifInterrupt|BubbleMetadata|AndroidRuntime' | tail -150", 60),
+    }
+    (out / f"{name}.diagnosis.txt").write_text("\n\n".join(f"=== {k}\n{v}" for k, v in parts.items()), errors="replace")
+
+
+def wait_ringing(timeout_s):
+    """The phone is in use: Android shows the alarm as a heads-up, not full screen. Sound is the proof."""
+    end = time.time() + timeout_s
+    while time.time() < end:
+        if audio_alarm_playing()[0]:
+            return True
+        time.sleep(2)
+    return False
+
+
 def screenshot(name):
     run(f"adb exec-out screencap -p > {out / (name + '.png')}")
 
@@ -229,6 +252,7 @@ def assert_fired(due, name, timeout_extra=70):
     wait_s = max(1, (due["scheduledAt"] - now_device()) / 1000) + timeout_extra
     if not wait_alarm(wait_s):
         screenshot(name)
+        diagnose(name)
         return False, f"alarm screen not on top within {wait_s:.0f}s", None
     time.sleep(3)
     screenshot(name)
@@ -278,10 +302,17 @@ def t_locked(name):
 
 @test("A02_doze_force_idle")
 def t_doze(name):
-    due = arrange_transfusion()
+    # Android refuses deep idle while a wake-from-idle alarm is under min_time_to_alarm away (the
+    # default is 30 min), so the setting is lowered: the alarm is set first, then the phone dozes.
+    sh("settings put global device_idle_constants min_time_to_alarm=0")
+    if api >= 31:
+        sh("device_config put device_idle min_time_to_alarm 0")
+    sh("dumpsys deviceidle enable deep")
+    due = arrange_transfusion(ago=12)
     sh("dumpsys battery unplug")
     sleep_screen()
-    idle = sh("dumpsys deviceidle force-idle")
+    time.sleep(3)
+    idle = sh("dumpsys deviceidle force-idle deep")
     state = sh("dumpsys deviceidle get deep").strip()
     ok, msg, _ = assert_fired(due, name)
     save(name, f"{idle}\nstate before firing: {state}\n{msg}")
@@ -351,6 +382,7 @@ def t_kill(name):
     sh(f"am kill {PKG}")
     time.sleep(2)
     gone = sh(f"pidof {PKG}").strip() == ""
+    sleep_screen()
     ok, msg, _ = assert_fired(due, name)
     save(name, f"process gone after am kill: {gone}\n{msg}")
     return ok and gone, f"{msg}; process gone={gone}"
@@ -373,6 +405,7 @@ def t_recents(name):
     recents = sh("dumpsys activity recents")
     still = re.search(rf"\* Recent #\d+:[^\n]*{re.escape(PKG)}", recents) is not None
     screenshot(name + "_after_swipe")
+    sleep_screen()
     ok, msg, _ = assert_fired(due, name)
     save(name, recents[:3000] + "\n" + msg)
     if still:
@@ -390,14 +423,14 @@ def t_force_stop(name):
     # Android cancels alarms by design: nothing may ring until the app is opened again.
     silent_while_stopped = not alarm_on_top()
     sh(f"am start -W -n {HOME}")
-    fired = wait_alarm(30)
+    fired = wait_ringing(30)
     time.sleep(2)
     screenshot(name)
     state = hook("NOOP")
     row = fired_row(state, due["id"])
     flagged = bool(row and row["status"] == "RINGING")
     save(name, f"alarm lines after force-stop: {pending_alarms}\nsilent while stopped: {silent_while_stopped}\nrow: {row}")
-    return flagged and fired and silent_while_stopped, f"missed check flagged on open: {flagged}; alarm opened: {fired}"
+    return flagged and fired and silent_while_stopped, f"silent while stopped: {silent_while_stopped}; missed check flagged on open: {flagged}; ringing: {fired}"
 
 
 @test("A10_app_update_install_r")
@@ -409,6 +442,7 @@ def t_update(name):
     grant()
     state = hook("NOOP")
     kept = fired_row(state, due["id"]) is not None
+    sleep_screen()
     ok, msg, _ = assert_fired(due, name)
     save(name, r + "\n" + msg)
     return ok and kept, f"{msg}; data kept={kept}"
@@ -424,12 +458,18 @@ def t_reboot(name):
         time.sleep(5)
         wait_boot()
         root()
+        armed = sh(f"dumpsys alarm | grep -c {PKG}").strip()
+        sleep_screen()
         ok, msg, _ = assert_fired(due, name, timeout_extra=90)
+        playing, _ = audio_alarm_playing()
         up, info = keyguard_up()
         vold = sh("getprop ro.crypto.type").strip()
         user_state = sh("dumpsys user | grep -i 'state:' | head -2").strip()
-        save(name, f"{msg}\ncrypto={vold}\n{user_state}\n{info}")
-        return ok, f"{msg}; real reboot; keyguard showing={up}; crypto={vold or 'none'}"
+        state = hook("NOOP")
+        row = fired_row(state, due["id"])
+        diagnose(name)
+        save(name, f"{msg}\narmed lines after boot: {armed}\nrow: {row}\nplaying: {playing}\ncrypto={vold}\n{user_state}\n{info}")
+        return ok, f"{msg}; real reboot, never unlocked; {user_state.splitlines()[0] if user_state else ''}; alarm stream={playing}; row={row and row['status']}; crypto={vold or 'none'}"
     finally:
         try:
             hook("ACK_ALL")
@@ -438,12 +478,29 @@ def t_reboot(name):
             clear_pin()
 
 
+@test("A11b_real_reboot_after_unlock")
+def t_reboot_unlocked(name):
+    due = arrange_transfusion(ago=9)
+    run("adb reboot", 60)
+    time.sleep(5)
+    wait_boot()
+    root()
+    sh("wm dismiss-keyguard")
+    time.sleep(2)
+    sleep_screen()
+    ok, msg, _ = assert_fired(due, name, timeout_extra=90)
+    playing, _ = audio_alarm_playing()
+    diagnose(name)
+    return ok and playing, f"{msg}; real reboot, no PIN; alarm stream={playing}"
+
+
 # ---------------------------------------------------------------- clock
 
 @test("A12_clock_change")
 def t_clock(name):
     t0 = device_time()
     due = arrange_transfusion(ago=0)
+    sleep_screen()
     # 15-min check is about 15 min away. Moving the clock past it must ring at once.
     set_clock(t0 + dt.timedelta(minutes=16))
     fired = wait_alarm(60)
@@ -490,7 +547,7 @@ def t_dst(name):
     state = hook("START_PLAN", interval=60, bed="Bed 2")
     slot = next(s for s in state["slots"] if s["status"] == "PENDING")
     # The 00:00 slot doesn't exist that night; if this image's tzdata lacks Egypt's 2023 rule, N/A.
-    set_clock(dt.datetime(2027, 4, 30, 0, 30, 0))
+    set_clock(dt.datetime(2027, 4, 30, 2, 0, 0))
     time.sleep(2)
     offset_after = sh("date +%z").strip()
     hour = sh("date +%H").strip()
@@ -499,8 +556,8 @@ def t_dst(name):
     set_clock(dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
     if offset_before != "+0200":
         raise NA(f"cairo offset before transition is {offset_before}")
-    if hour != "01" and offset_after != "+0300":
-        raise NA(f"this image's tzdata has no Egypt DST rule (offset {offset_after} on 30 Apr 2027)")
+    if offset_after != "+0300":
+        raise NA(f"this image's tzdata has no Egypt DST rule (offset {offset_after} on 30 Apr 2027, hour {hour}); the rule is covered by SchedulePropertyTest on the JVM")
     slot_local = dt.datetime.utcfromtimestamp(slot["slotAt"] / 1000) + dt.timedelta(hours=3)
     return slot_local.hour == 1 and slot_local.minute == 0, f"first slot after the gap: {slot_local:%H:%M} (+03:00)"
 
@@ -565,6 +622,23 @@ def t_volume(name):
     return warned, f"Home warning shown={warned}"
 
 
+# ---------------------------------------------------------------- not built yet
+
+@test("A17_pocket_guard_first_second")
+def t_guard_second(name):
+    return False, "not in this build: touches are accepted from the first frame"
+
+
+@test("A18_pocket_guard_proximity")
+def t_guard_prox(name):
+    return False, "not in this build: no proximity guard"
+
+
+@test("A19_undo_snackbar_and_undo_last")
+def t_undo(name):
+    return False, "not in this build: acknowledgements cannot be undone"
+
+
 # ---------------------------------------------------------------- collisions and follow-ups
 
 @test("A20_collision_same_minute_one_screen")
@@ -588,6 +662,7 @@ def t_collision(name):
 @test("A21_missed_timeout_overdue_notification")
 def t_missed(name):
     due = arrange_transfusion()
+    sleep_screen()
     ok, msg, _ = assert_fired(due, name)
     if not ok:
         return False, msg
@@ -613,9 +688,12 @@ def t_notif_action(name):
     due = arrange_transfusion()
     # Phone in use: unlocked. The heads-up carries the action button.
     sh(f"am start -W -n {HOME}")
-    ok, msg, _ = assert_fired(due, name)
-    if not ok:
-        return False, msg
+    wait_s = max(1, (due["scheduledAt"] - now_device()) / 1000) + 70
+    if not wait_ringing(wait_s):
+        screenshot(name)
+        diagnose(name)
+        return False, f"no alarm sound within {wait_s:.0f}s"
+    screenshot(name + "_heads_up")
     sh("input keyevent KEYCODE_HOME")
     time.sleep(1)
     sh("cmd statusbar expand-notifications")
@@ -682,6 +760,7 @@ def main():
     root()
     api = int(sh("getprop ro.build.version.sdk").strip())
     print(f"API {api}")
+    run("adb logcat -G 16M")
     print(run(f"adb install -r -g {args.apk}", 300))
     sh("settings put global auto_time 0")
     sh("settings put global auto_time_zone 0")
