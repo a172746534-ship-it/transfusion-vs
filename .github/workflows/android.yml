@@ -46,6 +46,8 @@ jobs:
           path: |
             app/src/test/screenshots/*.png
             app/build/outputs/roborazzi/
+            app/build/audit/
+            app/build/directions/
           if-no-files-found: ignore
 
       - name: Decode signing key

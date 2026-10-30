@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
@@ -18,6 +19,7 @@ import app.transfusionvs.screenshots.Fakes
 import app.transfusionvs.screenshots.Fakes.with
 import app.transfusionvs.screenshots.TurnFakes
 import app.transfusionvs.setup.CheckItem
+import app.transfusionvs.setup.OemGuide
 import app.transfusionvs.ui.screens.BedChoice
 import app.transfusionvs.ui.screens.ChooserContent
 import app.transfusionvs.ui.screens.DetailContent
@@ -165,7 +167,7 @@ class UiChecks {
     @Test fun setup() = check("setup") {
         SetupContent(
             checks = listOf(CheckItem("Notifications allowed", "Needed for the full-screen alarm and the Overdue reminder.", false, listOf(Intent()))),
-            guide = null, tests = emptyList(), ringing = false, message = null,
+            guide = OemGuide("Android", emptyList()), tests = emptyList(), ringing = false, message = null,
             onBack = noop, onFix = {}, onOpenStep = {}, onTest = { _, _ -> }, onCancelTest = {}, onOpenAlarm = noop, versionName = "test",
         )
     }

@@ -79,8 +79,11 @@ class SchedulePropertyTest {
         assertTrue(slot > after)
         assertEquals(0, (local.hour * 60 + local.minute) % interval)
         assertEquals(0, local.second)
-        // Never further than one interval plus a DST hour.
-        assertTrue("$after $slot $zone", slot - after <= (interval + 60) * MINUTE_MS)
+        // One interval away, unless a DST change sits in between: a slot that does not exist that
+        // night is skipped (SPEC), so the wait is then at most two intervals.
+        val sameOffset = zone.rules.getOffset(Instant.ofEpochMilli(after)) == zone.rules.getOffset(Instant.ofEpochMilli(slot))
+        val limit = if (sameOffset) interval else 2 * interval
+        assertTrue("$after $slot $zone", slot - after <= limit * MINUTE_MS)
     }
 
     @Test fun aLateTurnNeverMovesTheGrid() = repeat(cases) {
