@@ -93,7 +93,7 @@ class TurnRulesTest {
         val twoDaysLater = at("08:00") + 2 * 24 * 60 * MINUTE_MS + 65 * MINUTE_MS // day 3, 09:05
         val created = TurnRules.materialize(plan(), emptyList(), twoDaysLater, cairo)
         assertTrue(created.all { it.slotAt >= twoDaysLater - TurnRules.KEEP_MS })
-        assertEquals(12, created.count { it.status == TurnSlotStatus.MISSED }) // only the last 24 h
+        assertEquals(11, created.count { it.status == TurnSlotStatus.MISSED }) // only the last 24 h (10:00 … 06:00)
     }
 
     @Test
