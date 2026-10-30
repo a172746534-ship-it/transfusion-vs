@@ -17,6 +17,19 @@ object TurnRules {
     /** Slots are created this far ahead (and re-extended on every refresh). */
     const val LOOKAHEAD_MS = 6 * 60 * MINUTE_MS
 
+    /** Finished slots are kept this long (the phone keeps nothing long-term). */
+    const val KEEP_MS = 24 * 60 * MINUTE_MS
+
+    /**
+     * Upcoming slots no longer on the local grid (the phone's timezone changed): they are removed
+     * and [materialize] recreates the right ones, because the ward clock follows the local time.
+     */
+    fun offGridPending(plan: TurnPlan, slots: List<TurnSlot>, now: Long, zone: ZoneId): List<TurnSlot> {
+        if (plan.status != TurnPlanStatus.RUNNING) return emptyList()
+        val grid = TurnGrid.slots(plan.firstSlotAt, plan.intervalMin, plan.stopAt, now + LOOKAHEAD_MS, zone).toSet()
+        return slots.filter { it.status == TurnSlotStatus.PENDING && it.slotAt > now && it.slotAt !in grid }
+    }
+
     /**
      * New slot rows for a running plan up to now + lookahead, never at or after the stop time.
      * Slots already closed by the time they are created (app was off) are created as MISSED.
@@ -25,7 +38,8 @@ object TurnRules {
         if (plan.status != TurnPlanStatus.RUNNING) return emptyList()
         val have = existing.map { it.slotAt }.toSet()
         return TurnGrid.slots(plan.firstSlotAt, plan.intervalMin, plan.stopAt, now + LOOKAHEAD_MS, zone)
-            .filter { it !in have }
+            // Older slots were cleaned up on purpose: never recreate them (as false "missed").
+            .filter { it !in have && it >= now - KEEP_MS }
             .map { at ->
                 val closed = TurnGrid.missAt(at, plan.intervalMin, zone) <= now
                 TurnSlot(
@@ -77,9 +91,9 @@ object TurnRules {
                     if (s.slotAt > now) requests += AlarmRequest(AlarmKind.CHECKPOINT, s.id, s.slotAt, turn = true) else ringNow = true
                 TurnSlotStatus.RINGING -> {
                     requests += AlarmRequest(AlarmKind.MISS, s.id, TurnGrid.missAt(s.slotAt, plan.intervalMin, zone), turn = true)
-                    if (!s.silenced) {
-                        requests += AlarmRequest(AlarmKind.TIMEOUT, s.id, (s.firedAt ?: now) + missedTimeoutMin * MINUTE_MS, turn = true)
-                    }
+                    // Also after "Start round" (silenced): this is what posts the Overdue notification.
+                    val timeoutAt = (s.firedAt ?: now) + missedTimeoutMin * MINUTE_MS
+                    if (timeoutAt > now) requests += AlarmRequest(AlarmKind.TIMEOUT, s.id, timeoutAt, turn = true)
                     val snooze = s.snoozeUntil
                     val remind = s.remindAt
                     if (snooze != null && snooze > now) requests += AlarmRequest(AlarmKind.SNOOZE, s.id, snooze, turn = true)

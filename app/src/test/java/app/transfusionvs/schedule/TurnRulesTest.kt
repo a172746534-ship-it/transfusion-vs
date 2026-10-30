@@ -89,6 +89,37 @@ class TurnRulesTest {
     }
 
     @Test
+    fun aPlanRunningOverADayDoesNotRecreateCleanedUpSlotsAsMissed() {
+        val twoDaysLater = at("08:00") + 2 * 24 * 60 * MINUTE_MS + 65 * MINUTE_MS // day 3, 09:05
+        val created = TurnRules.materialize(plan(), emptyList(), twoDaysLater, cairo)
+        assertTrue(created.all { it.slotAt >= twoDaysLater - TurnRules.KEEP_MS })
+        assertEquals(12, created.count { it.status == TurnSlotStatus.MISSED }) // only the last 24 h
+    }
+
+    @Test
+    fun aTimezoneChangeMovesUpcomingSlotsOntoTheNewLocalGrid() {
+        val kolkata = ZoneId.of("Asia/Kolkata") // +5:30: Cairo's even hours are off this grid
+        val now = at("09:00")
+        val cairoSlots = TurnRules.materialize(plan(), emptyList(), now, cairo).mapIndexed { i, s -> s.copy(id = i + 1L) }
+        assertTrue(TurnRules.offGridPending(plan(), cairoSlots, now, cairo).isEmpty())
+
+        val stale = TurnRules.offGridPending(plan(), cairoSlots, now, kolkata)
+        assertEquals(cairoSlots.count { it.status == TurnSlotStatus.PENDING && it.slotAt > now }, stale.size)
+        val fresh = TurnRules.materialize(plan(), cairoSlots - stale.toSet(), now, kolkata)
+        assertTrue(fresh.isNotEmpty())
+        fresh.filter { it.slotAt > now }.forEach { assertTrue(Labels.clock(it.slotAt, kolkata).endsWith(":00")) }
+    }
+
+    @Test
+    fun theOverdueTimerStaysArmedAfterStartRound() {
+        val started = slot(1, "10:00", TurnSlotStatus.RINGING, fired = "10:00").copy(silenced = true)
+        val plan = TurnRules.arm(plan(), listOf(started), now = at("10:03"), missedTimeoutMin = 10, zone = cairo)
+        assertTrue(plan.requests.any { it.kind == AlarmKind.TIMEOUT && it.at == at("10:10") })
+        assertTrue(plan.requests.any { it.kind == AlarmKind.MISS && it.at == at("12:00") })
+        assertFalse(plan.ringNow) // silenced: no sound
+    }
+
+    @Test
     fun noSlotAtOrAfterTheStopTime_andThePlanStopsItself() {
         val created = TurnRules.materialize(plan(stop = "14:00"), emptyList(), now = at("09:00"), zone = cairo)
         assertEquals(listOf("08:00", "10:00", "12:00"), created.filter { it.status == TurnSlotStatus.PENDING }.map { Labels.clock(it.slotAt, cairo) })

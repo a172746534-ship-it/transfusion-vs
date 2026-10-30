@@ -28,6 +28,12 @@ class TurnSource(
         val zone = zone()
         for (plan in dao.allPlans()) {
             var slots = dao.slotsFor(plan.id)
+            val offGrid = TurnRules.offGridPending(plan, slots, now, zone)
+            if (offGrid.isNotEmpty()) {
+                offGrid.forEach { scheduler.cancelTurn(it.id) }
+                dao.deleteSlots(offGrid.map { it.id })
+                slots = dao.slotsFor(plan.id)
+            }
             val created = TurnRules.materialize(plan, slots, now, zone)
             if (created.isNotEmpty()) {
                 dao.insertSlots(created)
