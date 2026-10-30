@@ -27,8 +27,8 @@ android {
 
     // Sample data shared by the JVM screenshot tests and the emulator UI checks.
     sourceSets {
-        getByName("test").java.srcDir("src/sharedTest/java")
-        getByName("androidTest").java.srcDir("src/sharedTest/java")
+        getByName("test").kotlin.srcDir("src/sharedTest/java")
+        getByName("androidTest").kotlin.srcDir("src/sharedTest/java")
     }
 
     // One fixed release key, decoded from GitHub Secrets by the workflow.

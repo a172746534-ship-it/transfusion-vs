@@ -1,0 +1,68 @@
+{
+  "ward_card": {
+    "day": {
+      "bg": "#EEF1F6", "card": "#FFFFFF", "ink": "#13233F", "muted": "#4C5870",
+      "calm": "#1D4E9E", "on_calm": "#FFFFFF",
+      "soon": "#F5A623", "on_soon": "#13233F",
+      "now": "#13233F", "on_now": "#FFFFFF",
+      "overdue": "#B3121F", "on_overdue": "#FFFFFF",
+      "danger": "#B3121F", "on_danger": "#FFFFFF",
+      "type_tx": "#8A5A00", "type_rp": "#0F6E74",
+      "alarm_bg": "#13233F", "alarm_ink": "#FFFFFF", "alarm_action": "#F5A623", "alarm_on_action": "#13233F"
+    },
+    "night": {
+      "bg": "#0A1220", "card": "#141F33", "ink": "#E8EDF6", "muted": "#A5B1C6",
+      "calm": "#7DA7E8", "on_calm": "#0A1220",
+      "soon": "#F2B04A", "on_soon": "#0A1220",
+      "now": "#E8EDF6", "on_now": "#0A1220",
+      "overdue": "#FF8A80", "on_overdue": "#0A1220",
+      "danger": "#FF8A80", "on_danger": "#0A1220",
+      "type_tx": "#D9A44A", "type_rp": "#5CC0C4",
+      "alarm_bg": "#060B14", "alarm_ink": "#E8EDF6", "alarm_action": "#C98F36", "alarm_on_action": "#060B14"
+    }
+  },
+  "halo": {
+    "day": {
+      "bg": "#F6F2EA", "card": "#FFFFFF", "ink": "#12302B", "muted": "#4F625B",
+      "calm": "#0F766E", "on_calm": "#FFFFFF",
+      "soon": "#E0A100", "on_soon": "#12302B",
+      "now": "#3B2F8F", "on_now": "#FFFFFF",
+      "overdue": "#BE123C", "on_overdue": "#FFFFFF",
+      "danger": "#BE123C", "on_danger": "#FFFFFF",
+      "type_tx": "#8C4A6B", "type_rp": "#0F766E",
+      "alarm_bg": "#12302B", "alarm_ink": "#FFFFFF", "alarm_action": "#F4D35E", "alarm_on_action": "#12302B"
+    },
+    "night": {
+      "bg": "#100E0C", "card": "#1E1A16", "ink": "#EFE6DA", "muted": "#B5AA9B",
+      "calm": "#5FB5A8", "on_calm": "#100E0C",
+      "soon": "#E8C15A", "on_soon": "#100E0C",
+      "now": "#B3AEFF", "on_now": "#100E0C",
+      "overdue": "#FF8FA3", "on_overdue": "#100E0C",
+      "danger": "#FF8FA3", "on_danger": "#100E0C",
+      "type_tx": "#D79BBB", "type_rp": "#5FB5A8",
+      "alarm_bg": "#0A0806", "alarm_ink": "#E9DFD2", "alarm_action": "#B79A44", "alarm_on_action": "#0A0806"
+    }
+  },
+  "ward_board": {
+    "day": {
+      "bg": "#ECECE6", "card": "#FAFAF6", "ink": "#101010", "muted": "#505049",
+      "calm": "#55554E", "on_calm": "#FFFFFF",
+      "soon": "#FFD400", "on_soon": "#101010",
+      "now": "#0047D6", "on_now": "#FFFFFF",
+      "overdue": "#C8001E", "on_overdue": "#FFFFFF",
+      "danger": "#C8001E", "on_danger": "#FFFFFF",
+      "type_tx": "#6A4A00", "type_rp": "#00626B",
+      "alarm_bg": "#FFD400", "alarm_ink": "#101010", "alarm_action": "#101010", "alarm_on_action": "#FFD400"
+    },
+    "night": {
+      "bg": "#050505", "card": "#141414", "ink": "#F0EFE8", "muted": "#ABABA2",
+      "calm": "#8C8C84", "on_calm": "#050505",
+      "soon": "#E9C400", "on_soon": "#050505",
+      "now": "#7AA7FF", "on_now": "#050505",
+      "overdue": "#FF7468", "on_overdue": "#050505",
+      "danger": "#FF7468", "on_danger": "#050505",
+      "type_tx": "#CFAE5A", "type_rp": "#5FC3CC",
+      "alarm_bg": "#000000", "alarm_ink": "#E9C400", "alarm_action": "#B89B00", "alarm_on_action": "#000000"
+    }
+  }
+}
