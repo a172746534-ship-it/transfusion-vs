@@ -1,6 +1,7 @@
 package app.transfusionvs.ui
 
 import android.graphics.Color as AndroidColor
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -18,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.transfusionvs.alarm.AlarmActivity
 import app.transfusionvs.app
 import app.transfusionvs.data.TransfusionStatus
 import app.transfusionvs.ui.screens.BedChoice
@@ -30,6 +32,7 @@ import app.transfusionvs.ui.screens.ReactionScreen
 import app.transfusionvs.ui.screens.SettingsScreen
 import app.transfusionvs.ui.screens.SetupScreen
 import app.transfusionvs.ui.screens.StartScreen
+import app.transfusionvs.ui.components.rememberNow
 import app.transfusionvs.ui.theme.TvsTheme
 import kotlinx.coroutines.launch
 
@@ -60,6 +63,7 @@ private sealed interface Route {
     data object Chooser : Route
     data object TurnStart : Route
     data class TurnDetail(val id: Long) : Route
+    data class TurnEdit(val id: Long) : Route
     data class Detail(val id: Long) : Route
     data class Edit(val id: Long) : Route
     /** [id] = the bed to stop, or null to choose among running beds. */
@@ -74,6 +78,7 @@ private fun encode(r: Route): String = when (r) {
     Route.Chooser -> "chooser"
     Route.TurnStart -> "turnstart"
     is Route.TurnDetail -> "turndetail:${r.id}"
+    is Route.TurnEdit -> "turnedit:${r.id}"
     is Route.Detail -> "detail:${r.id}"
     is Route.Edit -> "edit:${r.id}"
     is Route.Reaction -> "reaction:${r.id ?: ""}"
@@ -88,6 +93,7 @@ private fun decode(s: String): Route {
         "chooser" -> Route.Chooser
         "turnstart" -> Route.TurnStart
         "turndetail" -> arg?.let { Route.TurnDetail(it) } ?: Route.Home
+        "turnedit" -> arg?.let { Route.TurnEdit(it) } ?: Route.Home
         "detail" -> arg?.let { Route.Detail(it) } ?: Route.Home
         "edit" -> arg?.let { Route.Edit(it) } ?: Route.Home
         "reaction" -> Route.Reaction(arg)
@@ -97,7 +103,8 @@ private fun decode(s: String): Route {
 
 @Composable
 private fun AppNavigation(firstRun: Boolean) {
-    val app = LocalContext.current.app
+    val context = LocalContext.current
+    val app = context.app
     val vm: MainViewModel = viewModel { MainViewModel(app) }
     var stack by rememberSaveable(
         stateSaver = listSaver<List<Route>, String>(save = { it.map(::encode) }, restore = { it.map(::decode) }),
@@ -132,16 +139,44 @@ private fun AppNavigation(firstRun: Boolean) {
         )
         Route.TurnStart -> {
             val openedAt = rememberSaveable { System.currentTimeMillis() }
-            // Design stage (R1): the screen renders; starting a plan is wired with the engine in R2.
-            TurnStartContent(editing = null, defaultIntervalMin = vm.turnIntervalMin, openedAt = openedAt, onSubmit = { home() }, onBack = ::pop)
+            TurnStartContent(
+                editing = null, defaultIntervalMin = vm.turnIntervalMin, openedAt = openedAt,
+                onSubmit = { draft ->
+                    vm.startTurnPlan(draft)
+                    home()
+                },
+                onBack = ::pop,
+            )
         }
         is Route.TurnDetail -> {
             val flow = remember(r.id) { vm.turnPlan(r.id) }
             val item by flow.collectAsStateWithLifecycle(initialValue = null)
+            val now by rememberNow(15_000)
             TurnDetailContent(
-                item = item, now = System.currentTimeMillis(), windowMin = vm.turnWindowMin,
-                onBack = ::pop, onEdit = {}, onStop = {}, onRestart = {}, onOpenRound = {},
+                item = item, now = now, windowMin = vm.turnWindowMin,
+                onBack = ::pop,
+                onEdit = { push(Route.TurnEdit(r.id)) },
+                onStop = vm::stopTurnPlan,
+                onRestart = vm::restartTurnPlan,
+                onOpenRound = {
+                    context.startActivity(Intent(context, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                },
             )
+        }
+        is Route.TurnEdit -> {
+            val flow = remember(r.id) { vm.turnPlan(r.id) }
+            val item by flow.collectAsStateWithLifecycle(initialValue = null)
+            val openedAt = rememberSaveable { System.currentTimeMillis() }
+            item?.plan?.let { plan ->
+                TurnStartContent(
+                    editing = plan, defaultIntervalMin = plan.intervalMin, openedAt = openedAt,
+                    onSubmit = { draft ->
+                        vm.editTurnPlan(r.id, draft)
+                        pop()
+                    },
+                    onBack = ::pop,
+                )
+            }
         }
         is Route.Detail -> DetailScreen(
             vm = vm,

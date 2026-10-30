@@ -20,7 +20,7 @@ class App : Application() {
     val db by lazy { AppDatabase.open(this) }
     val settings by lazy { Settings(this) }
     val scheduler by lazy { AlarmScheduler(this) }
-    val engine by lazy { Engine(this, db.dao(), settings, scheduler) }
+    val engine by lazy { Engine(this, db.dao(), db.turnDao(), settings, scheduler) }
 
     override fun onCreate() {
         super.onCreate()

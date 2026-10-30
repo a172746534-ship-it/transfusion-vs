@@ -399,3 +399,16 @@ alarm behaviour as transfusions.
   turns get a separate bundled chime and a double-pulse vibration. One picker per type.
 - **Screenshot tooling** (test-only, free, not in the APK): Robolectric + Roborazzi;
   CI moves to JDK 21.
+
+### 2026-10-29 — Repositioning: design approved, engine wired
+- **App name on the phone: "A S"** (the designer's mark). Inside the app the wording is unchanged.
+  Setup steps use the app's display name so they match what staff see in phone settings.
+- **Font files:** static Inter 4.1 weights (400/500/700/900) from the Inter project; identical on
+  phones and in screenshot tests, keeping the slashed zero and tabular figures.
+- **Engine:** turns are a second source (`TurnSource`, pure rules in `TurnRules`) on the same
+  scheduler, service, notifications, snooze and re-arm path. Transfusion alarm addresses are
+  unchanged, so alarms set by earlier versions keep firing after the update.
+- **Database v2:** adds `turn_plan` and `turn_slot` only (automatic migration, `MigrationTest`).
+- **Combined alarm:** one Snooze covers everything; the transfusion sound wins while a transfusion
+  sounds; once only turns sound, the turning chime and double-pulse vibration play.
+- **"Other position"** offers allowed positions except the suggestion and the current one.

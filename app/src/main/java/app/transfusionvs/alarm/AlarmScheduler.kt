@@ -11,30 +11,37 @@ import app.transfusionvs.ui.MainActivity
 
 /**
  * Thin wrapper over AlarmManager. Every alarm has its own PendingIntent, made unique by its data
- * URI (tvs://alarm/<kind>/<checkpointId>), so setting it again replaces it instead of duplicating.
+ * URI, so setting it again replaces it instead of duplicating:
+ *   transfusion checkpoint: tvs://alarm/<kind>/<id>   (unchanged since v0.1, so alarms set by older
+ *                                                     versions stay valid after an update)
+ *   turn slot:              tvs://alarm/TURN/<kind>/<id>
  */
 class AlarmScheduler(private val context: Context) {
 
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
     fun set(request: AlarmRequest) {
-        val op = pendingIntent(request.kind.name, request.checkpointId, create = true)!!
+        val op = pendingIntent(request.kind.name, request.checkpointId, request.turn, create = true)!!
         when (request.kind) {
             // The checkpoint and its snooze re-ring use setAlarmClock: the system never delays it
             // and leaves Doze to deliver it.
-            AlarmKind.CHECKPOINT, AlarmKind.SNOOZE -> setAlarmClock(op, request.at)
-            AlarmKind.TIMEOUT, AlarmKind.PREALERT -> setExact(op, request.at)
+            AlarmKind.CHECKPOINT, AlarmKind.SNOOZE, AlarmKind.REMIND -> setAlarmClock(op, request.at)
+            AlarmKind.TIMEOUT, AlarmKind.PREALERT, AlarmKind.MISS -> setExact(op, request.at)
         }
     }
 
     /** One immediate alarm that rings everything overdue together (used after boot, time change, edits). */
     fun setRingNow(now: Long) {
-        setAlarmClock(pendingIntent(KIND_RING_NOW, 0, create = true)!!, now + 1_000)
+        setAlarmClock(pendingIntent(KIND_RING_NOW, 0, turn = false, create = true)!!, now + 1_000)
     }
 
-    fun cancel(checkpointId: Long) {
+    fun cancel(checkpointId: Long) = cancel(checkpointId, turn = false)
+
+    fun cancelTurn(slotId: Long) = cancel(slotId, turn = true)
+
+    private fun cancel(id: Long, turn: Boolean) {
         for (kind in AlarmKind.entries) {
-            pendingIntent(kind.name, checkpointId, create = false)?.let {
+            pendingIntent(kind.name, id, turn, create = false)?.let {
                 alarmManager.cancel(it)
                 it.cancel()
             }
@@ -62,10 +69,10 @@ class AlarmScheduler(private val context: Context) {
         }
     }
 
-    private fun pendingIntent(kind: String, checkpointId: Long, create: Boolean): PendingIntent? {
+    private fun pendingIntent(kind: String, id: Long, turn: Boolean, create: Boolean): PendingIntent? {
         val intent = Intent(context, AlarmReceiver::class.java)
             .setAction(AlarmReceiver.ACTION_ALARM)
-            .setData(Uri.parse("tvs://alarm/$kind/$checkpointId"))
+            .setData(Uri.parse(if (turn) "tvs://alarm/TURN/$kind/$id" else "tvs://alarm/$kind/$id"))
         val flags = PendingIntent.FLAG_IMMUTABLE or
             if (create) PendingIntent.FLAG_UPDATE_CURRENT else PendingIntent.FLAG_NO_CREATE
         return PendingIntent.getBroadcast(context, 0, intent, flags)
@@ -74,11 +81,17 @@ class AlarmScheduler(private val context: Context) {
     companion object {
         const val KIND_RING_NOW = "RING_NOW"
 
-        /** Parses tvs://alarm/<kind>/<id> back into (kind, id). */
-        fun parse(data: Uri?): Pair<String, Long>? {
-            val segments = data?.pathSegments ?: return null
-            if (data.host != "alarm" || segments.size != 2) return null
-            return segments[0] to (segments[1].toLongOrNull() ?: return null)
+        /** Parses an alarm URI back into (kind, id, turn). */
+        fun parse(data: Uri?): Parsed? {
+            val s = data?.pathSegments ?: return null
+            if (data.host != "alarm") return null
+            return when {
+                s.size == 2 -> Parsed(s[0], s[1].toLongOrNull() ?: return null, turn = false)
+                s.size == 3 && s[0] == "TURN" -> Parsed(s[1], s[2].toLongOrNull() ?: return null, turn = true)
+                else -> null
+            }
         }
     }
+
+    data class Parsed(val kind: String, val id: Long, val turn: Boolean)
 }

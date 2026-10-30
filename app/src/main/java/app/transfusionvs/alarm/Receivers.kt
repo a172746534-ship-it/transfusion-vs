@@ -23,6 +23,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     ACTION_ACK -> app.engine.acknowledge(intent.getLongArrayExtra(EXTRA_IDS)?.toList().orEmpty())
                     ACTION_SNOOZE -> app.engine.snooze()
                     ACTION_REPOST -> app.engine.refreshNotifications()
+                    ACTION_REMIND -> app.engine.remindTurns()
                 }
             } finally {
                 pending.finish()
@@ -35,6 +36,7 @@ class AlarmReceiver : BroadcastReceiver() {
         const val ACTION_ACK = "app.transfusionvs.action.ACK"
         const val ACTION_SNOOZE = "app.transfusionvs.action.SNOOZE"
         const val ACTION_REPOST = "app.transfusionvs.action.REPOST"
+        const val ACTION_REMIND = "app.transfusionvs.action.REMIND"
         const val EXTRA_IDS = "ids"
     }
 }

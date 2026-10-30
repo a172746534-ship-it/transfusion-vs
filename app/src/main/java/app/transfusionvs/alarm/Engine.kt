@@ -8,9 +8,14 @@ import app.transfusionvs.data.CheckpointStatus.MISSED
 import app.transfusionvs.data.CheckpointStatus.PENDING
 import app.transfusionvs.data.CheckpointStatus.RINGING
 import app.transfusionvs.data.CheckpointType
+import app.transfusionvs.data.Position
 import app.transfusionvs.data.Settings
+import app.transfusionvs.data.SkipReason
 import app.transfusionvs.data.Transfusion
 import app.transfusionvs.data.TransfusionStatus
+import app.transfusionvs.data.TurnDao
+import app.transfusionvs.data.TurnPlan
+import app.transfusionvs.data.TurnPlanStatus
 import app.transfusionvs.data.TvsDao
 import app.transfusionvs.schedule.ArmPlanner
 import app.transfusionvs.schedule.Grouping
@@ -18,6 +23,9 @@ import app.transfusionvs.schedule.MINUTE_MS
 import app.transfusionvs.schedule.Reconciler
 import app.transfusionvs.schedule.ScheduleCalculator
 import app.transfusionvs.schedule.ScheduleConfig
+import app.transfusionvs.schedule.TurnGrid
+import app.transfusionvs.ui.screens.TurnPlanDraft
+import java.time.ZoneId
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -33,10 +41,14 @@ import kotlinx.coroutines.sync.withLock
 class Engine(
     private val context: Context,
     private val dao: TvsDao,
+    private val turnDao: TurnDao,
     private val settings: Settings,
     private val scheduler: AlarmScheduler,
 ) {
     private val mutex = Mutex()
+
+    /** Repositioning: a second source on the same engine (same scheduler, service and notifications). */
+    private val turns = TurnSource(turnDao, settings, scheduler)
 
     private fun now() = System.currentTimeMillis()
 
@@ -84,12 +96,111 @@ class Engine(
         val now = now()
         mutex.withLock {
             val audible = dao.activeCheckpoints().filter { Grouping.isAudible(it, now) }
-            if (!canSnooze(audible)) return@withLock
+            val audibleTurns = turns.audible(now)
+            if (!canSnoozeCounts(audible.map { it.snoozeCount } + audibleTurns.map { it.snoozeCount })) return@withLock
             val until = now + settings.snoozeMin * MINUTE_MS
             dao.updateCheckpoints(audible.map { it.copy(snoozeCount = it.snoozeCount + 1, snoozeUntil = until) })
+            turns.snooze(audibleTurns, until)
             armLocked(now)
         }
         syncRinging(canStartService = false)
+    }
+
+    // ---- Repositioning (called from visible screens or the alarm's own buttons) ----
+
+    suspend fun startTurnPlan(draft: TurnPlanDraft) {
+        val now = now()
+        mutex.withLock {
+            val used = (dao.runningColors() + turnDao.runningColors()).toSet()
+            val color = (0 until BED_COLOR_COUNT).firstOrNull { it !in used } ?: (used.size % BED_COLOR_COUNT)
+            turnDao.insertPlan(
+                TurnPlan(
+                    bedLabel = draft.bedLabel.trim(), colorIndex = color, intervalMin = draft.intervalMin,
+                    startAt = now, firstSlotAt = draft.firstSlotAt, stopAt = draft.stopAt,
+                    rotation = Position.toCsv(draft.rotation), currentPosition = draft.current,
+                ),
+            )
+        }
+        update(canStartService = true)
+    }
+
+    /** Changing the positions, interval or stop time reschedules everything still pending. */
+    suspend fun editTurnPlan(id: Long, draft: TurnPlanDraft) {
+        mutex.withLock {
+            val p = turnDao.plan(id)
+            if (p != null && p.status == TurnPlanStatus.RUNNING) {
+                turns.cancelOpen(id, includeRinging = false)
+                turnDao.updatePlan(
+                    p.copy(
+                        bedLabel = draft.bedLabel.trim(), intervalMin = draft.intervalMin,
+                        // The grid doesn't move on an edit, unless the interval itself changed.
+                        firstSlotAt = if (draft.intervalMin == p.intervalMin) p.firstSlotAt else draft.firstSlotAt,
+                        stopAt = draft.stopAt, rotation = Position.toCsv(draft.rotation), currentPosition = draft.current,
+                    ),
+                )
+            }
+        }
+        update(canStartService = true)
+    }
+
+    suspend fun stopTurnPlan(id: Long) {
+        val now = now()
+        mutex.withLock { turns.stop(id, now) }
+        update(canStartService = true)
+    }
+
+    /** Restart: the same bed and positions, from the next slot, with no stop time. */
+    suspend fun restartTurnPlan(id: Long) {
+        val now = now()
+        mutex.withLock {
+            turnDao.plan(id)?.let { p ->
+                turnDao.updatePlan(
+                    p.copy(
+                        status = TurnPlanStatus.RUNNING, startAt = now, stopAt = null,
+                        firstSlotAt = TurnGrid.firstSlot(now, p.intervalMin, ZoneId.systemDefault()),
+                    ),
+                )
+            }
+        }
+        update(canStartService = true)
+    }
+
+    /** "Start round": stops the sound; the checklist shows. */
+    suspend fun startRound() {
+        val now = now()
+        mutex.withLock {
+            turns.startRound()
+            armLocked(now)
+        }
+        syncRinging(canStartService = false)
+        syncOverdue()
+    }
+
+    suspend fun turned(slotId: Long, position: Position) {
+        val now = now()
+        mutex.withLock { turns.turned(slotId, position, now) }
+        syncRinging(canStartService = false)
+        syncOverdue()
+    }
+
+    suspend fun cantTurn(slotId: Long, reason: SkipReason) {
+        val now = now()
+        mutex.withLock { turns.cantTurn(slotId, reason, now) }
+        syncRinging(canStartService = false)
+        syncOverdue()
+    }
+
+    /** "Remind me in 30 min": offered only if it lands before the next slot. */
+    suspend fun remindTurns() {
+        val now = now()
+        mutex.withLock {
+            val round = RoundBuilder.build(turnDao.round(), now, ZoneId.systemDefault())
+            if (round != null && round.canRemind) {
+                turns.remind(now + TurnGrid.REMIND_MIN * MINUTE_MS)
+                armLocked(now)
+            }
+        }
+        syncOverdue()
     }
 
     /** Setup check → "Test alarm in …": a real alarm through the full path, excluded from stats. */
@@ -249,6 +360,9 @@ class Engine(
                 snoozeOver.map { it.copy(snoozeUntil = null) },
         )
 
+        // 4. Repositioning: same refresh, its own rules.
+        turns.refresh(now)
+
         closeFinishedTestsLocked(now)
         armLocked(now)
     }
@@ -268,6 +382,7 @@ class Engine(
     private suspend fun armLocked(now: Long) {
         val plan = ArmPlanner.plan(dao.activeCheckpoints(), now, settings.preAlertMin, settings.missedTimeoutMin)
         plan.requests.forEach { scheduler.set(it) }
+        turns.arm(now)
     }
 
     private suspend fun closeFinishedTestsLocked(now: Long) {
@@ -284,17 +399,23 @@ class Engine(
         val now = now()
         val ringing = dao.ringingWithBed()
         val audible = ringing.filter { it.snoozeUntil == null || it.snoozeUntil <= now }
-        if (audible.isEmpty()) {
+        val audibleTurns = turns.audible(now)
+        if (audible.isEmpty() && audibleTurns.isEmpty()) {
             AlarmService.stop(context)
             return
         }
+        // Sounding turns join the same alarm: only a round that is sounding counts as "round" here,
+        // so a transfusion alone keeps its own sound while a started round is being ticked.
+        val round = if (audibleTurns.isEmpty()) null else RoundBuilder.build(turnDao.round(), now, ZoneId.systemDefault())
         val spec = RingSpec.build(
             audible,
-            canSnooze = canSnoozeCounts(audible.map { it.snoozeCount }),
+            canSnooze = canSnoozeCounts(audible.map { it.snoozeCount } + audibleTurns.map { it.snoozeCount }),
             snoozeMin = settings.snoozeMin,
             soundOn = settings.soundOn,
             soundUri = settings.alarmSoundUri,
             missedTimeoutMin = settings.missedTimeoutMin,
+            round = round,
+            turnSoundUri = settings.turnSoundUri,
         )
         when {
             AlarmService.isRunning -> AlarmService.update(spec)
@@ -307,9 +428,11 @@ class Engine(
         val missed = dao.missedUnacknowledged()
         val rows = if (missed.isEmpty()) emptyList() else dao.withBed(missed.map { it.id })
         Notifications.syncOverdue(context, rows)
-    }
 
-    private fun canSnooze(audible: List<Checkpoint>) = canSnoozeCounts(audible.map { it.snoozeCount })
+        val now = now()
+        val round = RoundBuilder.build(turnDao.round(), now, ZoneId.systemDefault())
+        Notifications.syncTurnOverdue(context, turns.overdueBeds(now), canRemind = round?.canRemind == true)
+    }
 
     private fun canSnoozeCounts(snoozeCounts: List<Int>) =
         snoozeCounts.isNotEmpty() && snoozeCounts.all { it < Settings.MAX_SNOOZES }

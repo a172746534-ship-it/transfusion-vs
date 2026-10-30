@@ -57,6 +57,7 @@ import app.transfusionvs.ui.screens.BedChoice
 import app.transfusionvs.ui.screens.ReactionScreen
 import app.transfusionvs.ui.theme.Tvs
 import app.transfusionvs.ui.theme.TvsTheme
+import java.time.ZoneId
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import app.transfusionvs.ui.theme.TvsShape
@@ -116,6 +117,7 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
     val context = LocalContext.current
     val app = context.app
     val rows by app.db.dao().observeRinging().collectAsStateWithLifecycle(initialValue = null)
+    val plans by app.db.turnDao().observeRound().collectAsStateWithLifecycle(initialValue = null)
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -124,7 +126,8 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
             now = System.currentTimeMillis()
         }
     }
-    LaunchedEffect(rows) { if (rows?.isEmpty() == true) onAllDone() }
+    // Closes itself once nothing is open: neither a transfusion check nor a turn.
+    LaunchedEffect(rows, plans) { if (rows?.isEmpty() == true && plans?.isEmpty() == true) onAllDone() }
     AlarmContent(
         rows = rows ?: emptyList(),
         now = now,
@@ -132,6 +135,12 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
         onAcknowledge = { ids -> app.scope.launch { app.engine.acknowledge(ids) } },
         onSnooze = { app.scope.launch { app.engine.snooze() } },
         onStopForReaction = { id -> app.scope.launch { app.engine.stopForReaction(id) } },
+        round = RoundBuilder.build(plans.orEmpty(), now, ZoneId.systemDefault()),
+        onStartRound = { app.scope.launch { app.engine.startRound() } },
+        onTurned = { slotId, position -> app.scope.launch { app.engine.turned(slotId, position) } },
+        onCantTurn = { slotId, reason -> app.scope.launch { app.engine.cantTurn(slotId, reason) } },
+        onSnoozeRound = { app.scope.launch { app.engine.snooze() } },
+        onRemind = { app.scope.launch { app.engine.remindTurns() } },
     )
 }
 

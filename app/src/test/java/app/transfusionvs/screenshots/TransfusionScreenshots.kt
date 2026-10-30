@@ -133,7 +133,7 @@ class TransfusionScreenshots {
             guide = OemGuide(
                 "Xiaomi / Redmi / POCO",
                 listOf(
-                    OemStep("Autostart → turn ON for Transfusion VS.", listOf(Intent())),
+                    OemStep("Autostart → turn ON for A S.", listOf(Intent())),
                     OemStep("Battery saver → choose \"No restrictions\".", listOf(Intent())),
                     OemStep("Lock the app in Recents: open Recents, then long-press (or pull down) its card and tap the lock icon."),
                 ),

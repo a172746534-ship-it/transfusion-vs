@@ -6,10 +6,9 @@ import app.transfusionvs.App
 import app.transfusionvs.data.CheckpointWithBed
 import app.transfusionvs.data.TransfusionWithCheckpoints
 import app.transfusionvs.data.TurnPlanWithSlots
+import app.transfusionvs.ui.screens.TurnPlanDraft
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -31,13 +30,34 @@ class MainViewModel(private val app: App) : ViewModel() {
 
     fun transfusion(id: Long): Flow<TransfusionWithCheckpoints?> = dao.observeTransfusion(id)
 
-    // Repositioning: design stage (R1) — screens render, the data and engine are wired in R2.
-    val turns: StateFlow<List<TurnPlanWithSlots>?> = MutableStateFlow(emptyList())
+    // ---- Repositioning ----
 
-    fun turnPlan(id: Long): Flow<TurnPlanWithSlots?> = flowOf(null)
+    private val turnDao = app.db.turnDao()
+
+    /** null until the first load. */
+    val turns: StateFlow<List<TurnPlanWithSlots>?> =
+        turnDao.observeHome().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun turnPlan(id: Long): Flow<TurnPlanWithSlots?> = turnDao.observePlan(id)
 
     val turnIntervalMin: Int get() = app.settings.turnIntervalMin
     val turnWindowMin: Int get() = app.settings.turnWindowMin
+
+    fun startTurnPlan(draft: TurnPlanDraft) {
+        app.scope.launch { app.engine.startTurnPlan(draft) }
+    }
+
+    fun editTurnPlan(id: Long, draft: TurnPlanDraft) {
+        app.scope.launch { app.engine.editTurnPlan(id, draft) }
+    }
+
+    fun stopTurnPlan(id: Long) {
+        app.scope.launch { app.engine.stopTurnPlan(id) }
+    }
+
+    fun restartTurnPlan(id: Long) {
+        app.scope.launch { app.engine.restartTurnPlan(id) }
+    }
 
     val toleranceMin: Int get() = app.settings.toleranceMin
     val limitMin: Int get() = app.settings.limitMin

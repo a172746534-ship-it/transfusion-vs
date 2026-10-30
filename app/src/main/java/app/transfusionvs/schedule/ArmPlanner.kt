@@ -15,9 +15,14 @@ enum class AlarmKind {
     TIMEOUT,
     /** Optional gentle pre-alert (exact, allow-while-idle). */
     PREALERT,
+    /** Turns: the slot closes as MISSED when the next slot fires (exact). */
+    MISS,
+    /** Turns: "Remind me in 30 min" rings again (setAlarmClock). */
+    REMIND,
 }
 
-data class AlarmRequest(val kind: AlarmKind, val checkpointId: Long, val at: Long)
+/** [turn] = a repositioning slot (its own PendingIntent space); otherwise a transfusion checkpoint. */
+data class AlarmRequest(val kind: AlarmKind, val checkpointId: Long, val at: Long, val turn: Boolean = false)
 
 /**
  * @param ringNow something is overdue or should be sounding right now; the engine answers with

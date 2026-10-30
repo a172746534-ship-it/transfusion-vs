@@ -3,7 +3,13 @@ package app.transfusionvs.alarm
 import app.transfusionvs.data.CheckpointType
 import app.transfusionvs.data.CheckpointWithBed
 import app.transfusionvs.data.Position
+import app.transfusionvs.data.Settings
+import app.transfusionvs.data.TurnPlanWithSlots
+import app.transfusionvs.data.TurnSlotStatus
 import app.transfusionvs.schedule.Labels
+import app.transfusionvs.schedule.TurnGrid
+import app.transfusionvs.schedule.TurnRules
+import java.time.ZoneId
 
 /** One bed on the alarm: it gets its own ✓ button that acknowledges all of its rows. */
 data class RingBed(
@@ -28,8 +34,20 @@ data class RingSpec(
     val soundOn: Boolean,
     val soundUri: String?,
     val missedTimeoutMin: Int,
+    /** Open turning round (listed below the transfusion beds), if any. */
+    val round: RoundUi? = null,
+    /** Turning sound (null = the bundled chime). */
+    val turnSoundUri: String? = null,
 ) {
-    val title: String get() = if (beds.size == 1) beds[0].title else "${beds.size} beds due now"
+    /** Only turns are sounding: play the turning sound and vibration, not the transfusion alarm. */
+    val turnOnly: Boolean get() = beds.isEmpty() && round != null
+
+    val title: String
+        get() = when {
+            beds.isEmpty() && round != null -> roundTitle(round)
+            beds.size == 1 -> beds[0].title
+            else -> "${beds.size} beds due now"
+        }
 
     companion object {
         fun build(
@@ -39,6 +57,8 @@ data class RingSpec(
             soundOn: Boolean,
             soundUri: String?,
             missedTimeoutMin: Int,
+            round: RoundUi? = null,
+            turnSoundUri: String? = null,
         ) = RingSpec(
             beds = groupByBed(audible),
             canSnooze = canSnooze,
@@ -46,7 +66,12 @@ data class RingSpec(
             soundOn = soundOn,
             soundUri = soundUri,
             missedTimeoutMin = missedTimeoutMin,
+            round = round,
+            turnSoundUri = turnSoundUri,
         )
+
+        fun roundTitle(r: RoundUi) =
+            "Turning round · ${Labels.clock(r.slotAt)} · ${r.beds.size} bed${if (r.beds.size > 1) "s" else ""}"
 
         fun groupByBed(rows: List<CheckpointWithBed>): List<RingBed> =
             rows.groupBy { it.transfusionId }.values.map { bedRows ->
@@ -93,3 +118,30 @@ data class RoundUi(
 
 /** Which secondary action is open on a round row. */
 enum class RoundChoice { OTHER_POSITION, CANT_TURN }
+
+/** Builds the round (all open turn slots, any bed) from the database rows. */
+object RoundBuilder {
+
+    fun build(plans: List<TurnPlanWithSlots>, now: Long, zone: ZoneId): RoundUi? {
+        val open = plans.flatMap { p -> p.slots.filter { it.status == TurnSlotStatus.RINGING }.map { p.plan to it } }
+        if (open.isEmpty()) return null
+        val beds = open.map { (plan, s) ->
+            val rotation = Position.parseList(plan.rotation)
+            RoundBed(
+                planId = plan.id, slotId = s.id, bedLabel = plan.bedLabel, colorIndex = plan.colorIndex,
+                from = s.positionFrom, suggested = TurnGrid.nextPosition(s.positionFrom, rotation), allowed = rotation,
+            )
+        }
+        val audible = open.filter { TurnRules.isAudible(it.second, now) }
+        val started = open.all { it.second.silenced }
+        val nextSlot = open.minOf { (plan, s) -> TurnGrid.missAt(s.slotAt, plan.intervalMin, zone) }
+        return RoundUi(
+            slotAt = open.maxOf { it.second.slotAt },
+            beds = beds,
+            started = started,
+            canSnooze = audible.isNotEmpty() && audible.all { it.second.snoozeCount < Settings.MAX_SNOOZES },
+            snoozedUntil = open.mapNotNull { it.second.snoozeUntil }.filter { it > now }.minOrNull(),
+            canRemind = started && TurnGrid.canRemind(now, nextSlot) && open.none { it.second.remindAt != null },
+        )
+    }
+}

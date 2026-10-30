@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import app.transfusionvs.R
 
 /** One manual step. [intents] are tried in order; an empty list means "no button" (do it by hand). */
 data class OemStep(val text: String, val intents: List<Intent> = emptyList())
@@ -22,6 +23,8 @@ object OemGuides {
     fun forThisPhone(context: Context): OemGuide {
         val id = "${Build.MANUFACTURER} ${Build.BRAND}".lowercase()
         val pkg = context.packageName
+        // The name the phone shows for this app (launcher label), so steps match what staff see.
+        val name = context.getString(R.string.app_name)
         val appInfo = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$pkg"))
         fun component(p: String, c: String) = Intent().setComponent(ComponentName(p, c))
 
@@ -32,7 +35,7 @@ object OemGuides {
                 "Xiaomi / Redmi / POCO",
                 listOf(
                     OemStep(
-                        "Autostart → turn ON for Transfusion VS.",
+                        "Autostart → turn ON for $name.",
                         listOf(
                             component("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"),
                             appInfo,
@@ -42,7 +45,7 @@ object OemGuides {
                         "Battery saver → choose \"No restrictions\".",
                         listOf(
                             component("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
-                                .putExtra("package_name", pkg).putExtra("package_label", "Transfusion VS"),
+                                .putExtra("package_name", pkg).putExtra("package_label", name),
                             appInfo,
                         ),
                     ),
@@ -81,7 +84,7 @@ object OemGuides {
                 listOf(
                     OemStep("App info → Battery usage → allow background activity / \"Don't optimize\".", listOf(appInfo)),
                     OemStep(
-                        "Auto launch (Startup manager) → turn ON for Transfusion VS.",
+                        "Auto launch (Startup manager) → turn ON for $name.",
                         listOf(
                             component("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity"),
                             component("com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity"),
@@ -97,7 +100,7 @@ object OemGuides {
                 "Vivo / iQOO",
                 listOf(
                     OemStep(
-                        "Autostart (Background startup) → turn ON for Transfusion VS.",
+                        "Autostart (Background startup) → turn ON for $name.",
                         listOf(
                             component("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"),
                             component("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager"),
@@ -112,7 +115,7 @@ object OemGuides {
                 "Infinix / Tecno",
                 listOf(
                     OemStep(
-                        "Phone Master → Auto-start management → turn ON for Transfusion VS.",
+                        "Phone Master → Auto-start management → turn ON for $name.",
                         listOf(component("com.transsion.phonemaster", "com.cyin.himgr.autostart.AutoStartActivity")),
                     ),
                     OemStep("App info → Battery → allow background activity / \"No restriction\".", listOf(appInfo)),

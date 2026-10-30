@@ -21,6 +21,7 @@ object Notifications {
     const val ID_ALARM = 1
     private const val TAG_OVERDUE = "overdue"
     private const val TAG_PREALERT = "prealert"
+    private const val TAG_TURN_OVERDUE = "overdue_turns"
 
     private const val NAVY = 0xFF13233F.toInt()
     private const val RED = 0xFFB3121F.toInt()
@@ -51,19 +52,15 @@ object Notifications {
 
     /** Full-screen, category ALARM, not local-only (so bands and watches get it too). */
     fun alarm(context: Context, spec: RingSpec?): Notification {
-        val fullScreen = PendingIntent.getActivity(
-            context, 0,
-            Intent(context, AlarmActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
+        val fullScreen = alarmScreen(context)
         val builder = NotificationCompat.Builder(context, CH_ALARM)
-            .setSmallIcon(R.drawable.ic_stat_drop)
+            .setSmallIcon(if (spec?.turnOnly == true) R.drawable.ic_stat_turn else R.drawable.ic_stat_drop)
             .setColor(NAVY)
             .setContentTitle(spec?.title ?: "Transfusion VS")
             .setContentText(
                 when {
                     spec == null -> "Checking alarms…"
+                    spec.turnOnly -> spec.round?.beds.orEmpty().joinToString(" · ") { it.bedLabel }
                     spec.beds.size == 1 -> spec.beds[0].subtitle
                     else -> spec.beds.joinToString(" · ") { it.shortLabel }
                 },
@@ -81,8 +78,17 @@ object Notifications {
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
 
         if (spec != null) {
-            if (spec.beds.size > 1) {
-                builder.setStyle(NotificationCompat.InboxStyle().also { s -> spec.beds.forEach { s.addLine(it.title) } })
+            val round = spec.round
+            if (spec.beds.size > 1 || round != null) {
+                builder.setStyle(
+                    NotificationCompat.InboxStyle().also { s ->
+                        spec.beds.forEach { s.addLine(it.title) }
+                        if (round != null) {
+                            if (spec.beds.isNotEmpty()) s.addLine(RingSpec.roundTitle(round))
+                            round.beds.forEach { s.addLine("${it.bedLabel}: ${it.from.label} → ${it.suggested.label}") }
+                        }
+                    },
+                )
             }
             // One ✓ per bed (the notification has room for two beds plus Snooze).
             if (spec.beds.size == 1) {
@@ -106,6 +112,43 @@ object Notifications {
     }
 
     fun cancelAlarm(context: Context) = manager(context).cancel(ID_ALARM)
+
+    private fun alarmScreen(context: Context): PendingIntent = PendingIntent.getActivity(
+        context, 0,
+        Intent(context, AlarmActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    // ---- Turning round overdue (past the missed timer, still open until the next slot) ----
+
+    /** One persistent "Overdue — Bed 3, Bed 7" listing the beds not ticked; gone once none is left. */
+    fun syncTurnOverdue(context: Context, beds: List<String>, canRemind: Boolean) {
+        if (beds.isEmpty()) {
+            manager(context).cancel(TAG_TURN_OVERDUE, 0)
+            return
+        }
+        val text = "Turn not done. Open the round and tick each bed."
+        val builder = NotificationCompat.Builder(context, CH_OVERDUE)
+            .setSmallIcon(R.drawable.ic_stat_turn)
+            .setColor(RED)
+            .setContentTitle("Overdue — ${beds.joinToString(", ")}")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setLocalOnly(false)
+            .setContentIntent(alarmScreen(context))
+            .setDeleteIntent(receiverIntent(context, AlarmReceiver.ACTION_REPOST, "tvs://repost/turns"))
+            .addAction(0, "Open round", alarmScreen(context))
+        if (canRemind) {
+            builder.addAction(0, "Remind me in 30 min", receiverIntent(context, AlarmReceiver.ACTION_REMIND, "tvs://remind"))
+        }
+        notifySafe(context, TAG_TURN_OVERDUE, 0, builder.build())
+    }
 
     // ---- Overdue (missed, not yet acknowledged) ----
 

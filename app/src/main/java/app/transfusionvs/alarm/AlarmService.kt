@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 class AlarmService : Service() {
 
     private var player: AlarmPlayer? = null
+    private var playingTurn = false
     private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
@@ -51,9 +52,16 @@ class AlarmService : Service() {
 
     private fun show(spec: RingSpec) {
         Notifications.notifyAlarm(this, spec)
+        // A transfusion joining a ringing round (or the reverse) switches to that type's sound.
+        if (player != null && playingTurn != spec.turnOnly) {
+            player?.stop()
+            player = null
+        }
         if (player == null) {
-            acquireWakeLock(spec.missedTimeoutMin)
-            player = AlarmPlayer(this).also { it.start(spec.soundOn, spec.soundUri) }
+            if (wakeLock == null) acquireWakeLock(spec.missedTimeoutMin)
+            playingTurn = spec.turnOnly
+            val uri = if (spec.turnOnly) spec.turnSoundUri else spec.soundUri
+            player = AlarmPlayer(this).also { it.start(spec.soundOn, uri, spec.turnOnly) }
         }
     }
 
