@@ -60,8 +60,8 @@ class ClinicalContentTest {
                 )
             }
         }
-        rule.onNodeWithText("T · HR · RR · BP · SpO₂", substring = true).assertExists()
-        rule.onNodeWithText("in Cerner, right away", substring = true).assertExists()
+        assertTrue(rule.onAllNodesWithText("T · HR · RR · BP · SpO₂", substring = true).fetchSemanticsNodes().isNotEmpty())
+        assertTrue(rule.onAllNodesWithText("in Cerner, right away", substring = true).fetchSemanticsNodes().isNotEmpty())
         assertTrue(rule.onAllNodesWithText("measure", ignoreCase = true, substring = true).fetchSemanticsNodes().isNotEmpty())
         assertTrue(rule.onAllNodesWithText("document", ignoreCase = true, substring = true).fetchSemanticsNodes().isNotEmpty())
     }
