@@ -9,6 +9,8 @@ import android.database.Cursor
 import android.media.AudioManager
 import android.net.Uri
 import android.os.StrictMode
+import app.transfusionvs.App
+import app.transfusionvs.alarm.AlarmService
 import app.transfusionvs.app
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.SkipReason
@@ -78,14 +80,14 @@ class LabReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun dump(app: app.transfusionvs.App, now: Long, zone: ZoneId): JSONObject = JSONObject()
+    private fun dump(app: App, now: Long, zone: ZoneId): JSONObject = JSONObject()
         .put("now", now)
         .put("zone", zone.id)
-        .put("service", app.transfusionvs.alarm.AlarmService.isRunning)
+        .put("service", AlarmService.isRunning)
         .put("checkpoints", JSONArray(rows(app, "SELECT c.id,c.type,c.status,c.scheduledAt,c.firedAt,c.ackAt,c.snoozeCount,t.bedLabel FROM checkpoint c JOIN transfusion t ON t.id=c.transfusionId WHERE c.status!='CANCELLED' AND c.type!='START' ORDER BY c.scheduledAt LIMIT 12")))
         .put("slots", JSONArray(rows(app, "SELECT s.id,s.status,s.slotAt,s.firedAt,s.ackAt,s.silenced,s.skipReason,p.bedLabel FROM turn_slot s JOIN turn_plan p ON p.id=s.planId WHERE s.status!='CANCELLED' ORDER BY s.slotAt LIMIT 12")))
 
-    private fun rows(app: app.transfusionvs.App, sql: String): List<JSONObject> {
+    private fun rows(app: App, sql: String): List<JSONObject> {
         val out = mutableListOf<JSONObject>()
         app.db.openHelper.readableDatabase.query(sql).use { c ->
             while (c.moveToNext()) {
