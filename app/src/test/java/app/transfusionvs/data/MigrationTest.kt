@@ -36,7 +36,7 @@ class MigrationTest {
             val e = entities.getJSONObject(i)
             val table = e.getString("tableName")
             db.execSQL(e.getString("createSql").replace("\${TABLE_NAME}", table))
-            val indices = e.getJSONArray("indices")
+            val indices = e.optJSONArray("indices") ?: continue // tables without indices omit the key
             for (j in 0 until indices.length()) {
                 db.execSQL(indices.getJSONObject(j).getString("createSql").replace("\${TABLE_NAME}", table))
             }
