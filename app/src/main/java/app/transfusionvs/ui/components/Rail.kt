@@ -30,6 +30,9 @@ fun Rail(
     height: Dp = TvsSize.Rail,
     ink: Color = Ward.c.ink,
     background: Color = Ward.c.card,
+    /** What is still to come: the line, and the hollow dots on it. */
+    track: Color = Ward.c.railLine,
+    hollow: Color = Ward.c.muted,
     beadColor: Color = Ward.c.of(urgency),
     onBead: Color = Ward.c.on(urgency),
 ) {
@@ -40,7 +43,7 @@ fun Rail(
         val r = size.height * 0.27f
         val gap = (size.width - r * 4) / (state.total - 1)
         fun x(i: Int) = r * 2 + gap * i
-        drawLine(c.railLine, Offset(x(0), y), Offset(x(state.total - 1), y), r * 0.4f)
+        drawLine(track, Offset(x(0), y), Offset(x(state.total - 1), y), r * 0.4f)
         val filledTo = if (state.done == 0) x(0) else x(state.done - 1) + gap * state.progress
         drawLine(ink, Offset(x(0), y), Offset(filledTo, y), r * 0.55f)
         for (i in 0 until state.total) {
@@ -49,7 +52,7 @@ fun Rail(
                 i == state.done -> Unit
                 else -> {
                     drawCircle(background, r * 0.7f, Offset(x(i), y))
-                    drawCircle(c.muted, r * 0.7f, Offset(x(i), y), style = Stroke(r * 0.28f))
+                    drawCircle(hollow, r * 0.7f, Offset(x(i), y), style = Stroke(r * 0.28f))
                 }
             }
         }

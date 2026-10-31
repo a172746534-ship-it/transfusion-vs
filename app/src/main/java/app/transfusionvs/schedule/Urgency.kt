@@ -186,7 +186,7 @@ object BedViews {
     fun sorted(beds: List<BedView>): List<BedView> =
         beds.sortedWith(compareBy<BedView> { rank(it) }.thenBy { it.time ?: Long.MAX_VALUE }.thenBy { it.bed })
 
-    /** "1 overdue · 1 due now", "All on time · next 11:20", "Nothing running". */
+    /** "1 overdue · 1 due", "All on time", "All quiet". The next time is on the first card. */
     fun summary(beds: List<BedView>): String {
         val active = beds.filter { !it.idle }
         if (active.isEmpty()) return "All quiet"
@@ -196,20 +196,19 @@ object BedViews {
         val parts = listOfNotNull(
             "$stopped stopped".takeIf { stopped > 0 },
             "$overdue overdue".takeIf { overdue > 0 },
-            "$now due now".takeIf { now > 0 },
+            "$now due".takeIf { now > 0 },
         )
-        if (parts.isNotEmpty()) return parts.joinToString(" · ")
-        val next = active.mapNotNull { it.time }.minOrNull()
-        return if (next == null) "All on time" else "All on time · next ${Labels.clock(next)}"
+        return if (parts.isNotEmpty()) parts.joinToString(" · ") else "All on time"
     }
 
-    /** "6 PATIENTS RUNNING". */
+    /** "6 RUNNING". One short line beside the clock, also with 20. */
     fun running(beds: List<BedView>): String {
-        val n = beds.count { it.running }
-        return when (n) {
-            0 -> if (beds.any { !it.idle }) "NONE RUNNING · STILL OPEN" else "NOTHING RUNNING"
-            1 -> "1 PATIENT RUNNING"
-            else -> "$n PATIENTS RUNNING"
+        val running = beds.count { it.running }
+        val open = beds.count { !it.idle }
+        return when {
+            running > 0 -> "$running RUNNING"
+            open > 0 -> "$open STILL OPEN"
+            else -> "NOTHING RUNNING"
         }
     }
 }

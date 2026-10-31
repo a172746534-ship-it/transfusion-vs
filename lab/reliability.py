@@ -133,11 +133,13 @@ def reset():
     wake()
     sh("dumpsys battery reset")
     sh("settings put global low_power 0")
-    # A refused do-not-disturb hook must only fail the tests that need it, not every test.
-    try:
-        set_dnd("off")
-    except RuntimeError as e:
-        print(f"reset: {e}")
+    # A refused do-not-disturb hook must only fail the tests that need it, not every test. Before pm clear:
+    # on Android 8 that takes the access away, and with it the way out of silent mode.
+    for undo in (lambda: set_dnd("off"), lambda: hook("RINGER", mode="NORMAL")):
+        try:
+            undo()
+        except RuntimeError as e:
+            print(f"reset: {e}")
     sh(f"pm clear {PKG}")
     grant()
     try:
@@ -172,6 +174,12 @@ def grant_policy_access_by_hand():
     screenshot("api26_policy_access")
     sh("input keyevent KEYCODE_HOME")
     return "; ".join(log)
+
+
+def ensure_policy_access():
+    """For the tests that change do-not-disturb or silent mode: pm clear took it away again on Android 8."""
+    if api < 28 and not hook("NOOP").get("policyAccess"):
+        print("policy access:", grant_policy_access_by_hand(), hook("NOOP").get("policyAccess"))
 
 
 def set_stream_volume(stream, value):
@@ -370,6 +378,7 @@ def t_saver(name):
 
 @test("A04_do_not_disturb")
 def t_dnd(name):
+    ensure_policy_access()
     set_dnd("priority")
     zen = sh("settings get global zen_mode").strip()
     due = arrange_transfusion()
@@ -400,6 +409,7 @@ def ringer_test(name, mode):
 
 @test("A05_silent_alarm_stream_and_vibration")
 def t_silent(name):
+    ensure_policy_access()
     return ringer_test(name, "SILENT")
 
 
@@ -415,7 +425,7 @@ def t_kill(name):
     due = arrange_transfusion()
     sh("input keyevent KEYCODE_HOME")
     time.sleep(1)
-    sh(f"am kill {PKG}")
+    sh(f"am kill --user 0 {PKG}")  # bare, Android 8 reads it as all users and kills nothing
     time.sleep(2)
     gone = sh(f"pidof {PKG}").strip() == ""
     sleep_screen()
@@ -434,16 +444,19 @@ def t_recents(name):
     time.sleep(3)
     size = re.search(r"(\d+)x(\d+)", sh("wm size"))
     w, h = int(size.group(1)), int(size.group(2))
-    sh(f"input swipe {w // 2} {h // 2} {w // 2} 20 200")
+    if api < 28:  # a stack of cards, flung sideways
+        sh(f"input swipe {w // 5} {h * 3 // 5} {w - 20} {h * 3 // 5} 200")
+    else:
+        sh(f"input swipe {w // 2} {h // 2} {w // 2} 20 200")
     time.sleep(2)
     sh("input keyevent KEYCODE_HOME")
     time.sleep(1)
     recents = sh("dumpsys activity recents")
-    found = re.search(rf"\* Recent #\d+: Task\{{\w+ #(\d+)[^\n]*{re.escape(PKG)}", recents)
+    found = re.search(rf"\* Recent #\d+: Task(?:Record)?\{{\w+ #(\d+)[^\n]*{re.escape(PKG)}[^\n]*?StackId=(\d+)" if api < 28 else rf"\* Recent #\d+: Task\{{\w+ #(\d+)[^\n]*{re.escape(PKG)}", recents)
     how = "swipe"
     if found:
         # Same system call the launcher makes when a card is swiped away.
-        sh(f"am stack remove {found.group(1)}")
+        sh(f"am stack remove {found.group(2) if api < 28 else found.group(1)}")
         how = "am stack remove"
         time.sleep(2)
         recents = sh("dumpsys activity recents")
@@ -629,7 +642,13 @@ def skip_first_run():
     time.sleep(1)
 
 
-WARN = r"Setup check: \d+ item"
+WARN = r"Setup: (\d+) to fix"
+
+
+def warnings_on_home():
+    xml = home_text()
+    m = re.search(WARN, xml)
+    return int(m.group(1)) if m else 0, xml
 
 
 @test("A15_permissions_revoked_warns")
@@ -638,6 +657,7 @@ def t_perm(name):
         raise NA("no revocable notification, exact-alarm or full-screen permission below API 31 by adb")
     done = []
     skip_first_run()
+    before, _ = warnings_on_home()
     if api >= 33:
         sh(f"pm revoke {PKG} android.permission.POST_NOTIFICATIONS")
         done.append("notifications")
@@ -648,24 +668,24 @@ def t_perm(name):
         sh(f"appops set {PKG} USE_FULL_SCREEN_INTENT deny")
         done.append("full-screen intent")
     time.sleep(1)
-    xml = home_text()
+    after, xml = warnings_on_home()
     screenshot(name)
     save(name, xml)
-    warned = re.search(WARN, xml) is not None
-    return warned, f"revoked {done}; Home warning shown={warned}"
+    warned = after >= before + len(done)
+    return warned, f"revoked {done}; items on the Home warning {before} -> {after}"
 
 
 @test("A16_alarm_volume_zero_warns")
 def t_volume(name):
     skip_first_run()
+    before, _ = warnings_on_home()
     set_stream_volume(4, 0)
     level = sh("dumpsys audio | grep -A3 'STREAM_ALARM' | head -5")
-    xml = home_text()
+    after, xml = warnings_on_home()
     screenshot(name)
     save(name, level + "\n" + xml)
     set_stream_volume(4, 5)
-    warned = re.search(WARN, xml) is not None
-    return warned, f"Home warning shown={warned}"
+    return after == before + 1, f"items on the Home warning {before} -> {after}"
 
 
 # ---------------------------------------------------------------- pocket guards and undo
@@ -850,9 +870,9 @@ def t_collision(name):
     xml = sh("uiautomator dump /sdcard/lab.xml >/dev/null 2>&1; cat /sdcard/lab.xml")
     save(name, xml)
     # A sleeping emulator is behind its keyguard, so these may show masked.
-    both = ("7654812" in xml or "•••4812" in xml) and ("7654802" in xml or "•••4802" in xml)
+    both = ("7654812" in xml or "•••4812" in xml) and "Start round" in xml
     set_clock(dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
-    return ok and same and both, f"{msg}; same minute={same}; both patients on one screen={both}"
+    return ok and same and both, f"{msg}; same minute={same}; both on one screen={both}"
 
 
 @test("A21_missed_timeout_overdue_notification")

@@ -95,7 +95,7 @@ fun TurnStartScreen(vm: MainViewModel, editing: TurnPlan?, onSubmit: (TurnPlanDr
     val beds by vm.wardBeds.collectAsStateWithLifecycle()
     val busy by vm.busyBeds.collectAsStateWithLifecycle()
     TurnStartContent(
-        editing = editing, beds = beds, busy = busy,
+        editing = editing, beds = beds.orEmpty(), loaded = beds != null, busy = busy,
         defaultIntervalMin = editing?.intervalMin ?: vm.turnIntervalMin, openedAt = openedAt,
         onSubmit = onSubmit,
         onBack = onBack,
@@ -121,6 +121,8 @@ fun TurnStartContent(
     initiallyExpanded: Boolean = false,
     /** For screenshots: a bed already picked. */
     initialBed: String = "",
+    /** The patient list has loaded: until then an empty one doesn't mean nobody yet. */
+    loaded: Boolean = true,
 ) {
     val context = LocalContext.current
     val c = Ward.c
@@ -129,7 +131,9 @@ fun TurnStartContent(
     var picked by rememberSaveable { mutableStateOf(editing?.bedLabel ?: initialBed) }
     var otherText by rememberSaveable { mutableStateOf("") }
     // With nobody seen yet the only way in is the MRN field.
-    val typing = picked == OTHER_BED || (picked.isBlank() && beds.isEmpty())
+    val typing = picked == OTHER_BED || (loaded && picked.isBlank() && beds.isEmpty())
+    // Editing: the patient is in the title, and a slip here would move their alarms to someone else.
+    var changingPatient by rememberSaveable { mutableStateOf(editing == null) }
     val bed = if (typing) otherText.takeIf { PatientInput.valid(it) } ?: "" else picked
 
     var options by rememberSaveable { mutableStateOf(initiallyExpanded || editing != null) }
@@ -179,10 +183,14 @@ fun TurnStartContent(
         ) {
             Panel {
                 CapsLabel("Which patient?")
-                BedGrid(
-                    beds = (beds + listOfNotNull(editing?.bedLabel)).distinct(), busy = busy, selected = picked, otherText = otherText,
-                    onPick = { picked = it }, onOtherText = { otherText = it },
-                )
+                if (changingPatient) {
+                    BedGrid(
+                        beds = (beds + listOfNotNull(editing?.bedLabel)).distinct(), busy = busy, selected = picked, typing = typing, otherText = otherText,
+                        onPick = { picked = it }, onOtherText = { otherText = it },
+                    )
+                } else {
+                    ChangeRow(picked) { changingPatient = true }
+                }
             }
 
             if (defaultFirst != choices.first() && firstSlot == defaultFirst) {

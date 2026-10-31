@@ -57,6 +57,7 @@ import app.transfusionvs.ui.components.Panel
 import app.transfusionvs.ui.components.PrimaryButton
 import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.components.moreBelow
+import app.transfusionvs.ui.components.wardFieldColors
 import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
 import app.transfusionvs.ui.theme.WardType
@@ -78,7 +79,8 @@ fun StartScreen(vm: MainViewModel, editing: Transfusion?, onDone: () -> Unit, on
     val busy by vm.busyBeds.collectAsStateWithLifecycle()
     StartContent(
         editing = editing,
-        beds = beds,
+        beds = beds.orEmpty(),
+        loaded = beds != null,
         busy = busy,
         defaultDurationMin = vm.lastDurationMin,
         limitMin = vm.limitMin,
@@ -112,6 +114,8 @@ fun StartContent(
     onBack: () -> Unit,
     /** For screenshots: a bed already picked. */
     initialBed: String = "",
+    /** The patient list has loaded: until then an empty one doesn't mean nobody yet. */
+    loaded: Boolean = true,
 ) {
     val context = LocalContext.current
     val c = Ward.c
@@ -119,7 +123,9 @@ fun StartContent(
     var picked by rememberSaveable { mutableStateOf(editing?.bedLabel ?: initialBed) }
     var otherText by rememberSaveable { mutableStateOf("") }
     // With nobody seen yet the only way in is the MRN field.
-    val typing = picked == OTHER_BED || (picked.isBlank() && beds.isEmpty())
+    val typing = picked == OTHER_BED || (loaded && picked.isBlank() && beds.isEmpty())
+    // Editing: the patient is in the title, and a slip here would move their alarms to someone else.
+    var changingPatient by rememberSaveable { mutableStateOf(editing == null) }
     val bed = if (typing) otherText.takeIf { PatientInput.valid(it) } ?: "" else picked
 
     var startAt by rememberSaveable { mutableLongStateOf(editing?.startAt ?: ScheduleCalculator.truncateToMinute(openedAt)) }
@@ -147,10 +153,14 @@ fun StartContent(
         ) {
             Panel {
                 CapsLabel("Which patient?")
-                BedGrid(
-                    beds = (beds + listOfNotNull(editing?.bedLabel)).distinct(), busy = busy, selected = picked, otherText = otherText,
-                    onPick = { picked = it }, onOtherText = { otherText = it },
-                )
+                if (changingPatient) {
+                    BedGrid(
+                        beds = (beds + listOfNotNull(editing?.bedLabel)).distinct(), busy = busy, selected = picked, typing = typing, otherText = otherText,
+                        onPick = { picked = it }, onOtherText = { otherText = it },
+                    )
+                } else {
+                    ChangeRow(picked) { changingPatient = true }
+                }
             }
 
             // Start time (T0): now by default, or earlier
@@ -191,6 +201,7 @@ fun StartContent(
                         label = { Text("Minutes (10–600)", style = WardType.Body) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = customMinutes.isNotEmpty() && duration == null,
+                        colors = wardFieldColors(),
                     )
                 }
             }
@@ -217,7 +228,7 @@ fun StartContent(
 
         Column(
             Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)).padding(TvsSpace.s12),
-            verticalArrangement = Arrangement.spacedBy(TvsSpace.s6),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         ) {
             if (duration != null) {
                 ChangeRow("Started ${Labels.clock(startAt)} · planned ${Labels.duration(duration)} · ends ${Labels.clock(startAt + duration * MINUTE_MS)}") {

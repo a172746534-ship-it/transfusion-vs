@@ -245,7 +245,7 @@ class AuditScreenshots {
         TurnStartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initialBed = "7654806", initiallyExpanded = true)
     }
     @Test fun alarm_done_undo() = shots("alarm_done_undo") {
-        DoneContent(UndoAction(id = 1, ownerKey = "T2", label = "7654814 · 15-min check done", at = Fakes.now, expiresAt = Fakes.now + 300_000, snapshot = ""), onUndo = {})
+        DoneContent(UndoAction(id = 1, ownerKey = "T2", label = "7654814 · 15-min check done", at = Fakes.now, expiresAt = Fakes.now + 300_000, snapshot = ""), onUndo = {}, closesIn = 5)
     }
     @Test fun undo_bar_on_home() = shots("undo_bar_on_home") {
         val action = UndoAction(id = 1, ownerKey = "T2", label = "7654805 · transfusion started", at = System.currentTimeMillis(), expiresAt = Long.MAX_VALUE, snapshot = "")
@@ -254,6 +254,6 @@ class AuditScreenshots {
     @Test fun widget() = shots("widget") {
         val beds = Fakes.home.map { BedViews.of(it, Fakes.now) } + TurnFakes.home.map { BedViews.of(it, Fakes.now, 10) }
         val night = Ward.c.isNight
-        AndroidView(factory = { ctx -> BedsWidget.build(ctx, BedViews.sorted(beds), Fakes.now, night).apply(ctx, FrameLayout(ctx)) })
+        AndroidView(factory = { ctx -> BedsWidget.build(ctx, BedsWidget.masked(BedViews.sorted(beds), beds.map { it.bed }), Fakes.now, night).apply(ctx, FrameLayout(ctx)) })
     }
 }

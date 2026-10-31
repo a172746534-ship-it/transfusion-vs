@@ -26,4 +26,4 @@ For a patient the phone has seen, no core task needs typing. A new patient's MRN
 - **Pinned actions.** Primary actions sit in the bottom third and never scroll away, so a 7-patient round can't push Start round below the fold.
 - **The Snooze slot stays.** When snoozes run out it reads "No snoozes left" in the same place, so a thumb that learned its place can't land on something else.
 - **Reaction steps first.** DO NOW comes before the signs, and "Transfusion stopped" stays in view.
-- **Same-minute collision.** The transfusion goes first, and the screen says "Then: Turning round · 10:00 · 7654803, 7654807". Once it is acknowledged, the round takes the screen.
+- **Same-minute collision.** The transfusion goes first, and the screen has a "Start round · 10:00 · 2 patients" button. Once it is acknowledged, the round takes the screen.

@@ -17,6 +17,7 @@ adb shell wm dismiss-keyguard
 grant() {
   [ "$API" -ge 33 ] && adb shell pm grant $PKG android.permission.POST_NOTIFICATIONS
   [ "$API" -ge 34 ] && adb shell appops set $PKG USE_FULL_SCREEN_INTENT allow
+  adb shell dumpsys deviceidle whitelist +$PKG > /dev/null  # the last item on the Setup check
   true
 }
 
@@ -85,12 +86,15 @@ adb shell am broadcast -n $PKG/.lab.LabReceiver -a lab.ADD_PATIENT --es mrn "765
 tap_text "Start transfusion"; tap_text "7654877"
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 1; sleep 3
-if dump | grep -qE 'text="7654877"[^>]*selected="true"'; then echo "PASS rotation keeps the picked patient"; else echo "FAIL rotation lost the picked patient"; fi | tee "$OUT/rotation.txt"
+dump > "$OUT/rotation.xml"; adb exec-out screencap -p > "$OUT/rotation.png"
+if grep -qE 'text="7654877"[^>]*selected="true"' "$OUT/rotation.xml"; then echo "PASS rotation keeps the picked patient"; else echo "FAIL rotation lost the picked patient"; fi | tee "$OUT/rotation.txt"
 adb shell settings put system user_rotation 0; sleep 2
 adb shell input keyevent KEYCODE_HOME; sleep 2
-adb shell am kill $PKG; sleep 2
+adb shell am kill --user 0 $PKG; sleep 2   # bare, Android 8 reads it as all users and kills nothing
+killed=$(adb shell pidof $PKG | tr -d '\r')
 adb shell am start -W -n $HOME_ACT >/dev/null; sleep 3
-if dump | grep -qE 'text="7654877"[^>]*selected="true"'; then echo "PASS process death keeps the picked patient"; else echo "FAIL process death lost the picked patient"; fi | tee "$OUT/process_death.txt"
+dump > "$OUT/process_death.xml"; adb exec-out screencap -p > "$OUT/process_death.png"
+if [ -n "$killed" ]; then echo "FAIL process death: the process was never killed"; elif grep -qE 'text="7654877"[^>]*selected="true"' "$OUT/process_death.xml"; then echo "PASS process death keeps the picked patient"; else echo "FAIL process death lost the picked patient"; fi | tee "$OUT/process_death.txt"
 
 # --- Monkey (debug build: LeakCanary and StrictMode are on) --------------------------------------
 adb shell pm clear $PKG; grant

@@ -74,8 +74,9 @@ class MainViewModel(private val app: App) : ViewModel() {
 
     // ---- Recent patients ----
 
-    val wardBeds: StateFlow<List<String>> =
-        wardDao.observePatients().map { list -> list.map { it.mrn } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** null until the first load: an empty list means nobody yet, and opens the keyboard for the first MRN. */
+    val wardBeds: StateFlow<List<String>?> =
+        wardDao.observePatients().map { list -> list.map { it.mrn } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Patients with a running timer → the icon to show on the grid. */
     val busyBeds: StateFlow<Map<String, Int>> = combine(dao.observeHome(), turnDao.observeHome()) { tx, plans ->

@@ -218,3 +218,26 @@ They enter the loop like any other failure. Beyond what is listed above they add
 "on time" while a bed is overdue; two identical "Measured & documented" buttons on one card; a stopped-for-reaction bed
 looks like an ordinary overdue bed; Snooze disappears without a word and the reaction banner moves into its slot, so
 muscle memory lands on the wrong control; the amber DOCUMENT block looks like the amber action button.
+
+## Reviewers, round 3: what was done about it (docs/audit/reviewers-round3.md)
+Design 5/10, 1 Critical, 12 Major, 34 Minor. Personas 9, 8 and 5 findings.
+
+**H15 (Critical) was the screenshot, not the widget:** the test drew the widget without its mask. `widget_mrn_masked` and M01 show the real one masks. The test now goes through the mask.
+
+**Fixed:** every other Major (H1, H2, H3, H4, A1, A2, D1, R1, R2, S1, S2, W1), and the persona findings on the Undo position, the widget's button, the unnamed "Back" chip, the two-patient alarm's bottom slot, unfinished exceptions looking done, the ended transfusion's overdue check, the edit screens' grid, the round on the transfusion alarm, the run-together MRN and time, and "Change". Minors H4, H5, H6, H11, A3, A5, A6, A8, ST2, W2, W3, W4, N1.
+
+**Left as they are, on purpose:**
+- H1's note, the solid red bar on the alarm: the nurse is at the bedside when an alarm rings, and the spec says never to bury the reaction guide. Home and Detail are quiet now.
+- D2, the reaction row on an ended transfusion: a reaction can come late.
+- H8, the slashed zero: SPEC.md asks for it, like the paper card.
+- H9, H16, D4, the rail, the type colours and the time chips: Ward Card, the maintainer's pick.
+- Persona findings on task 9 taking a 4th touch to close the round: the task is marking one patient. The other patients haven't been turned yet, so closing the round is a separate statement, and the next rubric says where task 9 ends.
+- Fake "DUE +10 min" (persona 1): at the default 10-minute timeout that state lasts until +9, so the sample was wrong and is fixed.
+
+**Test instruments changed this round, none of them thresholds:**
+- A15, A16: the warning's wording had changed, and the check now counts items before and after, so another problem can't pass it.
+- A20: the round is checked by its button, since the alarm no longer lists its MRNs.
+- A07, process death: Android 8 reads a bare `am kill` as all users and kills nothing, so `--user 0`, and process death now fails if the process lived.
+- A08: Android 8's Recents flings sideways.
+- SPACING: a pair in different scroll areas is measured on what can be touched. It used to depend on where the list happened to be scrolled.
+- TapBudget: its stated precondition is "setup done", so the lab gives the battery exemption Setup asks for. With the Setup warning showing, six patients at 360 dp take one scroll.

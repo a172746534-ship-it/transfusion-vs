@@ -136,14 +136,15 @@ fun TurnDetailContent(
 
         Column(
             Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = TvsSpace.s12).padding(bottom = TvsSpace.s8),
-            verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s16),
         ) {
             UndoSlot()
             if (slots.any { it.status == TurnSlotStatus.RINGING }) {
                 AckButton("Open round", onOpenRound, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
                 SecondaryButton("Stop plan", { onStop(p.id) })
             } else if (p.status == TurnPlanStatus.RUNNING) {
-                PrimaryButton("Stop plan", { onStop(p.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
+                // Quiet on purpose: it cancels the alarms, and nothing else on this screen is asking to be pressed.
+                SecondaryButton("Stop plan", { onStop(p.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
             } else {
                 PrimaryButton("Restart plan", { onRestart(p.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
             }

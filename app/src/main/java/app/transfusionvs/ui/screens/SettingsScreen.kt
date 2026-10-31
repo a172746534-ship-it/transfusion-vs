@@ -199,8 +199,6 @@ fun SettingsContent(
             Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
-            RecentPatientsPanel(beds, onRemovePatient)
-
             Panel {
                 CapsLabel("Night theme")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
@@ -311,6 +309,8 @@ fun SettingsContent(
                 )
                 SoundRow("Turning alarm sound", turnSoundTitle, onPickTurnSound)
             }
+
+            RecentPatientsPanel(beds, onRemovePatient)
         }
         Box(Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars).padding(TvsSpace.s12)) {
             PrimaryButton("Setup check & test alarm", onSetup)

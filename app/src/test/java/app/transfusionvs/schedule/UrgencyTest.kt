@@ -105,9 +105,10 @@ class UrgencyTest {
         assertEquals("NOTHING RUNNING", BedViews.running(emptyList()))
         val mixed = listOf(BedViews.of(Fakes.bed12, now), BedViews.of(Fakes.bed14, now))
         assertEquals("1 overdue", BedViews.summary(mixed))
-        assertEquals("2 PATIENTS RUNNING", BedViews.running(mixed))
+        assertEquals("2 RUNNING", BedViews.running(mixed))
+        assertEquals("NOTHING RUNNING", BedViews.running(emptyList()))
         val calm = listOf(BedViews.of(TurnFakes.bed3, now, 10))
-        assertEquals("All on time · next 12:00", BedViews.summary(calm))
+        assertEquals("All on time", BedViews.summary(calm))
     }
 
     @Test

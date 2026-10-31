@@ -78,7 +78,9 @@ import app.transfusionvs.ui.components.LabelText
 import app.transfusionvs.ui.components.MeasureDocumentBlocks
 import app.transfusionvs.ui.components.PositionChange
 import app.transfusionvs.ui.components.Rail
+import app.transfusionvs.ui.components.PatientButton
 import app.transfusionvs.ui.components.ReactionBar
+import app.transfusionvs.ui.components.iconRes
 import app.transfusionvs.ui.components.UNDO_BAR_MS
 import app.transfusionvs.ui.components.WardButton
 import app.transfusionvs.ui.components.largeFont
@@ -207,7 +209,11 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
         }
     }
     if (nothingOpen) {
-        DoneContent(justDone?.let { it.copy(label = mask(it.label)) }, onUndo = { id -> app.scope.launch { app.engine.undo(id) } })
+        DoneContent(
+            justDone?.let { it.copy(label = mask(it.label)) },
+            onUndo = { id -> app.scope.launch { app.engine.undo(id) } },
+            closesIn = justDone?.let { ((UNDO_BAR_MS - (now - it.at) + 999) / 1000).toInt().coerceAtLeast(1) },
+        )
         return
     }
     AlarmContent(
@@ -227,9 +233,12 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
     )
 }
 
-/** All done: the alarm stays for its last 5 seconds with one big Undo, then closes itself. */
+/**
+ * All done: the alarm stays for its last 5 seconds with Undo, then closes itself. Undo sits well above
+ * where the acknowledge button was, so a second press of the same thumb can't take it back.
+ */
 @Composable
-fun DoneContent(done: UndoAction?, onUndo: (Long) -> Unit) {
+fun DoneContent(done: UndoAction?, onUndo: (Long) -> Unit, closesIn: Int? = null) {
     val c = Ward.c
     Column(
         Modifier.fillMaxSize().background(c.alarmBg).safeDrawingPadding().padding(TvsSpace.s16),
@@ -238,10 +247,14 @@ fun DoneContent(done: UndoAction?, onUndo: (Long) -> Unit) {
     ) {
         Spacer(Modifier.weight(1f))
         if (done != null) {
-            Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = c.alarmAction, modifier = Modifier.size(TvsSize.AckHuge))
-            Text(done.label, color = c.alarmInk, style = WardType.Title, textAlign = TextAlign.Center)
-            Spacer(Modifier.weight(1f))
+            Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = c.alarmAction, modifier = Modifier.size(TvsSize.IconLarge))
+            // The patient on a line of their own, at key-number size: this is the moment to check it was the right one.
+            val parts = done.label.split(" · ", limit = 2)
+            if (parts.size == 2) LabelText(parts[0], c.alarmInk, WardType.AlarmKey, min = WardType.Title.fontSize)
+            Text(parts.last(), color = c.alarmInk, style = WardType.Title, textAlign = TextAlign.Center)
             AlarmSecondary("Undo", { onUndo(done.id) })
+            if (closesIn != null) Text("Closes in $closesIn s", color = c.alarmMuted, style = WardType.Body)
+            Spacer(Modifier.weight(2f))
         }
     }
 }
@@ -308,6 +321,7 @@ fun AlarmContent(
                 round, snoozeMin, initiallyOpen, onStartRound, onAllTurned, onTurned, onCantTurn, onSnoozeRound, onRemind,
                 stillRinging = beds.takeIf { it.isNotEmpty() }?.joinToString(", ") { it.title },
                 onBackToTransfusion = { roundFirst = false },
+                now = now,
             )
         }
     }
@@ -364,18 +378,18 @@ private fun AlarmCaps(icon: Int, text: String) {
     }
 }
 
-/** Bed and time side by side, big enough to read at arm's length; stacked when they can't fit. */
+/** The patient and the time, big enough to read at arm's length: side by side when they clearly read as two things. */
 @Composable
 private fun KeyNumbers(first: String, second: String, firstStyle: TextStyle = WardType.AlarmKey, secondStyle: TextStyle = WardType.AlarmKey) {
     val c = Ward.c
-    if (first.length > 7 || largeFont()) {
+    if (first.length > (if (firstStyle.fontSize >= WardType.AlarmKey.fontSize) 5 else 7) || largeFont()) {
         LabelText(first, c.alarmInk, firstStyle, min = WardType.Title.fontSize)
         LabelText(second, c.alarmInk, secondStyle, min = WardType.Title.fontSize)
     } else {
-        Row(verticalAlignment = Alignment.Bottom) {
-            LabelText(first, c.alarmInk, firstStyle, Modifier.weight(1f), min = WardType.AlarmKeySmall.fontSize)
+        Row {
+            LabelText(first, c.alarmInk, firstStyle, Modifier.weight(1f).alignByBaseline(), min = WardType.AlarmKeySmall.fontSize)
             Spacer(Modifier.width(TvsSpace.s8))
-            Text(second, color = c.alarmInk, style = secondStyle, softWrap = false)
+            Text(second, color = c.alarmInk, style = secondStyle, softWrap = false, modifier = Modifier.alignByBaseline())
         }
     }
 }
@@ -422,7 +436,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
     val scroll = rememberScrollState()
     Column(
         Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll),
-        verticalArrangement = if (beds.size > 1) Arrangement.spacedBy(TvsSpace.s12, Alignment.Bottom) else Arrangement.spacedBy(TvsSpace.s12),
+        verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
     ) {
         AlarmCaps(R.drawable.ic_drop, if (isTest) "Test alarm" else "Blood transfusion running")
         val due = rows.minOfOrNull { it.scheduledAt }
@@ -433,31 +447,43 @@ private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
             val due = rows.filter { it.id in bed.checkpointIds }.minOfOrNull { it.scheduledAt }
             KeyNumbers(bed.shortLabel, due?.let { Labels.clock(it) } ?: "")
             val first = rows.firstOrNull { it.id in bed.checkpointIds }
-            if (!isTest && first != null) Rail(BedViews.alarmRail(first.offsetMin, first.plannedDurationMin), Urgency.NOW, height = TvsSize.RailLarge, ink = c.alarmInk, background = c.alarmBg, beadColor = c.alarmAction, onBead = c.alarmOnAction)
+            if (!isTest && first != null) Rail(BedViews.alarmRail(first.offsetMin, first.plannedDurationMin), Urgency.NOW, height = TvsSize.RailLarge, ink = c.alarmInk, background = c.alarmBg, track = c.alarmMuted, hollow = c.alarmMuted, beadColor = c.alarmAction, onBead = c.alarmOnAction)
             if (bed.subtitle != Labels.subtitle(CheckpointType.M15)) Text(bed.subtitle, color = c.alarmInk, style = WardType.Lead)
         } else {
             Text("${beds.size} patients due now", color = c.alarmInk, style = WardType.AlarmTitle)
         }
         AlarmSteps()
-        if (beds.size > 1) beds.forEach { bed -> BedRow(bed, rows) { onAcknowledge(bed.checkpointIds) } }
+        if (beds.size > 1) {
+            beds.forEachIndexed { i, bed -> BedRow(bed, rows, if (i == 0) null else ({ onAcknowledge(bed.checkpointIds) })) }
+        }
     }
     Spacer(Modifier.size(TvsSpace.s8))
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s12)) {
         // A round due in the same minute is on this screen too, and can be started from here.
         if (round != null && round.beds.isNotEmpty()) {
+            val late = (now - round.slotAt) / MINUTE_MS
             WardButton(
-                "Start round · ${Labels.clock(round.slotAt)} · ${round.beds.joinToString(", ") { it.bedLabel }}", onStartRound, Modifier.fillMaxWidth(),
-                fill = c.alarmTint, content = c.alarmInk, style = WardType.ButtonSmall, icon = R.drawable.ic_turn,
+                "Start round · ${Labels.clock(round.slotAt)}${if (late >= 1) " · +$late min" else ""} · ${round.beds.size} patient${if (round.beds.size > 1) "s" else ""}",
+                onStartRound, Modifier.fillMaxWidth(),
+                fill = c.alarmBg, content = c.alarmInk, edge = c.alarmInk, style = WardType.ButtonSmall, icon = R.drawable.ic_turn,
             )
         }
         if (!isTest) ReactionBar(onClick = onReaction)
         SnoozeSlot(canSnooze, snoozedUntil, snoozeMin, onSnooze)
-        if (beds.size == 1) AlarmPrimary(Labels.ACK, { onAcknowledge(beds[0].checkpointIds) })
+        // The bottom slot always means done: with several patients, for the first of them.
+        if (beds.size == 1) {
+            AlarmPrimary(Labels.ACK, { onAcknowledge(beds[0].checkpointIds) })
+        } else {
+            PatientButton(
+                beds[0].shortLabel, Labels.ACK, { onAcknowledge(beds[0].checkpointIds) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG),
+                key = WardType.AlarmKeySmall, minHeight = TvsSize.AckHuge,
+            )
+        }
     }
 }
 
 @Composable
-private fun BedRow(bed: RingBed, rows: List<CheckpointWithBed>, onAck: () -> Unit) {
+private fun BedRow(bed: RingBed, rows: List<CheckpointWithBed>, onAck: (() -> Unit)?) {
     val c = Ward.c
     val due = rows.filter { it.id in bed.checkpointIds }.minOfOrNull { it.scheduledAt }
     Column(
@@ -466,10 +492,12 @@ private fun BedRow(bed: RingBed, rows: List<CheckpointWithBed>, onAck: () -> Uni
     ) {
         KeyNumbers(bed.shortLabel, due?.let { Labels.clock(it) } ?: "", WardType.AlarmKeySmall, WardType.AlarmKeySmall)
         Text(bed.what, color = c.alarmMuted, style = WardType.Lead)
-        WardButton(
-            "${bed.shortLabel} · ${Labels.ACK}", onAck, Modifier.fillMaxWidth(),
-            fill = c.alarmAction, content = c.alarmOnAction, style = WardType.ButtonSmall,
-        )
+        if (onAck != null) {
+            WardButton(
+                Labels.ACK, onAck, Modifier.fillMaxWidth(),
+                fill = c.alarmAction, content = c.alarmOnAction, style = WardType.ButtonSmall,
+            )
+        }
     }
 }
 
@@ -490,6 +518,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
     onRemind: () -> Unit,
     stillRinging: String? = null,
     onBackToTransfusion: () -> Unit = {},
+    now: Long,
 ) {
     val c = Ward.c
     val open = remember { mutableStateMapOf<Long, RoundChoice>().apply { putAll(initiallyOpen) } }
@@ -501,6 +530,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
     ) {
         AlarmCaps(R.drawable.ic_turn, "Repositioning round")
         if (stillRinging != null) AlarmSecondary("Still due: $stillRinging", onBackToTransfusion, style = WardType.BodyBold)
+        AlarmState(round.slotAt, now, round.snoozedUntil)
         if (!round.started) Text("Turning round", color = c.alarmInk, style = WardType.AlarmTitle)
         KeyNumbers(Labels.clock(round.slotAt), count, WardType.AlarmKey, WardType.Title)
         Text("Check pressure points: occiput · ears · sacrum · heels", color = c.alarmMuted, style = WardType.Body)
@@ -533,6 +563,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
         if (round.started) {
             val others = round.beds.count { it.slotId !in open.keys }
+            if (open.isNotEmpty()) Text("${open.size} above still waiting for your answer", color = c.alarmInk, style = WardType.BodyBold)
             when {
                 open.isEmpty() -> AlarmPrimary("All turned as suggested\u00A0✓", { onAllTurned(emptySet()) })
                 others > 0 -> AlarmPrimary("The other $others turned as suggested\u00A0✓", { onAllTurned(open.keys.toSet()) })
@@ -561,14 +592,14 @@ private fun RoundBedRow(
     ) {
         LabelText(bed.bedLabel, c.alarmInk, WardType.AlarmKeySmall, min = WardType.Title.fontSize)
         PositionChange(bed.from, bed.suggested, c.alarmInk, TvsSize.IconLarge)
-        AlarmSecondary("Turned to ${bed.suggested.label}", { onTurned(bed.suggested) }, style = WardType.ButtonSmall)
+        AlarmSecondary("Turned to ${bed.suggested.label}", { onTurned(bed.suggested) })
         val stacked = largeFont()
         @Composable
         fun choice(choice: RoundChoice, label: String, modifier: Modifier) {
-            // The open one is marked with a ✓ and a tint; the white chips below are what to tap next.
+            // The open one waits for an answer below: a tint and an arrow, no ✓, since nothing is done yet.
             val on = open == choice
             WardButton(
-                if (on) "✓ $label" else label, { onOpen(choice) }, modifier,
+                if (on) "$label ▾" else label, { onOpen(choice) }, modifier,
                 fill = if (on) c.alarmTint else c.alarmBg,
                 content = c.alarmInk,
                 edge = if (on) c.alarmInk else c.alarmMuted, style = WardType.BodyBold, shape = TvsShape.Control,
@@ -592,22 +623,20 @@ private fun RoundBedRow(
             }
         }
         when (open) {
-            RoundChoice.OTHER_POSITION -> FlowRow(
-                modifier = Modifier.bringIntoViewRequester(reasons),
-                horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8),
-                verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
-            ) {
-                // Neither the suggestion (that is the big button) nor where the patient already lies.
-                bed.allowed.filter { it != bed.suggested && it != bed.from }.forEach { p ->
-                    AlarmChip(p.label) { onTurned(p) }
+            RoundChoice.OTHER_POSITION -> Column(Modifier.bringIntoViewRequester(reasons), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                Text("Turned to which position?", color = c.alarmInk, style = WardType.BodyBold)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                    // Neither the suggestion (that is the big button) nor where the patient already lies.
+                    bed.allowed.filter { it != bed.suggested && it != bed.from }.forEach { p ->
+                        AlarmChip("Turned to ${p.label}", p.iconRes()) { onTurned(p) }
+                    }
                 }
             }
-            RoundChoice.CANT_TURN -> FlowRow(
-                modifier = Modifier.bringIntoViewRequester(reasons),
-                horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8),
-                verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
-            ) {
-                SkipReason.entries.forEach { r -> AlarmChip(r.label) { onCantTurn(r) } }
+            RoundChoice.CANT_TURN -> Column(Modifier.bringIntoViewRequester(reasons), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                Text("Why can't you turn?", color = c.alarmInk, style = WardType.BodyBold)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                    SkipReason.entries.forEach { r -> AlarmChip(r.label) { onCantTurn(r) } }
+                }
             }
             null -> Unit
         }
@@ -615,7 +644,7 @@ private fun RoundBedRow(
 }
 
 @Composable
-private fun AlarmChip(text: String, onClick: () -> Unit) {
+private fun AlarmChip(text: String, icon: Int? = null, onClick: () -> Unit) {
     val c = Ward.c
-    WardButton(text, onClick, fill = c.alarmChip, content = c.alarmBg, style = WardType.BodyBold, shape = TvsShape.Control)
+    WardButton(text, onClick, fill = c.alarmBg, content = c.alarmInk, edge = c.alarmInk, style = WardType.BodyBold, shape = TvsShape.Control, icon = icon)
 }

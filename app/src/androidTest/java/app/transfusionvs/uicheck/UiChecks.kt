@@ -82,12 +82,16 @@ class UiChecks {
             if (minOf(w, h) < minTarget) out += "TOUCH $name '${label(n)}' ${w.toInt()}x${h.toInt()}dp < ${minTarget.toInt()}dp"
             if (label(n).isBlank()) out += "NOLABEL $name action without a label at ${n.boundsInRoot}"
         }
-        // Whole rectangles, also below the fold (boundsInRoot is clipped to the scroll viewport).
+        // Within one scroll area: whole rectangles, also below the fold (boundsInRoot is clipped to the viewport).
+        // Against something outside that area, what can be touched: the rest is clipped away, and how close it
+        // comes depends only on where the list happens to be scrolled.
         fun rect(n: SemanticsNode) = Rect(n.positionInRoot, Size(n.size.width.toFloat(), n.size.height.toFloat()))
+        fun viewport(n: SemanticsNode) = generateSequence(n.parent) { it.parent }.firstOrNull { it.config.contains(SemanticsProperties.VerticalScrollAxisRange) }?.id
         for (i in targets.indices) for (j in i + 1 until targets.size) {
-            val a = rect(targets[i])
-            val b = rect(targets[j])
-            if (a.overlaps(b)) continue
+            val together = viewport(targets[i]) == viewport(targets[j])
+            val a = if (together) rect(targets[i]) else targets[i].boundsInRoot
+            val b = if (together) rect(targets[j]) else targets[j].boundsInRoot
+            if (a.isEmpty || b.isEmpty || a.overlaps(b)) continue
             val dx = maxOf(a.left - b.right, b.left - a.right, 0f)
             val dy = maxOf(a.top - b.bottom, b.top - a.bottom, 0f)
             val gap = maxOf(dx, dy) / density

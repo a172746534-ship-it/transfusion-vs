@@ -145,6 +145,7 @@ fun DetailContent(
                     CapsLabel("End VS — ${t.bedLabel}")
                     Text("Transfusion ended at ${Labels.clock(endVs.scheduledAt)}.", color = c.ink, style = WardType.Body)
                     MeasureDocumentBlocks(c.ink, c.muted, c.ink, c.card)
+                    if (dueRow != null) Text("A check that was already overdue can still be documented below.", color = c.muted, style = WardType.Body)
                 }
             }
 
@@ -172,8 +173,8 @@ fun DetailContent(
                 CapsLabel("Checkpoints")
                 visibleRows(t, rows, now).forEach { row ->
                     CheckpointRow(row, now, toleranceMin)
-                    // On a stopped bed the late documentation stays possible, but quietly: nothing else is routine here.
-                    if (stopped && row.status == CheckpointStatus.MISSED && row.ackAt == null) {
+                    // Stopped or waiting on End VS: the late documentation stays possible, but quietly.
+                    if ((stopped || endVs != null) && row.status == CheckpointStatus.MISSED && row.ackAt == null) {
                         SecondaryButton("${Labels.title(row.type, row.offsetMin)} · ${Labels.ACK}", { onAcknowledge(listOf(row.id)) })
                     }
                 }
@@ -208,7 +209,8 @@ fun DetailContent(
                     if (dueRow != null) {
                         SecondaryButton("End transfusion", { onEnd(t.id) })
                     } else {
-                        PrimaryButton("End transfusion", { onEnd(t.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
+                        // Quiet on purpose: it cancels the alarms, and nothing else on this screen is asking to be pressed.
+                        SecondaryButton("End transfusion", { onEnd(t.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
                     }
                 }
             }

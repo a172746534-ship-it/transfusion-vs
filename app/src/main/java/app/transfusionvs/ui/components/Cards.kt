@@ -43,6 +43,9 @@ fun BedType.spoken(): String = if (this == BedType.TRANSFUSION) "Transfusion" el
 @Composable
 fun BedType.color(): Color = if (this == BedType.TRANSFUSION) Ward.c.typeTx else Ward.c.typeRp
 
+/** Past this, what is due and how urgent no longer fit side by side. */
+private const val LONG_WHAT = 28
+
 /** Full-width banner with an icon and a chevron, so it reads as something to tap. */
 @Composable
 fun Alert(text: String, icon: Int, color: Color, textColor: Color, edge: Color?, onClick: () -> Unit) {
@@ -74,7 +77,7 @@ fun StateText(view: BedView) {
         view.stoppedForReaction -> Unit
         view.urgency == Urgency.CALM -> PlainStatus(view.stateText, c.muted)
         view.urgency == Urgency.SOON -> OutlinedStatus(view.stateText, c.soon)
-        else -> FilledStatus(view.stateText, c.of(view.urgency), c.on(view.urgency))
+        else -> FilledStatus(view.stateText, c.of(view.urgency), c.on(view.urgency), solid = view.urgency == Urgency.OVERDUE)
     }
 }
 
@@ -95,6 +98,7 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
     val edge = when {
         stopped -> c.danger
         view.urgency == Urgency.OVERDUE -> c.overdue
+        view.urgency == Urgency.NOW -> c.of(Urgency.NOW)
         else -> null
     }
     val large = largeFont()
@@ -136,7 +140,7 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
             if (stopped) {
                 Text(view.stateText, color = c.danger, style = WardType.Button)
                 Text(view.what, color = ink, style = WardType.Body)
-            } else if (large) {
+            } else if (large || view.what.length > LONG_WHAT) {
                 Text(view.what, color = sub, style = WardType.Body)
                 StateText(view)
             } else {

@@ -116,7 +116,10 @@ object BedsWidget {
         r.setTextColor(R.id.row_time, if (alert) alertColor else ink)
         val canAck = bed.ackIds.isNotEmpty() && !bed.stoppedForReaction
         r.setViewVisibility(R.id.row_ack, if (canAck) View.VISIBLE else View.GONE)
-        if (canAck) r.setOnClickPendingIntent(R.id.row_ack, Notifications.ackIntent(context, bed.ackIds))
+        if (canAck) {
+            r.setTextViewText(R.id.row_ack, "${bed.bed} · ${bed.ackLabel}")
+            r.setOnClickPendingIntent(R.id.row_ack, Notifications.ackIntent(context, bed.ackIds))
+        }
         r.setOnClickPendingIntent(R.id.row_root, if (bed.roundOpen) Notifications.alarmScreen(context) else Notifications.openApp(context))
         return r
     }

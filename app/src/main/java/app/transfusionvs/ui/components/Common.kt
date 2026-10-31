@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,7 +46,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -179,6 +180,40 @@ fun AckButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier.f
     WardButton(text, onClick, modifier, fill = c.alarmAction, content = c.alarmOnAction, minHeight = minHeight, style = WardType.ButtonSmall)
 }
 
+/** An action for one patient: who it is for, big enough to check before pressing, then what it records. */
+@Composable
+fun PatientButton(
+    patient: String,
+    action: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    fill: Color = Ward.c.alarmAction,
+    content: Color = Ward.c.alarmOnAction,
+    key: TextStyle = WardType.CardBed,
+    minHeight: Dp = TvsSize.TouchLarge,
+) {
+    Column(
+        modifier.heightIn(min = minHeight).background(fill, TvsShape.Card).wardClick(onClick = onClick)
+            .padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s4),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        LabelText(patient, content, key)
+        Text(action, color = content, style = WardType.ButtonSmall, textAlign = TextAlign.Center)
+    }
+}
+
+/** Text fields in the theme's own ink, so they can be found in a dark room too. */
+@Composable
+fun wardFieldColors(): TextFieldColors {
+    val c = Ward.c
+    return OutlinedTextFieldDefaults.colors(
+        focusedTextColor = c.ink, unfocusedTextColor = c.ink, cursorColor = c.ink,
+        focusedBorderColor = c.ink, unfocusedBorderColor = c.muted,
+        focusedLabelColor = c.ink, unfocusedLabelColor = c.muted,
+    )
+}
+
 /** The band on top of every screen: navy like the card by day, a dark card by night. */
 @Composable
 fun WardHeader(
@@ -230,20 +265,20 @@ fun WardHeader(
 fun ReactionBar(onClick: () -> Unit, modifier: Modifier = Modifier, minHeight: Dp = TvsSize.TouchLarge, quiet: Boolean = false) {
     val c = Ward.c
     // Quiet when nothing is wrong (Home, Detail): always there, with its red kept for when it matters.
-    val ink = if (quiet) c.danger else c.onDangerFill
+    val ink = if (quiet) c.ink else c.onDangerFill
     Row(
         modifier.fillMaxWidth().heightIn(min = minHeight)
             .background(if (quiet) c.card else c.dangerFill, TvsShape.Card)
-            .border(TvsSize.Edge, if (quiet) c.danger else c.dangerEdge, TvsShape.Card)
+            .border(TvsSize.Edge, if (quiet) c.muted else c.dangerEdge, TvsShape.Card)
             .wardClick(onClick = onClick)
             .padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s6),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = ink, modifier = Modifier.size(TvsSize.IconMedium))
+        Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = if (quiet) c.danger else ink, modifier = Modifier.size(TvsSize.IconMedium))
         Spacer(Modifier.width(TvsSpace.s12))
         Column {
             Text("SUSPECTED REACTION?", color = ink, style = WardType.Tag)
-            Text("STOP the transfusion & call", color = if (quiet) c.ink else ink, style = WardType.Body)
+            Text("STOP the transfusion & call", color = ink, style = WardType.Body)
         }
     }
 }
@@ -293,7 +328,9 @@ fun ChangeRow(text: String, onClick: () -> Unit) {
     ) {
         Text(text, color = c.ink, style = WardType.BodyBold, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(TvsSpace.s8))
-        Text("Change", color = c.ink, style = WardType.Lead, textDecoration = TextDecoration.Underline)
+        Box(Modifier.border(TvsSize.Edge, c.muted, TvsShape.Control).padding(horizontal = TvsSpace.s10, vertical = TvsSpace.s6)) {
+            Text("Change", color = c.ink, style = WardType.BodyBold)
+        }
     }
 }
 
@@ -326,8 +363,8 @@ fun StatusPill(status: StatusView) {
 }
 
 @Composable
-fun FilledStatus(text: String, bg: Color, fg: Color) {
-    if (Ward.c.isNight) {
+fun FilledStatus(text: String, bg: Color, fg: Color, solid: Boolean = false) {
+    if (Ward.c.isNight && !solid) {
         // A bright pill would be the brightest thing in a dark room: a tint and an edge say the same.
         Box(Modifier.background(bg.copy(alpha = 0.18f), TvsShape.Pill).border(TvsSize.Edge, bg, TvsShape.Pill).padding(horizontal = TvsSpace.s8)) {
             Text(text, color = bg, style = WardType.BodyBold)

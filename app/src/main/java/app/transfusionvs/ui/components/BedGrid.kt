@@ -52,23 +52,18 @@ fun BedGrid(
     beds: List<String>,
     busy: Map<String, Int>,
     selected: String,
+    typing: Boolean,
     otherText: String,
     onPick: (String) -> Unit,
     onOtherText: (String) -> Unit,
 ) {
     val c = Ward.c
-    // As many across as the longest MRN allows, so the last digits are never cut off.
-    val longest = beds.maxOfOrNull { it.length } ?: 0
-    val columns = when {
-        largeFont() || longest > 12 -> 1
-        longest > 7 -> 2
-        else -> 3
-    }
+    val columns = patientColumns(beds)
     val ordered = PatientInput.sorted(beds.filter { it in busy }) + PatientInput.sorted(beds.filter { it !in busy })
-    val typing = selected == OTHER_BED || (selected.isBlank() && beds.isEmpty())
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
         if (beds.isNotEmpty()) {
-            (ordered + OTHER_BED).chunked(columns).forEach { row ->
+            // First, not after everyone seen today: a new patient is the one case that can't scroll to them.
+            (listOf(OTHER_BED) + ordered).chunked(columns).forEach { row ->
                 Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
                     row.forEach { bed ->
                         val on = bed == selected
@@ -115,8 +110,20 @@ fun BedGrid(
                 label = { Text("Patient's MRN", style = WardType.Body) },
                 supportingText = { Text("${PatientInput.MIN_DIGITS} to ${PatientInput.MAX_DIGITS} digits. No names.", color = c.ink, style = WardType.Body) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                colors = wardFieldColors(),
             )
         }
+    }
+}
+
+/** As many across as the longest MRN allows, so a number is never cut off or broken in two. */
+@Composable
+fun patientColumns(labels: List<String>): Int {
+    val longest = labels.maxOfOrNull { it.length } ?: 0
+    return when {
+        largeFont() || longest > 12 -> 1
+        longest > 7 -> 2
+        else -> 3
     }
 }
 

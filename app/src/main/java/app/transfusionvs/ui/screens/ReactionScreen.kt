@@ -35,7 +35,9 @@ import androidx.compose.ui.text.withStyle
 import app.transfusionvs.R
 import app.transfusionvs.ui.PRIMARY_TAG
 import app.transfusionvs.ui.components.CapsLabel
+import app.transfusionvs.ui.components.PatientButton
 import app.transfusionvs.ui.components.WardButton
+import app.transfusionvs.ui.components.patientColumns
 import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.components.largeFont
 import app.transfusionvs.ui.components.moreBelow
@@ -153,21 +155,24 @@ fun ReactionScreen(
             ) {
                 if (beds.size > 2) {
                     CapsLabel("Transfusion stopped for:")
-                    val columns = if (largeFont()) 1 else 3
+                    val columns = patientColumns(beds.map { it.bedLabel })
                     Column(
                         Modifier.heightIn(max = TvsSize.TouchLarge * 2 + TvsSpace.s8 + TvsSize.IconMedium).verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
                     ) {
                         beds.chunked(columns).forEach { row ->
                             Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                                row.forEach { bed -> StopButton(bed.bedLabel, { onStopped(bed.transfusionId) }, Modifier.weight(1f)) }
+                                // Outlined: twenty solid reds would be a wall, with no way to tell one from the next.
+                                row.forEach { bed ->
+                                    WardButton(bed.bedLabel, { onStopped(bed.transfusionId) }, Modifier.weight(1f), fill = c.card, content = c.ink, edge = c.danger, style = WardType.Lead)
+                                }
                                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                             }
                         }
                     }
                 } else {
                     beds.forEach { bed ->
-                        StopButton("Transfusion stopped — ${bed.bedLabel}", { onStopped(bed.transfusionId) }, Modifier.fillMaxWidth())
+                        PatientButton(bed.bedLabel, "Transfusion stopped", { onStopped(bed.transfusionId) }, fill = c.danger, content = c.onDanger, key = WardType.AlarmKeySmall)
                     }
                 }
             }
@@ -175,8 +180,3 @@ fun ReactionScreen(
     }
 }
 
-@Composable
-private fun StopButton(text: String, onClick: () -> Unit, modifier: Modifier) {
-    val c = Ward.c
-    WardButton(text, onClick, modifier, fill = c.danger, content = c.onDanger, style = WardType.ButtonSmall)
-}

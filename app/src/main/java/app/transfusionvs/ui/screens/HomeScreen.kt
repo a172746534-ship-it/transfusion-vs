@@ -49,7 +49,7 @@ import app.transfusionvs.schedule.Labels
 import app.transfusionvs.setup.SetupChecks
 import app.transfusionvs.ui.MainViewModel
 import app.transfusionvs.ui.PRIMARY_TAG
-import app.transfusionvs.ui.components.AckButton
+import app.transfusionvs.ui.components.PatientButton
 import app.transfusionvs.ui.components.Alert
 import app.transfusionvs.ui.components.BedCard
 import app.transfusionvs.ui.components.EmptyCard
@@ -202,12 +202,13 @@ fun HomeContent(
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         ) {
             UndoSlot()
-            if (ringing) Alert("Alarm ringing. Open it", R.drawable.ic_bell, c.alarmAction, c.alarmOnAction, null, onOpenAlarm)
+            // Outlined: the one filled action here is the patient's, just below.
+            if (ringing) Alert("Alarm ringing. Open it", R.drawable.ic_bell, c.card, c.ink, c.ink, onOpenAlarm)
             if (urgent != null) {
                 if (urgent.roundOpen) {
-                    AckButton("${urgent.bed} · Open round", onOpenAlarm, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
+                    PatientButton(urgent.bed, "Open round", onOpenAlarm, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
                 } else {
-                    AckButton("${urgent.bed} · ${urgent.ackLabel}", { onAcknowledge(urgent.ackIds) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
+                    PatientButton(urgent.bed, urgent.ackLabel, { onAcknowledge(urgent.ackIds) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
                 }
             }
             if (anyTransfusion) ReactionBar(onClick = onReaction, minHeight = TvsSize.Touch, quiet = true)

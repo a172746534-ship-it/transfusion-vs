@@ -93,7 +93,7 @@ val WardDay = WardColors(
     alarmBg = Color(0xFF13233F), alarmInk = Color(0xFFFFFFFF), alarmAction = Color(0xFFF5A623), alarmOnAction = Color(0xFF13233F),
     dangerFill = Color(0xFFA80F1C), onDangerFill = Color(0xFFFFFFFF), dangerEdge = Color(0xFFA80F1C),
     primary = Color(0xFF13233F), onPrimary = Color(0xFFFFFFFF), primaryEdge = Color(0xFF13233F),
-    header = Color(0xFF13233F), onHeader = Color(0xFFFFFFFF), headerCaps = Color(0xFFF5A623),
+    header = Color(0xFF13233F), onHeader = Color(0xFFFFFFFF), headerCaps = Color(0xFFC3CEE0),
     alarmCaps = Color(0xFFF5A623), alarmStep = Color(0xFF8FB4F5), alarmChip = Color(0xFFFFFFFF),
     alertFill = Color(0xFFD28000), onAlert = Color(0xFF13233F), alertEdge = null, isNight = false,
 )
@@ -106,7 +106,7 @@ val WardNight = WardColors(
     alarmBg = Color(0xFF060B14), alarmInk = Color(0xFFE8EDF6), alarmAction = Color(0xFFC98F36), alarmOnAction = Color(0xFF060B14),
     dangerFill = Color(0xFF4A1518), onDangerFill = Color(0xFFFFDAD6), dangerEdge = Color(0xFFFF7269),
     primary = Color(0xFF2A3B5F), onPrimary = Color(0xFFE8EDF6), primaryEdge = Color(0xFF7585A4),
-    header = Color(0xFF141F33), onHeader = Color(0xFFE8EDF6), headerCaps = Color(0xFFF9DC6E),
+    header = Color(0xFF141F33), onHeader = Color(0xFFE8EDF6), headerCaps = Color(0xFFAEBBD0),
     alarmCaps = Color(0xFFC98F36), alarmStep = Color(0xFFA6C4FF), alarmChip = Color(0xFF8FA3C7),
     alertFill = Color(0xFF2E2A12), onAlert = Color(0xFFF9DC6E), alertEdge = Color(0xFFF9DC6E), isNight = true,
 )
