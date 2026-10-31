@@ -257,3 +257,10 @@ Done only in part, or left, and why:
 - **D-35:** the round's rows are one line each now; "More below" still carries no count.
 - **D-19's** order: Reaction stays above Snooze, with more room between them, rather than swapping, since the bottom two slots are what a thumb learns.
 - **D-28 and D-50:** ending or stopping has no confirm step: Undo is the app's rule instead of dialogs.
+
+Also not fully done from that review, so they don't read as fixed:
+- **D-12:** the alarm's primary button at night is still amber, though cards now have an edge and Home's primary is no longer amber.
+- **D-21:** the "Due" caption shows only where the MRN and the time are stacked; side by side there is no room for it.
+- **D-22:** snoozed dims the button and "No snoozes left" has its own outline, but there is no countdown ring.
+- **D-26:** the header is shorter, and End moves into the list when a check is due, but with a check due the list is still short on a small phone.
+- **D-33:** the chooser for many patients takes much less room, as one row and a peek, rather than becoming a sheet.
