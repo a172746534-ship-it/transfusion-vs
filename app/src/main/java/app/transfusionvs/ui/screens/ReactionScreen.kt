@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -107,7 +108,7 @@ fun ReactionScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
-                            Modifier.size(TvsSize.Badge).background(if (done[i]) c.ink else c.danger, CircleShape),
+                            Modifier.sizeIn(minWidth = TvsSize.Badge, minHeight = TvsSize.Badge).background(if (done[i]) c.ink else c.danger, CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(if (done[i]) "✓" else "${i + 1}", color = if (done[i]) c.card else c.onDanger, style = WardType.Lead)

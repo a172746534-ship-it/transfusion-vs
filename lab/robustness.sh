@@ -105,7 +105,7 @@ tail -3 "$OUT/monkey.txt"
 adb logcat -d > "$OUT/monkey.logcat.txt"
 echo "crashes: $(grep -A2 'FATAL EXCEPTION' "$OUT/monkey.logcat.txt" | grep -c "Process: $PKG")" | tee "$OUT/monkey.summary.txt"
 echo "anrs: $(grep -c 'ANR in app.transfusionvs' "$OUT/monkey.logcat.txt")" | tee -a "$OUT/monkey.summary.txt"
-echo "strictmode: $(grep -c 'StrictMode policy violation' "$OUT/monkey.logcat.txt")" | tee -a "$OUT/monkey.summary.txt"
+python3 lab/strictmode_count.py "$OUT/monkey.logcat.txt" "$PKG" | tee "$OUT/strictmode.txt" | head -2 | tee -a "$OUT/monkey.summary.txt"
 grep -c 'Monkey finished' "$OUT/monkey.txt" | sed 's/^/monkey finished: /' | tee -a "$OUT/monkey.summary.txt"
 grep 'Events injected' "$OUT/monkey.txt" | tee -a "$OUT/monkey.summary.txt"
 # Force the heap analysis: LeakCanary alone waits for 5 retained objects, so silence would prove nothing.

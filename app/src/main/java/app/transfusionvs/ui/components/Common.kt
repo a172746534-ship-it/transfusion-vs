@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -84,7 +86,7 @@ fun WardButton(
     icon: Int? = null,
 ) {
     Row(
-        modifier.heightIn(min = minHeight)
+        modifier.heightIn(min = minHeight).widthIn(min = minHeight)
             .background(fill, shape)
             .let { if (edge != null) it.border(TvsSize.Edge, edge, shape) else it }
             .wardClick(enabled = enabled, onClick = onClick)
@@ -150,7 +152,7 @@ fun WardHeader(
     Column(
         Modifier.fillMaxWidth().background(background)
             .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(start = TvsSpace.s4, end = TvsSpace.s12, bottom = TvsSpace.s10),
+            .padding(start = TvsSpace.s4, end = TvsSpace.s12, bottom = TvsSpace.s6),
     ) {
         if (onBack != null) {
             Row(
@@ -162,7 +164,7 @@ fun WardHeader(
                 Text("Back", color = content, style = WardType.Lead)
             }
         }
-        Row(Modifier.padding(start = TvsSpace.s12, top = if (onBack == null) TvsSpace.s10 else TvsSpace.s2), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = TvsSpace.s12, top = if (onBack == null) TvsSpace.s6 else TvsSpace.s2), verticalAlignment = Alignment.CenterVertically) {
             if (icon != null) {
                 Icon(painterResource(icon), contentDescription = null, tint = capsColor, modifier = Modifier.size(TvsSize.IconLarge))
                 Spacer(Modifier.width(TvsSpace.s10))
@@ -189,7 +191,7 @@ fun ReactionBar(onClick: () -> Unit, modifier: Modifier = Modifier, minHeight: D
             .background(c.dangerFill, TvsShape.Card)
             .border(TvsSize.Edge, c.dangerEdge, TvsShape.Card)
             .wardClick(onClick = onClick)
-            .padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s8),
+            .padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s6),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = c.onDangerFill, modifier = Modifier.size(TvsSize.IconMedium))
@@ -207,7 +209,7 @@ fun ChoiceChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: M
     val c = Ward.c
     val shape = TvsShape.Control
     Box(
-        modifier.heightIn(min = minHeight)
+        modifier.heightIn(min = minHeight).widthIn(min = minHeight)
             .background(if (selected) c.primary else c.card, shape)
             .border(TvsSize.Edge, if (selected) c.primaryEdge else c.muted, shape)
             .wardClick(role = Role.RadioButton, onClick = onClick)
@@ -215,6 +217,21 @@ fun ChoiceChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: M
         contentAlignment = Alignment.Center,
     ) {
         Text(if (selected) "✓ $text" else text, color = if (selected) c.onPrimary else c.ink, style = WardType.BodyBold, textAlign = TextAlign.Center)
+    }
+}
+
+/** Chips that share a row evenly. At large font sizes they wrap, so no word gets squeezed apart. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun ChoiceRow(options: List<String>, selected: Int, onPick: (Int) -> Unit, minHeight: Dp = TvsSize.Touch) {
+    if (largeFont()) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+            options.forEachIndexed { i, text -> ChoiceChip(text, i == selected, { onPick(i) }, minHeight = minHeight) }
+        }
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+            options.forEachIndexed { i, text -> ChoiceChip(text, i == selected, { onPick(i) }, Modifier.weight(1f), minHeight) }
+        }
     }
 }
 
@@ -248,7 +265,7 @@ fun StatusPill(status: StatusView) {
 
 @Composable
 fun FilledStatus(text: String, bg: Color, fg: Color) {
-    Box(Modifier.background(bg, TvsShape.Pill).padding(horizontal = TvsSpace.s8, vertical = TvsSpace.s2)) {
+    Box(Modifier.background(bg, TvsShape.Pill).padding(horizontal = TvsSpace.s8)) {
         Text(text, color = fg, style = WardType.BodyBold)
     }
 }

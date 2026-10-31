@@ -56,6 +56,9 @@ for rob in sorted(root.rglob("robustness")):
     for name in ("monkey.summary.txt", "rotation.txt", "process_death.txt"):
         f = rob / name
         print(" ", name, "::", f.read_text(errors="replace").replace("\n", " ; ")[:200] if f.exists() else "missing")
+    f = rob / "strictmode.txt"
+    if f.exists():
+        print("  strictmode detail ::", f.read_text(errors="replace")[:900].replace("\n", " | "))
     f = rob / "cold_start.txt"
     if f.exists():
         print("  cold start ::", (f.read_text(errors="replace").strip().splitlines() or ["empty"])[-1])

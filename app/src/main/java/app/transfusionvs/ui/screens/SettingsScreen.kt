@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -50,6 +49,7 @@ import app.transfusionvs.schedule.NightRule
 import app.transfusionvs.ui.PRIMARY_TAG
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.ChoiceChip
+import app.transfusionvs.ui.components.ChoiceRow
 import app.transfusionvs.ui.components.Panel
 import app.transfusionvs.ui.components.PrimaryButton
 import app.transfusionvs.ui.components.SecondaryButton
@@ -234,20 +234,14 @@ fun SettingsContent(
 
             Panel {
                 CapsLabel("Alarm")
-                Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    ChoiceChip("Sound + vibrate", v.soundOn, { onChange(v.copy(soundOn = true)) }, Modifier.weight(1f))
-                    ChoiceChip("Vibrate only", !v.soundOn, { onChange(v.copy(soundOn = false)) }, Modifier.weight(1f))
-                }
+                ChoiceRow(listOf("Sound + vibrate", "Vibrate only"), if (v.soundOn) 0 else 1, { onChange(v.copy(soundOn = it == 0)) })
                 if (!v.soundOn) {
                     Text("Night mode: alarms vibrate but make NO sound. Keep the phone on you.", color = c.ink, style = WardType.BodyBold)
                 }
                 SoundRow("Transfusion alarm sound", soundTitle, onPickSound)
                 Text("Snooze length", color = c.ink, style = WardType.BodyBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    Settings.SNOOZE_RANGE.forEach { m ->
-                        ChoiceChip("$m min", v.snoozeMin == m, { onChange(v.copy(snoozeMin = m)) }, Modifier.weight(1f))
-                    }
-                }
+                val snoozes = Settings.SNOOZE_RANGE.toList()
+                ChoiceRow(snoozes.map { "$it min" }, snoozes.indexOf(v.snoozeMin), { onChange(v.copy(snoozeMin = snoozes[it])) })
                 Stepper(
                     title = "Missed after",
                     hint = "Ringing stops and the check is marked missed (an Overdue reminder stays).",
@@ -267,11 +261,11 @@ fun SettingsContent(
                     onPlus = { if (v.toleranceMin < Settings.TOLERANCE_RANGE.last) onChange(v.copy(toleranceMin = v.toleranceMin + 1)) },
                 )
                 Text("Pre-alert (gentle notification + short vibration)", color = c.ink, style = WardType.BodyBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    Settings.PRE_ALERT_CHOICES.forEach { m ->
-                        ChoiceChip(if (m == 0) "Off" else "$m min", v.preAlertMin == m, { onChange(v.copy(preAlertMin = m)) }, Modifier.weight(1f))
-                    }
-                }
+                ChoiceRow(
+                    Settings.PRE_ALERT_CHOICES.map { if (it == 0) "Off" else "$it min" },
+                    Settings.PRE_ALERT_CHOICES.indexOf(v.preAlertMin),
+                    { onChange(v.copy(preAlertMin = Settings.PRE_ALERT_CHOICES[it])) },
+                )
             }
 
             Panel {
@@ -304,11 +298,11 @@ fun SettingsContent(
             Panel {
                 CapsLabel("Repositioning")
                 Text("Ward interval for new plans", color = c.ink, style = WardType.BodyBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    Settings.TURN_INTERVALS.forEach { m ->
-                        ChoiceChip(Labels.duration(m), v.turnIntervalMin == m, { onChange(v.copy(turnIntervalMin = m)) }, Modifier.weight(1f))
-                    }
-                }
+                ChoiceRow(
+                    Settings.TURN_INTERVALS.map { Labels.duration(it) },
+                    Settings.TURN_INTERVALS.indexOf(v.turnIntervalMin),
+                    { onChange(v.copy(turnIntervalMin = Settings.TURN_INTERVALS[it])) },
+                )
                 Stepper(
                     title = "On-time window",
                     hint = "A turn within this many minutes of its slot counts as on time.",
@@ -358,7 +352,7 @@ private fun Stepper(title: String, hint: String?, value: String, onMinus: () -> 
 private fun StepButton(label: String, description: String, onClick: () -> Unit) {
     val c = Ward.c
     WardButton(
-        label, onClick, Modifier.size(TvsSize.Touch).semantics { contentDescription = description },
+        label, onClick, Modifier.semantics { contentDescription = description },
         fill = c.card, content = c.ink, edge = c.muted, minHeight = TvsSize.Touch, shape = TvsShape.Control,
     )
 }

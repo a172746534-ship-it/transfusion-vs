@@ -42,6 +42,7 @@ import app.transfusionvs.ui.components.SecondaryButton
 import app.transfusionvs.ui.components.StatusPill
 import app.transfusionvs.ui.components.UndoSlot
 import app.transfusionvs.ui.components.WardHeader
+import app.transfusionvs.ui.components.largeFont
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
@@ -157,18 +158,27 @@ private fun TurnRow(s: TurnSlot, now: Long, windowMin: Int, missedTimeoutMin: In
     val c = Ward.c
     val status = TurnStatus.of(s, now, windowMin, missedTimeoutMin)
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(Labels.clock(s.slotAt), style = WardType.Time, color = c.ink, softWrap = false, modifier = Modifier.width(TvsSize.TimeColumn))
-            Column(Modifier.weight(1f)) {
-                val to = s.positionTo
-                if (s.status == TurnSlotStatus.ACKED && to != null) {
-                    PositionChange(s.positionFrom, to, c.ink, TvsSize.IconSmall)
-                    s.ackAt?.let { Text("Turned ${Labels.clock(it)}", color = c.muted, style = WardType.Body) }
-                } else {
-                    Text("Turn", color = c.ink, style = WardType.BodyBold)
-                }
+        val words: @Composable () -> Unit = {
+            val to = s.positionTo
+            if (s.status == TurnSlotStatus.ACKED && to != null) {
+                PositionChange(s.positionFrom, to, c.ink, TvsSize.IconSmall)
+                s.ackAt?.let { Text("Turned ${Labels.clock(it)}", color = c.muted, style = WardType.Body) }
+            } else {
+                Text("Turn", color = c.ink, style = WardType.BodyBold)
             }
-            StatusPill(status)
+        }
+        if (largeFont()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(Labels.clock(s.slotAt), style = WardType.Time, color = c.ink, softWrap = false, modifier = Modifier.weight(1f))
+                StatusPill(status)
+            }
+            words()
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(Labels.clock(s.slotAt), style = WardType.Time, color = c.ink, softWrap = false, modifier = Modifier.width(TvsSize.TimeColumn))
+                Column(Modifier.weight(1f)) { words() }
+                StatusPill(status)
+            }
         }
         if (s.status == TurnSlotStatus.RINGING) {
             AckButton("Open round", onOpenRound)

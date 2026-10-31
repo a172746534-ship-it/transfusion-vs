@@ -95,8 +95,8 @@ class LabReceiver : BroadcastReceiver() {
         .put("service", AlarmService.isRunning)
         .put("hasVibrator", app.getSystemService(Vibrator::class.java).hasVibrator())
         .put("policyAccess", app.getSystemService(NotificationManager::class.java).isNotificationPolicyAccessGranted)
-        .put("checkpoints", JSONArray(rows(app, "SELECT c.id,c.type,c.status,c.scheduledAt,c.firedAt,c.ackAt,c.snoozeCount,t.bedLabel FROM checkpoint c JOIN transfusion t ON t.id=c.transfusionId WHERE c.status!='CANCELLED' AND c.type!='START' ORDER BY c.scheduledAt LIMIT 12")))
-        .put("slots", JSONArray(rows(app, "SELECT s.id,s.status,s.slotAt,s.firedAt,s.ackAt,s.silenced,s.skipReason,p.bedLabel FROM turn_slot s JOIN turn_plan p ON p.id=s.planId WHERE s.status!='CANCELLED' ORDER BY s.slotAt LIMIT 12")))
+        .put("checkpoints", JSONArray(rows(app, "SELECT c.id,c.type,c.status,c.scheduledAt,c.firedAt,c.ackAt,c.snoozeCount FROM checkpoint c JOIN transfusion t ON t.id=c.transfusionId WHERE c.status!='CANCELLED' AND c.type!='START' ORDER BY c.scheduledAt LIMIT 12")))
+        .put("slots", JSONArray(rows(app, "SELECT s.id,s.status,s.slotAt,s.firedAt,s.ackAt,s.silenced,s.skipReason FROM turn_slot s JOIN turn_plan p ON p.id=s.planId WHERE s.status!='CANCELLED' ORDER BY s.slotAt LIMIT 12")))
 
     private fun rows(app: App, sql: String): List<JSONObject> {
         val out = mutableListOf<JSONObject>()

@@ -168,7 +168,7 @@ fun DetailContent(
         }
 
         Column(
-            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = TvsSpace.s12).padding(bottom = TvsSpace.s8),
+            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = TvsSpace.s12).padding(top = TvsSpace.s8, bottom = TvsSpace.s8),
             // Apart on purpose: End is the costlier mistake for a thumb aiming at the red bar.
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s16),
         ) {

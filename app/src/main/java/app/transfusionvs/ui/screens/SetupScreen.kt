@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -231,7 +231,7 @@ private fun CheckRow(item: CheckItem, onFix: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // ✓ or ! in the badge, so the state never rests on colour alone.
-            Box(Modifier.size(TvsSize.Badge).background(if (item.ok) c.ink else c.danger, CircleShape), contentAlignment = Alignment.Center) {
+            Box(Modifier.sizeIn(minWidth = TvsSize.Badge, minHeight = TvsSize.Badge).background(if (item.ok) c.ink else c.danger, CircleShape), contentAlignment = Alignment.Center) {
                 Text(if (item.ok) "✓" else "!", color = if (item.ok) c.card else c.onDanger, style = WardType.Lead)
             }
             Spacer(Modifier.width(TvsSpace.s12))
@@ -252,7 +252,7 @@ private fun CheckRow(item: CheckItem, onFix: () -> Unit) {
 @Composable
 private fun NumberBadge(n: Int) {
     val c = Ward.c
-    Box(Modifier.size(TvsSize.Badge).background(c.primary, CircleShape), contentAlignment = Alignment.Center) {
+    Box(Modifier.sizeIn(minWidth = TvsSize.Badge, minHeight = TvsSize.Badge).background(c.primary, CircleShape), contentAlignment = Alignment.Center) {
         Text("$n", color = c.onPrimary, style = WardType.Lead)
     }
 }

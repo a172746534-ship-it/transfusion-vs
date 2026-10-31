@@ -53,6 +53,7 @@ import app.transfusionvs.ui.components.BedGrid
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.CardTimeline
 import app.transfusionvs.ui.components.ChoiceChip
+import app.transfusionvs.ui.components.ChoiceRow
 import app.transfusionvs.ui.components.OTHER_BED
 import app.transfusionvs.ui.components.Panel
 import app.transfusionvs.ui.components.PositionIcon
@@ -192,18 +193,14 @@ fun TurnStartContent(
                 // Interval on the ward clock
                 Panel {
                     CapsLabel("Turn every")
-                    Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                        TurnGrid.INTERVALS.forEach { m ->
-                            ChoiceChip(
-                                Labels.duration(m), interval == m,
-                                {
-                                    interval = m
-                                    firstSlotPick = null
-                                },
-                                Modifier.weight(1f),
-                            )
-                        }
-                    }
+                    ChoiceRow(
+                        TurnGrid.INTERVALS.map { Labels.duration(it) },
+                        TurnGrid.INTERVALS.indexOf(interval),
+                        {
+                            interval = TurnGrid.INTERVALS[it]
+                            firstSlotPick = null
+                        },
+                    )
                     Text("08:00 and 20:00 are always turn times.", color = c.muted, style = WardType.Body)
                 }
 
@@ -243,11 +240,7 @@ fun TurnStartContent(
                 // First turn: the next slot, or the one after if it is under 30 min away
                 Panel {
                     CapsLabel("First turn")
-                    Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                        choices.forEach { slot ->
-                            ChoiceChip(Labels.clock(slot), firstSlot == slot, { firstSlotPick = slot }, Modifier.weight(1f))
-                        }
-                    }
+                    ChoiceRow(choices.map { Labels.clock(it) }, choices.indexOf(firstSlot), { firstSlotPick = choices[it] })
                 }
 
                 // Optional stop time
@@ -280,9 +273,7 @@ fun TurnStartContent(
         ) {
             if (editing != null) {
                 CapsLabel("Lying now")
-                Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    rotation.forEach { p -> ChoiceChip(p.label, p == currentOk, { current = p }, Modifier.weight(1f), TvsSize.TouchLarge) }
-                }
+                ChoiceRow(rotation.map { it.label }, rotation.indexOf(currentOk), { current = rotation[it] }, TvsSize.TouchLarge)
                 PrimaryButton(
                     "Save changes",
                     onClick = { onSubmit(TurnPlanDraft(bed, interval, rotation, currentOk, firstSlot, stopAt)) },
@@ -353,7 +344,7 @@ private fun PositionButtons(positions: List<Position>, enabled: Boolean, onPick:
 private fun OrderButton(label: String, enabled: Boolean, description: String, onClick: () -> Unit) {
     val c = Ward.c
     WardButton(
-        label, onClick, Modifier.size(TvsSize.Touch).semantics { contentDescription = description },
+        label, onClick, Modifier.semantics { contentDescription = description },
         fill = c.card, content = if (enabled) c.ink else c.muted, edge = c.muted,
         minHeight = TvsSize.Touch, shape = TvsShape.Control, enabled = enabled,
     )

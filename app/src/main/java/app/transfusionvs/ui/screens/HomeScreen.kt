@@ -159,7 +159,7 @@ fun HomeContent(
 
         LazyColumn(
             Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = TvsSpace.s12, vertical = TvsSpace.s8),
+            contentPadding = PaddingValues(horizontal = TvsSpace.s12, vertical = TvsSpace.s4),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         ) {
             if (ringing) {
@@ -195,7 +195,7 @@ fun HomeContent(
             Modifier.fillMaxWidth().background(c.bg)
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(horizontal = TvsSpace.s12)
-                .padding(bottom = TvsSpace.s8),
+                .padding(top = TvsSpace.s8, bottom = TvsSpace.s8),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         ) {
             UndoSlot()

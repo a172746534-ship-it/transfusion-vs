@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
@@ -40,7 +40,7 @@ fun MeasureDocumentBlocks(ink: Color, edge: Color, measure: Color, document: Col
 @Composable
 private fun Step(number: String, title: String, body: String, accent: Color, ink: Color, onBadge: Color) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(TvsSize.Badge).background(accent, CircleShape), contentAlignment = Alignment.Center) {
+        Box(Modifier.sizeIn(minWidth = TvsSize.Badge, minHeight = TvsSize.Badge).background(accent, CircleShape), contentAlignment = Alignment.Center) {
             Text(number, color = onBadge, style = WardType.Lead)
         }
         Spacer(Modifier.width(TvsSpace.s12))

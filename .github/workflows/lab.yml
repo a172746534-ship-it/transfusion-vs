@@ -56,6 +56,9 @@ jobs:
           chmod +x ktlint
           ./ktlint "app/src/main/**/*.kt" --reporter=plain?group_by_file > ktlint.txt 2>&1
           tail -5 ktlint.txt
+          ./ktlint -F "app/src/main/**/*.kt" > /dev/null 2>&1 || true
+          git diff -- app/src/main > ktlint-format.patch
+          git checkout -- app/src/main
       - name: Collect
         if: always()
         run: |
@@ -63,7 +66,7 @@ jobs:
           cp -r app/build/test-results/testDebugUnitTest gates/unit 2>/dev/null || true
           cp app/build/reports/lint-results-debug.txt gates/ 2>/dev/null || true
           cp app/build/reports/lint-results-debug.xml gates/ 2>/dev/null || true
-          cp ktlint.txt gates/ 2>/dev/null || true
+          cp ktlint.txt ktlint-format.patch gates/ 2>/dev/null || true
           cp -r app/build/audit gates/audit 2>/dev/null || true
       - uses: actions/upload-artifact@v7
         with:

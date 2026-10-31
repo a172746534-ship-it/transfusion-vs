@@ -99,7 +99,7 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
             .wardClick(onClick = onOpen),
     ) {
         if (!stopped) Box(Modifier.width(TvsSize.TypeStrip).fillMaxHeight().background(view.type.color(), TvsShape.CardStart))
-        Column(Modifier.weight(1f).padding(start = TvsSpace.s10, end = TvsSpace.s4, top = TvsSpace.s4, bottom = TvsSpace.s4)) {
+        Column(Modifier.weight(1f).padding(start = TvsSpace.s10, end = TvsSpace.s4, top = TvsSpace.s2, bottom = TvsSpace.s4)) {
             // A stopped bed says when in words: that corner always means the next check.
             val time = view.time?.takeIf { !stopped }?.let { Labels.clock(it) }
             if (large) {
@@ -132,7 +132,6 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
                 }
             }
             if (!stopped && !view.idle && view.rail.total > 1) {
-                Spacer(Modifier.height(TvsSpace.s2))
                 Rail(view.rail, view.urgency)
             }
             actions()
