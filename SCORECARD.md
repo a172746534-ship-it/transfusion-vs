@@ -90,8 +90,8 @@ Measured by `TapBudget.kt`, which counts every touch (tag `TAPS`).
 
 | Check | Pts | Result | Evidence |
 |---|---|---|---|
-| Home key numbers ≥ 24 sp | 1 | FAIL | AUDIT F-series, Home: next time and chips are 11 sp |
-| Alarm key numbers ≥ 40 sp | 1 | FAIL | AUDIT: bed and due time are not key numbers; the time is not on screen |
+| Home key numbers ≥ 24 sp | 1 | FAIL | F11: next check's time is 16 sp inside a sentence, timeline chips 11 sp |
+| Alarm key numbers ≥ 40 sp | 1 | FAIL | F04: the title is 34 sp and the time is not on the screen |
 | Body ≥ 16 sp | 2 | FAIL | `SMALLTEXT` 144 at w412, font 1.0 |
 | Contrast | 2 | FAIL | F26: amber on white 2.03:1, white on red 6.95:1 for key numbers |
 | Zero truncation at font 2.0, 360 dp | 2 | FAIL | `TRUNCATED` 13–14, `MIDWORD` 44–46 at w360 f2.0 |
