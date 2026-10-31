@@ -9,8 +9,10 @@ its claim reports FAIL, or N/A with the reason when Android has no such behaviou
 import argparse
 import datetime as dt
 import json
+import os
 import pathlib
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -28,10 +30,17 @@ results = []
 
 
 def run(cmd, timeout=120, check=False):
-    p = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout, errors="replace")
+    # Its own process group: on a timeout adb dies with the shell, or communicate() waits on its pipes forever.
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace", start_new_session=True)
+    try:
+        stdout, stderr = p.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)
+        p.communicate()
+        raise
     if check and p.returncode:
-        raise RuntimeError(f"{cmd}: {p.stderr or p.stdout}")
-    return p.stdout + p.stderr
+        raise RuntimeError(f"{cmd}: {stderr or stdout}")
+    return stdout + stderr
 
 
 def sh(cmd, timeout=120):
@@ -934,6 +943,33 @@ def t_round(name):
 
 # ---------------------------------------------------------------- driver
 
+def device_alive():
+    try:
+        return "device" in run("adb get-state", 20)
+    except subprocess.TimeoutExpired:
+        return False
+
+
+def revive():
+    """The emulator process died (seen on a real reboot). The test running then stays FAIL; the rest still run."""
+    print("emulator lost: restarting it", flush=True)
+    try:
+        run("adb kill-server; adb start-server", 30)
+    except subprocess.TimeoutExpired:
+        pass
+    subprocess.Popen(
+        f"{os.environ.get('ANDROID_HOME', '')}/emulator/emulator -avd test -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-back none",
+        shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
+    )
+    wait_boot()
+    root()
+    run("adb logcat -G 16M")
+    sh("settings put global auto_time 0")
+    sh("settings put global auto_time_zone 0")
+    sh("settings put global window_animation_scale 0")
+    print("emulator back", flush=True)
+
+
 def main():
     global args, api, out
     p = argparse.ArgumentParser()
@@ -959,6 +995,8 @@ def main():
         started = time.time()
         status, detail = "FAIL", ""
         try:
+            if not device_alive():
+                revive()
             reset()
             ok, detail = fn(tid)
             status = "PASS" if ok else "FAIL"
@@ -970,7 +1008,10 @@ def main():
         results.append({"id": tid, "api": api, "status": status, "detail": detail, "seconds": round(time.time() - started)})
         print(f"[{status}] {tid}: {detail}", flush=True)
         (out / "results.json").write_text(json.dumps(results, indent=1))
-        run(f"adb logcat -d -t 400 > {out / (tid + '.logcat.txt')}", 60)
+        try:
+            run(f"adb logcat -d -t 400 > {out / (tid + '.logcat.txt')}", 60)
+        except subprocess.TimeoutExpired:
+            print(f"{tid}: logcat timed out", flush=True)
     print(json.dumps({k: sum(1 for r in results if r["status"] == k) for k in ("PASS", "FAIL", "N/A")}))
     return 0
 

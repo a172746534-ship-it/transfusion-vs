@@ -6,6 +6,10 @@ OUT=$2
 PKG=app.transfusionvs
 HOME_ACT=$PKG/.ui.MainActivity
 mkdir -p "$OUT"
+
+# No adb command may hang the job: a stuck one fails its own check and the next one still runs.
+ADB_TIMEOUT=240
+adb() { timeout --kill-after=10 "$ADB_TIMEOUT" "$(command -v adb)" "$@"; }
 adb root >/dev/null 2>&1; sleep 2; adb wait-for-device
 adb shell input keyevent KEYCODE_WAKEUP
 adb shell wm dismiss-keyguard
@@ -30,8 +34,10 @@ run_ui() { # name font_scale width_dp
   adb shell wm density $(( px * 160 / dp ))
   sleep 3
   adb logcat -c
+  ADB_TIMEOUT=900
   adb shell am instrument -w -r -e class app.transfusionvs.uicheck.UiChecks \
     $PKG.test/androidx.test.runner.AndroidJUnitRunner > "$OUT/ui_$name.txt" 2>&1
+  ADB_TIMEOUT=240
   adb logcat -d -s UICHECK:I > "$OUT/ui_$name.findings.txt"
   adb shell wm density reset
   adb shell settings put system font_scale 1.0
@@ -39,20 +45,26 @@ run_ui() { # name font_scale width_dp
 run_ui w412_f10 1.0 412
 run_ui w360_f20 2.0 360
 run_ui w360_f13 1.3 360
+ADB_TIMEOUT=900
 adb shell am instrument -w -r -e class app.transfusionvs.uicheck.TapBudget \
   $PKG.test/androidx.test.runner.AndroidJUnitRunner > "$OUT/tap_budget.txt" 2>&1
+ADB_TIMEOUT=240
 adb logcat -d -s TAPS:I > "$OUT/tap_budget.findings.txt"
 # The budget also holds on a 360 dp phone.
 px=$(adb shell wm size | sed -n 's/.*: \([0-9]*\)x.*/\1/p' | tail -1 | tr -d '\r')
 adb shell wm density $(( px * 160 / 360 )); sleep 3
 adb logcat -c
+ADB_TIMEOUT=900
 adb shell am instrument -w -r -e class app.transfusionvs.uicheck.TapBudget \
   $PKG.test/androidx.test.runner.AndroidJUnitRunner > "$OUT/tap_budget_w360.txt" 2>&1
+ADB_TIMEOUT=240
 adb logcat -d -s TAPS:I > "$OUT/tap_budget_w360.findings.txt"
 adb shell wm density reset
 adb logcat -c
+ADB_TIMEOUT=600
 adb shell am instrument -w -r -e class app.transfusionvs.uicheck.Robustness \
   $PKG.test/androidx.test.runner.AndroidJUnitRunner > "$OUT/robust.txt" 2>&1
+ADB_TIMEOUT=240
 adb logcat -d -s ROBUST:I > "$OUT/robust.findings.txt"
 adb shell "cat /sdcard/Android/data/$PKG/files/widget.png" > "$OUT/widget.png" 2>/dev/null
 
@@ -86,7 +98,9 @@ adb shell input keyevent KEYCODE_HOME; sleep 20   # let the launcher settle: its
 adb logcat -c
 # --ignore-*: a launcher ANR on a slow emulator must not end the run. Crashes and ANRs of this app are
 # still counted from the log below, and that count must be zero.
+ADB_TIMEOUT=1500
 adb shell monkey -p $PKG --throttle 25 --pct-syskeys 0 --pct-anyevent 0 --ignore-crashes --ignore-timeouts -s 4242 -v 20000 > "$OUT/monkey.txt" 2>&1
+ADB_TIMEOUT=240
 tail -3 "$OUT/monkey.txt"
 adb logcat -d > "$OUT/monkey.logcat.txt"
 echo "crashes: $(grep -A2 'FATAL EXCEPTION' "$OUT/monkey.logcat.txt" | grep -c "Process: $PKG")" | tee "$OUT/monkey.summary.txt"
