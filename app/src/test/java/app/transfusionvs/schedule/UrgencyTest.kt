@@ -15,14 +15,20 @@ import app.transfusionvs.screenshots.Fakes.with
 import app.transfusionvs.screenshots.TurnFakes
 import android.view.MotionEvent
 import java.time.ZoneId
+import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 class UrgencyTest {
 
     private val now = Fakes.now
+
+    /** Times print in the phone's zone; the sample data is in Cairo. */
+    @Before
+    fun cairo() = TimeZone.setDefault(TimeZone.getTimeZone("Africa/Cairo"))
 
     @Test
     fun missedCheckIsOverdueWithItsLateness() {

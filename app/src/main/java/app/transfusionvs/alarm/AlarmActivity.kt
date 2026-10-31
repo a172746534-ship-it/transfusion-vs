@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import app.transfusionvs.R
 import app.transfusionvs.app
+import app.transfusionvs.data.CheckpointType
 import app.transfusionvs.data.CheckpointWithBed
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.Settings
@@ -379,7 +380,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
             KeyNumbers(bed.shortLabel, due?.let { Labels.clock(it) } ?: "")
             val first = rows.firstOrNull { it.id in bed.checkpointIds }
             if (!isTest && first != null) Rail(BedViews.alarmRail(first.offsetMin, first.plannedDurationMin), Urgency.NOW, height = TvsSize.RailLarge, ink = c.alarmInk, background = c.alarmBg, beadColor = c.alarmAction, onBead = c.alarmOnAction)
-            Text(bed.subtitle, color = c.alarmMuted, style = WardType.Body)
+            if (bed.subtitle != Labels.subtitle(CheckpointType.M15)) Text(bed.subtitle, color = c.alarmInk, style = WardType.Lead)
         } else {
             Text("${beds.size} beds due now", color = c.alarmInk, style = WardType.AlarmTitle)
         }

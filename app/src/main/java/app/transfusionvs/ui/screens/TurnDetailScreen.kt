@@ -110,7 +110,7 @@ fun TurnDetailContent(
                     Modifier.fillMaxWidth().background(c.bg, TvsShape.Control).padding(TvsSpace.s12),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Longest gap without a turn (24 h)", color = c.muted, style = WardType.BodyBold, modifier = Modifier.weight(1f))
+                    Text("Longest gap without a turn (24\u00A0h)", color = c.muted, style = WardType.BodyBold, modifier = Modifier.weight(1f))
                     Spacer(Modifier.width(TvsSpace.s8))
                     Text(TurnStatus.gap(gap), style = WardType.Time, color = if (tooLong) c.overdue else c.ink)
                 }

@@ -2,6 +2,7 @@ package app.transfusionvs.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,20 +40,23 @@ fun UndoBar(action: UndoAction?, onUndo: (Long) -> Unit, modifier: Modifier = Mo
     }
     if (!visible) return
     val c = Ward.c
-    Row(
-        modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge)
-            .background(c.card, TvsShape.Card)
-            .border(TvsSize.Edge, c.ink, TvsShape.Card)
-            .padding(start = TvsSpace.s12, end = TvsSpace.s4, top = TvsSpace.s4, bottom = TvsSpace.s4),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(action.label, color = c.ink, style = WardType.BodyBold, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(TvsSpace.s8))
-        WardButton(
-            "Undo", { onUndo(action.id) },
-            modifier = Modifier.width(TvsSize.Stepper),
-            fill = c.primary, content = c.onPrimary, edge = c.primaryEdge,
-            minHeight = TvsSize.Touch, style = WardType.ButtonSmall, shape = TvsShape.Control,
-        )
+    // A solid band: whatever it covers for these 5 seconds is fully covered, not half showing.
+    Box(modifier.fillMaxWidth().background(c.bg).padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s8)) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge)
+                .background(c.card, TvsShape.Card)
+                .border(TvsSize.Edge, c.ink, TvsShape.Card)
+                .padding(start = TvsSpace.s12, end = TvsSpace.s4, top = TvsSpace.s4, bottom = TvsSpace.s4),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(action.label, color = c.ink, style = WardType.BodyBold, modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(TvsSpace.s8))
+            WardButton(
+                "Undo", { onUndo(action.id) },
+                modifier = Modifier.width(TvsSize.Stepper),
+                fill = c.primary, content = c.onPrimary, edge = c.primaryEdge,
+                minHeight = TvsSize.Touch, style = WardType.ButtonSmall, shape = TvsShape.Control,
+            )
+        }
     }
 }
