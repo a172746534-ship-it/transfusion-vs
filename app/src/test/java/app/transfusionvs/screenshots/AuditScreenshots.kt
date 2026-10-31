@@ -88,7 +88,7 @@ class AuditScreenshots {
     private val noop: () -> Unit = {}
     private val longBed = "Isolation Bed 23"
     private val many = (1..20).map { i ->
-        Fakes.transfusion(100L + i, if (i == 20) longBed else "Bed $i", i % 8, "2026-01-15T10:${(51 + i % 14).toString().padStart(2, '0')}", 120)
+        Fakes.transfusion(100L + i, if (i == 20) longBed else "Bed $i", i % 8, "2026-01-15T10:${(51 + i % 9).toString().padStart(2, '0')}", 120)
     }
 
     @Composable
