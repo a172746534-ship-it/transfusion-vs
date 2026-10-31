@@ -71,7 +71,7 @@ fun BedGrid(
                         Modifier.weight(1f).fillMaxHeight().heightIn(min = TvsSize.TouchLarge)
                             .background(if (on) c.primary else c.card, TvsShape.Control)
                             .border(TvsSize.Edge, if (on) c.primaryEdge else c.muted, TvsShape.Control)
-                            .semantics { selected = on }
+                            .semantics { this.selected = on }
                             .wardClick(role = Role.RadioButton) { onPick(bed) }
                             .padding(horizontal = TvsSpace.s4, vertical = TvsSpace.s4),
                     ) {
