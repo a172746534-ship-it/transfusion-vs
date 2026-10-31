@@ -85,7 +85,13 @@ class UndoEngineTest {
         db.wardDao().forgetPatients(now - Engine.RETENTION_MS)
         assertEquals(listOf("7654888"), recent())
 
+        // Ended, but End VS is still open: the row stays, so the patient does too.
         engine.endTransfusion(id)
+        db.dao().deleteFinishedBefore(now + 1)
+        db.wardDao().forgetPatients(now - Engine.RETENTION_MS)
+        assertEquals(listOf("7654888"), recent())
+
+        engine.acknowledge(db.dao().checkpointsFor(id).filter { it.type == CheckpointType.END }.map { it.id })
         db.dao().deleteFinishedBefore(now + 1)
         db.wardDao().forgetPatients(now - Engine.RETENTION_MS)
         assertTrue(recent().isEmpty())
