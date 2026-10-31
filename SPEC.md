@@ -423,3 +423,16 @@ schedules. The alarm engine, schedules, data meaning and privacy rules do not ch
 - **Combined alarm:** one Snooze covers everything; the transfusion sound wins while a transfusion
   sounds; once only turns sound, the turning chime and double-pulse vibration play.
 - **"Other position"** offers allowed positions except the suggestion and the current one.
+
+## Ward Card (chosen 2026-10-31)
+The maintainer chose direction 1, Ward Card. Colours in `ui/theme/Theme.kt`, verified from `lab/palettes.json`. Red Hat Display and Red Hat Text (OFL). The rail is the signature: the paper card's dots on a line, alive. Overdue is a red diamond with "!".
+
+**The reaction guide belongs to transfusions.** It is on transfusion alarms, transfusion Detail, and Home while there is blood on the ward: running, or finished within the last day, since a reaction can come late. It is not on a round-only alarm, on repositioning screens, or on Home when only turning plans exist. This overrides "2 touches from anywhere" for those places.
+
+**Flows** (docs/FLOWS.md): the Start chooser is gone. Home has Start transfusion and Start turning side by side. Beds are picked from the ward's list, entered once in Settings or Setup, and typing stays as "+ Other bed", which also adds that bed to the list. Start time = now, duration = the last one used. "Baseline done · Start" is one button. Tapping the patient's current position starts a turning plan. "All turned as suggested ✓" finishes a round. No "Are you sure?" dialogs: every acknowledge, start, end and stop can be undone for 5 seconds, and "Undo last" stays on the bed's card for 5 minutes.
+
+**Data:** Room v3 adds `ward_bed` and `undo_action` by automatic migration. Nothing existing changes meaning. Stopped-for-reaction beds stay on Home until removed or until the daily cleanup.
+
+**Alarm safety:** touches are ignored for the first second and while the proximity sensor is covered. The alarm stays 5 seconds after the last acknowledge, to offer Undo. Haptics: long buzz = due, three pulses = overdue, two quick taps = confirmed. At night the alarm window is dimmed.
+
+**Language:** the layout is left-to-right on every phone (`supportsRtl="false"` and forced in the theme), the UI language stays English, digits stay Latin.
