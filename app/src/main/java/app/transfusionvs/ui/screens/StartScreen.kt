@@ -3,7 +3,6 @@ package app.transfusionvs.ui.screens
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -207,7 +206,16 @@ fun StartContent(
             }
         }
 
-        Box(Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars).padding(TvsSpace.s12)) {
+        Column(
+            Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars).padding(TvsSpace.s12),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s6),
+        ) {
+            if (duration != null) {
+                Text(
+                    "Started ${Labels.clock(startAt)} · planned ${Labels.duration(duration)} · ends ${Labels.clock(startAt + duration * MINUTE_MS)}",
+                    color = c.ink, style = WardType.BodyBold,
+                )
+            }
             PrimaryButton(
                 when {
                     editing != null -> "Save changes"

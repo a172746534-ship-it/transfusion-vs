@@ -80,7 +80,7 @@ data class RingSpec(
             "Turning round · ${Labels.clock(r.slotAt)} · ${r.beds.size} bed${if (r.beds.size > 1) "s" else ""}"
 
         fun groupByBed(rows: List<CheckpointWithBed>): List<RingBed> =
-            rows.groupBy { it.transfusionId }.values.map { bedRows ->
+            rows.sortedBy { it.scheduledAt }.groupBy { it.transfusionId }.values.map { bedRows ->
                 val first = bedRows.first()
                 RingBed(
                     transfusionId = first.transfusionId,

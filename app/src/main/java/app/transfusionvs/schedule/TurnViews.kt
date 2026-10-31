@@ -78,11 +78,12 @@ object TurnTimeline {
 object TurnStatus {
 
     /** on time / late +N min / missed / skipped (reason) / ringing / upcoming. */
-    fun of(s: TurnSlot, now: Long, windowMin: Int): StatusView = when (s.status) {
+    fun of(s: TurnSlot, now: Long, windowMin: Int, missedTimeoutMin: Int = 10): StatusView = when (s.status) {
         TurnSlotStatus.PENDING ->
             if (s.slotAt <= now) StatusView(StatusKind.DUE, "due now") else StatusView(StatusKind.UPCOMING, "upcoming")
         TurnSlotStatus.RINGING -> when {
-            s.silenced -> StatusView(StatusKind.DUE, "overdue")
+            TurnRules.isOverdue(s, now, missedTimeoutMin) -> StatusView(StatusKind.MISSED, "overdue")
+            s.silenced -> StatusView(StatusKind.DUE, "round open")
             s.snoozeUntil != null && s.snoozeUntil > now -> StatusView(StatusKind.SNOOZED, "snoozed")
             else -> StatusView(StatusKind.RINGING, "ringing")
         }

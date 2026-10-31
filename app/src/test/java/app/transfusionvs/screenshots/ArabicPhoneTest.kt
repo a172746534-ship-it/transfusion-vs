@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.LayoutDirection
 import app.transfusionvs.alarm.AlarmContent
 import app.transfusionvs.data.CheckpointType
+import app.transfusionvs.schedule.Labels
 import app.transfusionvs.ui.screens.HomeContent
 import app.transfusionvs.ui.theme.TvsTheme
 import com.github.takahirom.roborazzi.RoborazziOptions
@@ -73,7 +74,7 @@ class ArabicPhoneTest {
         val title = rule.onNodeWithText("15-min check").fetchSemanticsNode().boundsInRoot
         val width = rule.onRoot().fetchSemanticsNode().boundsInRoot.width
         assertTrue("the title starts at the left edge, at ${title.left} of $width", title.left < width / 4)
-        rule.onNodeWithText("Measured & documented ✓").assertExists()
+        rule.onNodeWithText(Labels.ACK).assertExists()
         rule.onNodeWithText("Bed 14").assertExists()
     }
 

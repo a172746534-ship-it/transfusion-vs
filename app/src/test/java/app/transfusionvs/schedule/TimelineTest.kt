@@ -74,7 +74,7 @@ class TimelineTest {
         val now = at("2026-01-15T12:00")
         assertEquals("on time", Timeliness.status(cp(CheckpointType.M15, 15, "2026-01-15T10:35", CheckpointStatus.ACKED, "2026-01-15T10:40"), now, tol).text)
         assertEquals("late +6 min", Timeliness.status(cp(CheckpointType.M15, 15, "2026-01-15T10:35", CheckpointStatus.ACKED, "2026-01-15T10:41"), now, tol).text)
-        assertEquals("missed", Timeliness.status(cp(CheckpointType.M30, 30, "2026-01-15T10:50", CheckpointStatus.MISSED), now, tol).text)
+        assertEquals("overdue", Timeliness.status(cp(CheckpointType.M30, 30, "2026-01-15T10:50", CheckpointStatus.MISSED), now, tol).text)
         assertEquals(
             "missed · documented +14 min",
             Timeliness.status(cp(CheckpointType.M30, 30, "2026-01-15T10:50", CheckpointStatus.MISSED, "2026-01-15T11:04"), now, tol).text,

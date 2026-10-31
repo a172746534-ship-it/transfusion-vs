@@ -51,7 +51,8 @@ class UrgencyTest {
         val due = BedViews.of(ringing, Fakes.at("2026-01-15T11:07"))
         assertEquals(Urgency.NOW, due.urgency)
         assertEquals("DUE NOW", due.stateText)
-        assertTrue(due.ackIds.isEmpty()) // the alarm screen is the place for that
+        assertEquals(1, due.ackIds.size) // as quick from Home as an overdue check
+        assertEquals("DUE +3 min", BedViews.of(ringing, Fakes.at("2026-01-15T11:10")).stateText)
     }
 
     @Test

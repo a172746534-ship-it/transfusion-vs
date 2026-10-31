@@ -17,6 +17,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +34,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -212,7 +215,7 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
         onStopForReaction = { id -> app.scope.launch { app.engine.stopForReaction(id) } },
         round = RoundBuilder.build(plans.orEmpty(), now, ZoneId.systemDefault())?.masked(mask),
         onStartRound = { app.scope.launch { app.engine.startRound() } },
-        onAllTurned = { app.scope.launch { app.engine.allTurned() } },
+        onAllTurned = { except -> app.scope.launch { app.engine.allTurned(except) } },
         onTurned = { slotId, position -> app.scope.launch { app.engine.turned(slotId, position) } },
         onCantTurn = { slotId, reason -> app.scope.launch { app.engine.cantTurn(slotId, reason) } },
         onSnoozeRound = { app.scope.launch { app.engine.snooze() } },
@@ -248,7 +251,8 @@ fun AlarmContent(
     onStopForReaction: (Long) -> Unit,
     round: RoundUi? = null,
     onStartRound: () -> Unit = {},
-    onAllTurned: () -> Unit = {},
+    /** All open beds except the given slots (a bed with "Can't turn" or "Other position" open). */
+    onAllTurned: (Set<Long>) -> Unit = {},
     onTurned: (slotId: Long, Position) -> Unit = { _, _ -> },
     onCantTurn: (slotId: Long, SkipReason) -> Unit = { _, _ -> },
     onSnoozeRound: () -> Unit = {},
@@ -258,6 +262,7 @@ fun AlarmContent(
 ) {
     val c = Ward.c
     var showReaction by rememberSaveable { mutableStateOf(false) }
+    var roundFirst by rememberSaveable { mutableStateOf(false) }
     // Back never dismisses the alarm (acknowledge or snooze); it only closes the reaction view.
     BackHandler { showReaction = false }
 
@@ -282,13 +287,20 @@ fun AlarmContent(
 
     Column(Modifier.fillMaxSize().background(c.alarmBg).safeDrawingPadding().padding(TvsSpace.s16)) {
         when {
-            // A transfusion goes first; a round due in the same minute takes over once it is done.
-            beds.isNotEmpty() -> TransfusionAlarm(
+            // A transfusion goes first; a round due in the same minute takes over once it is done, or
+            // right away from its own button if that is what the nurse is doing.
+            beds.isNotEmpty() && !(roundFirst && round != null) -> TransfusionAlarm(
                 beds, rows, isTest, canSnooze, snoozedUntil, snoozeMin, round, onAcknowledge, onSnooze,
                 onReaction = { showReaction = true },
+                onStartRound = {
+                    onStartRound()
+                    roundFirst = true
+                },
             )
             round != null && round.beds.isNotEmpty() -> RoundAlarm(
                 round, snoozeMin, initiallyOpen, onStartRound, onAllTurned, onTurned, onCantTurn, onSnoozeRound, onRemind,
+                stillRinging = beds.takeIf { it.isNotEmpty() }?.joinToString(", ") { it.title },
+                onBackToTransfusion = { roundFirst = false },
             )
         }
     }
@@ -373,6 +385,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
     onAcknowledge: (List<Long>) -> Unit,
     onSnooze: () -> Unit,
     onReaction: () -> Unit,
+    onStartRound: () -> Unit,
 ) {
     val c = Ward.c
     Column(
@@ -393,14 +406,14 @@ private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
         }
         AlarmSteps()
         if (beds.size > 1) beds.forEach { bed -> BedRow(bed, rows) { onAcknowledge(bed.checkpointIds) } }
-        // A round due in the same minute is announced here and takes the screen once this is done.
+        // A round due in the same minute is on this screen too, and can be started from here.
         if (round != null && round.beds.isNotEmpty()) {
-            Text("Then: Turning round · ${Labels.clock(round.slotAt)} · ${round.beds.joinToString(", ") { it.bedLabel }}", color = c.alarmInk, style = WardType.Lead)
+            AlarmSecondary("Start round · ${Labels.clock(round.slotAt)} · ${round.beds.joinToString(", ") { it.bedLabel }}", onStartRound, style = WardType.ButtonSmall)
         }
     }
     Spacer(Modifier.size(TvsSpace.s8))
-    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-        if (beds.size == 1) AlarmPrimary("Measured & documented ✓", { onAcknowledge(beds[0].checkpointIds) })
+    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s12)) {
+        if (beds.size == 1) AlarmPrimary(Labels.ACK, { onAcknowledge(beds[0].checkpointIds) })
         SnoozeSlot(canSnooze, snoozedUntil, snoozeMin, onSnooze)
         if (!isTest) ReactionBar(onClick = onReaction)
     }
@@ -417,7 +430,7 @@ private fun BedRow(bed: RingBed, rows: List<CheckpointWithBed>, onAck: () -> Uni
         KeyNumbers(bed.shortLabel, due?.let { Labels.clock(it) } ?: "", WardType.AlarmKeySmall, WardType.AlarmKeySmall)
         Text(bed.what, color = c.alarmMuted, style = WardType.Lead)
         WardButton(
-            "✓ ${bed.shortLabel} — measured & documented", onAck, Modifier.fillMaxWidth(),
+            "${bed.shortLabel} · ${Labels.ACK}", onAck, Modifier.fillMaxWidth(),
             fill = c.alarmAction, content = c.alarmOnAction, style = WardType.ButtonSmall,
         )
     }
@@ -433,11 +446,13 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
     snoozeMin: Int,
     initiallyOpen: Map<Long, RoundChoice>,
     onStartRound: () -> Unit,
-    onAllTurned: () -> Unit,
+    onAllTurned: (Set<Long>) -> Unit,
     onTurned: (Long, Position) -> Unit,
     onCantTurn: (Long, SkipReason) -> Unit,
     onSnoozeRound: () -> Unit,
     onRemind: () -> Unit,
+    stillRinging: String? = null,
+    onBackToTransfusion: () -> Unit = {},
 ) {
     val c = Ward.c
     val open = remember { mutableStateMapOf<Long, RoundChoice>().apply { putAll(initiallyOpen) } }
@@ -447,7 +462,8 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
         verticalArrangement = Arrangement.spacedBy(TvsSpace.s10),
     ) {
         AlarmCaps(R.drawable.ic_turn, "Repositioning round")
-        Text("Turning round", color = c.alarmInk, style = WardType.AlarmTitle)
+        if (stillRinging != null) AlarmSecondary("Still due: $stillRinging", onBackToTransfusion, style = WardType.BodyBold)
+        if (!round.started) Text("Turning round", color = c.alarmInk, style = WardType.AlarmTitle)
         KeyNumbers(Labels.clock(round.slotAt), count, WardType.AlarmKey, WardType.AlarmTitle)
         Text("Check pressure points: occiput · ears · sacrum · heels", color = c.alarmMuted, style = WardType.Body)
         round.beds.forEach { bed ->
@@ -469,12 +485,17 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
                 }
             }
         }
+        // Down here, away from the primary action: a slip must not push the round out by 30 minutes.
+        if (round.started && round.canRemind) AlarmSecondary("Remind me in 30 min", onRemind)
     }
     Spacer(Modifier.size(TvsSpace.s8))
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
         if (round.started) {
-            AlarmPrimary("All turned as suggested ✓", onAllTurned)
-            if (round.canRemind) AlarmSecondary("Remind me in 30 min", onRemind)
+            val others = round.beds.count { it.slotId !in open.keys }
+            when {
+                open.isEmpty() -> AlarmPrimary("All turned as suggested\u00A0✓", { onAllTurned(emptySet()) })
+                others > 0 -> AlarmPrimary("The other $others turned as suggested\u00A0✓", { onAllTurned(open.keys.toSet()) })
+            }
         } else {
             AlarmPrimary("Start round", onStartRound)
             SnoozeSlot(round.canSnooze, round.snoozedUntil, snoozeMin, onSnoozeRound)
@@ -483,7 +504,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
 }
 
 /** One bed on the started round: the turn to make, its own ✓, and the two exceptions. */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun RoundBedRow(
     bed: RoundBed,
@@ -499,16 +520,17 @@ private fun RoundBedRow(
     ) {
         Text(bed.bedLabel, color = c.alarmInk, style = WardType.CardBed)
         PositionChange(bed.from, bed.suggested, c.alarmInk)
-        AlarmSecondary("✓ Turned to ${bed.suggested.label}", { onTurned(bed.suggested) }, style = WardType.ButtonSmall)
+        AlarmSecondary("Turned to ${bed.suggested.label}\u00A0✓", { onTurned(bed.suggested) }, style = WardType.ButtonSmall)
         val stacked = largeFont()
         @Composable
         fun choice(choice: RoundChoice, label: String, modifier: Modifier) {
+            // The open one is marked with a ✓ and a tint; the white chips below are what to tap next.
             val on = open == choice
             WardButton(
-                label, { onOpen(choice) }, modifier,
-                fill = if (on) c.alarmInk else c.alarmBg,
-                content = if (on) c.alarmBg else c.alarmInk,
-                edge = c.alarmMuted, style = WardType.BodyBold, shape = TvsShape.Control,
+                if (on) "✓ $label" else label, { onOpen(choice) }, modifier,
+                fill = if (on) c.alarmTint else c.alarmBg,
+                content = c.alarmInk,
+                edge = if (on) c.alarmInk else c.alarmMuted, style = WardType.BodyBold, shape = TvsShape.Control,
             )
         }
         if (stacked) {
@@ -520,8 +542,12 @@ private fun RoundBedRow(
                 choice(RoundChoice.CANT_TURN, "Can't turn", Modifier.weight(1f))
             }
         }
+        // Scrolled into view by itself, above the pinned action: reaching the reason costs no touch.
+        val reasons = remember { BringIntoViewRequester() }
+        LaunchedEffect(open) { if (open != null) reasons.bringIntoView() }
         when (open) {
             RoundChoice.OTHER_POSITION -> FlowRow(
+                modifier = Modifier.bringIntoViewRequester(reasons),
                 horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8),
                 verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
             ) {
@@ -531,6 +557,7 @@ private fun RoundBedRow(
                 }
             }
             RoundChoice.CANT_TURN -> FlowRow(
+                modifier = Modifier.bringIntoViewRequester(reasons),
                 horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8),
                 verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
             ) {

@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -33,6 +34,8 @@ import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
 import app.transfusionvs.ui.theme.WardType
+
+private const val NARROW_DP = 380
 
 /** The value for "+ Other bed" while it is being typed. */
 const val OTHER_BED = "\u0000other"
@@ -51,7 +54,11 @@ fun BedGrid(
     onOtherText: (String) -> Unit,
 ) {
     val c = Ward.c
-    val columns = if (largeFont()) 2 else 4
+    val columns = when {
+        largeFont() -> 2
+        LocalConfiguration.current.screenWidthDp < NARROW_DP -> 3
+        else -> 4
+    }
     val ordered = BedInput.sorted(beds.filter { it in busy }) + BedInput.sorted(beds.filter { it !in busy })
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
         (ordered + OTHER_BED).chunked(columns).forEach { row ->

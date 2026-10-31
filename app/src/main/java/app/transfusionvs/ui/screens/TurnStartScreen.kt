@@ -177,11 +177,6 @@ fun TurnStartContent(
             }
 
             Panel {
-                Text(
-                    "First turn ${Labels.clock(firstSlot)}, then every ${Labels.duration(interval)} on the ward clock" +
-                        (stopAt?.let { " until ${Labels.clock(it)}" } ?: ""),
-                    color = c.ink, style = WardType.BodyBold,
-                )
                 if (defaultFirst != choices.first() && firstSlot == defaultFirst) {
                     Text(
                         "${Labels.clock(choices.first())} is less than ${TurnGrid.MIN_LEAD_MIN} min away, so the first turn is ${Labels.clock(defaultFirst)}.",
@@ -209,7 +204,7 @@ fun TurnStartContent(
                             )
                         }
                     }
-                    Text("Slots stay on the ward clock (08:00 and 20:00 are always slots).", color = c.muted, style = WardType.Body)
+                    Text("08:00 and 20:00 are always turn times.", color = c.muted, style = WardType.Body)
                 }
 
                 // Positions: include / exclude and the rotation order
@@ -272,8 +267,8 @@ fun TurnStartContent(
 
                 // Preview with real clock times
                 Panel {
-                    CapsLabel("Ward clock")
-                    Text("Late turns don't move it", color = c.muted, style = WardType.Body)
+                    CapsLabel("Turn times")
+                    Text("A late turn doesn't move them", color = c.muted, style = WardType.Body)
                     CardTimeline(TurnTimeline.preview(openedAt, currentOk, rotation, firstSlot, interval, stopAt, zone))
                 }
             }
@@ -285,15 +280,21 @@ fun TurnStartContent(
         ) {
             if (editing != null) {
                 CapsLabel("Lying now")
-                PositionButtons(rotation, currentOk, enabled = true) { current = it }
+                Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                    rotation.forEach { p -> ChoiceChip(p.label, p == currentOk, { current = p }, Modifier.weight(1f), TvsSize.TouchLarge) }
+                }
                 PrimaryButton(
                     "Save changes",
                     onClick = { onSubmit(TurnPlanDraft(bed, interval, rotation, currentOk, firstSlot, stopAt)) },
                     enabled = validPlan,
                 )
             } else {
+                Text(
+                    "First turn ${Labels.clock(firstSlot)}, then every ${Labels.duration(interval)}" + (stopAt?.let { " until ${Labels.clock(it)}" } ?: ""),
+                    color = c.ink, style = WardType.BodyBold,
+                )
                 CapsLabel(if (bed.isBlank()) "Pick a bed first" else "$bed: lying now? Tap to start")
-                PositionButtons(rotation, null, enabled = validPlan) { p ->
+                PositionButtons(rotation, enabled = validPlan) { p ->
                     onSubmit(TurnPlanDraft(bed, interval, rotation, p, firstSlot, stopAt))
                 }
             }
@@ -321,34 +322,25 @@ fun TurnStartContent(
 
 /** Big position buttons: icon + name. Tapping one is the action. */
 @Composable
-private fun PositionButtons(positions: List<Position>, selected: Position?, enabled: Boolean, onPick: (Position) -> Unit) {
+private fun PositionButtons(positions: List<Position>, enabled: Boolean, onPick: (Position) -> Unit) {
     val c = Ward.c
     val perRow = if (largeFont()) 1 else 3
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
         positions.chunked(perRow).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
                 row.forEach { p ->
-                    val on = enabled && p != selected
-                    val fill = when {
-                        !enabled -> c.track
-                        p == selected -> c.card
-                        else -> c.primary
-                    }
-                    val ink = when {
-                        !enabled -> c.ink
-                        p == selected -> c.ink
-                        else -> c.onPrimary
-                    }
+                    val fill = if (enabled) c.primary else c.track
+                    val ink = if (enabled) c.onPrimary else c.ink
                     Column(
                         Modifier.weight(1f).heightIn(min = TvsSize.TouchLarge)
                             .background(fill, TvsShape.Card)
-                            .border(TvsSize.Edge, if (on) c.primaryEdge else c.muted, TvsShape.Card)
+                            .border(TvsSize.Edge, if (enabled) c.primaryEdge else c.muted, TvsShape.Card)
                             .wardClick(enabled = enabled) { onPick(p) }
                             .padding(vertical = TvsSpace.s6, horizontal = TvsSpace.s4),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         PositionIcon(p, ink)
-                        Text(if (p == selected) "✓ ${p.label}" else p.label, color = ink, style = WardType.BodyBold)
+                        Text(p.label, color = ink, style = WardType.BodyBold)
                     }
                 }
                 repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }

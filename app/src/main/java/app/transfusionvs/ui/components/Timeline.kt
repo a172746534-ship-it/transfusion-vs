@@ -65,7 +65,10 @@ private fun TimelineLabel(p: TimelinePoint) {
         PositionIcon(p.position, c.ink, TvsSize.IconMedium)
         return
     }
-    Text(if (p.unit != null) "${p.number} ${p.unit}" else p.number, color = c.ink, style = WardType.BodyBold)
+    Text(
+        if (p.unit != null) "${p.number}\u00A0${p.unit}" else p.number, color = c.ink, style = WardType.BodyBold,
+        modifier = Modifier.padding(horizontal = TvsSpace.s4), softWrap = false,
+    )
 }
 
 @Composable
@@ -91,8 +94,9 @@ fun TimeChip(text: String, filled: Boolean) {
     val modifier = if (filled) Modifier.background(c.primary, shape) else Modifier.background(c.card, shape).border(TvsSize.Edge, c.muted, shape)
     Text(
         text,
-        modifier = modifier.padding(horizontal = TvsSpace.s6, vertical = TvsSpace.s2),
+        modifier = modifier.padding(horizontal = TvsSpace.s4, vertical = TvsSpace.s2),
         style = WardType.BodyBold,
         color = if (filled) c.onPrimary else c.ink,
+        softWrap = false,
     )
 }

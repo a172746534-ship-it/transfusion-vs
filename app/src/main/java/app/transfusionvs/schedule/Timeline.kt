@@ -93,7 +93,7 @@ object Timeliness {
         }
         CheckpointStatus.MISSED -> {
             val d = delayMin(c)
-            StatusView(StatusKind.MISSED, if (d == null) "missed" else "missed · documented +$d min")
+            StatusView(StatusKind.MISSED, if (d == null) "overdue" else "missed · documented +$d min")
         }
         CheckpointStatus.CANCELLED -> StatusView(StatusKind.CANCELLED, "cancelled")
     }

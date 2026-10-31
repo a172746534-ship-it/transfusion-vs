@@ -296,19 +296,20 @@ class Engine(
     }
 
     /** "All turned as suggested ✓": each open bed moves to its suggested position, in one tap. */
-    suspend fun allTurned() {
+    suspend fun allTurned(except: Set<Long> = emptySet()) {
         val now = now()
         mutex.withLock {
             val round = RoundBuilder.build(turnDao.round(), now, ZoneId.systemDefault()) ?: return@withLock
             val all = mutableListOf<UndoStep>()
-            for (bed in round.beds) {
+            val beds = round.beds.filter { it.slotId !in except }
+            for (bed in beds) {
                 val steps = turnStepsLocked(bed.slotId)
                 all += steps
                 recordUndoLocked(UndoAction.plan(bed.planId), "${bed.bedLabel} · turned to ${bed.suggested.label}", now, steps)
                 turns.turned(bed.slotId, bed.suggested, now)
             }
-            if (round.beds.size > 1) {
-                recordUndoLocked(UndoAction.ROUND, "${round.beds.size} beds turned as suggested", now, all)
+            if (beds.size > 1) {
+                recordUndoLocked(UndoAction.ROUND, "${beds.size} beds turned as suggested", now, all)
             }
         }
         Haptics.confirmed(context)

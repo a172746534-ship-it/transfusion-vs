@@ -42,6 +42,14 @@ run_ui w360_f13 1.3 360
 adb shell am instrument -w -r -e class app.transfusionvs.uicheck.TapBudget \
   $PKG.test/androidx.test.runner.AndroidJUnitRunner > "$OUT/tap_budget.txt" 2>&1
 adb logcat -d -s TAPS:I > "$OUT/tap_budget.findings.txt"
+# The budget also holds on a 360 dp phone.
+px=$(adb shell wm size | sed -n 's/.*: \([0-9]*\)x.*/\1/p' | tail -1 | tr -d '\r')
+adb shell wm density $(( px * 160 / 360 )); sleep 3
+adb logcat -c
+adb shell am instrument -w -r -e class app.transfusionvs.uicheck.TapBudget \
+  $PKG.test/androidx.test.runner.AndroidJUnitRunner > "$OUT/tap_budget_w360.txt" 2>&1
+adb logcat -d -s TAPS:I > "$OUT/tap_budget_w360.findings.txt"
+adb shell wm density reset
 adb logcat -c
 adb shell am instrument -w -r -e class app.transfusionvs.uicheck.Robustness \
   $PKG.test/androidx.test.runner.AndroidJUnitRunner > "$OUT/robust.txt" 2>&1

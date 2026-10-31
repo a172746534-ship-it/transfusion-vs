@@ -102,14 +102,22 @@ fun WardButton(
 
 /** The one main action of a screen, in the thumb zone. */
 @Composable
-fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier.fillMaxWidth(), enabled: Boolean = true, icon: Int? = null) {
+fun PrimaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    enabled: Boolean = true,
+    icon: Int? = null,
+    minHeight: Dp = TvsSize.TouchLarge,
+    style: TextStyle = WardType.Button,
+) {
     val c = Ward.c
     WardButton(
         text, onClick, modifier,
         fill = if (enabled) c.primary else c.track,
         content = if (enabled) c.onPrimary else c.ink,
         edge = if (enabled) c.primaryEdge else c.muted,
-        enabled = enabled, icon = icon,
+        enabled = enabled, icon = icon, minHeight = minHeight, style = style,
     )
 }
 
@@ -174,10 +182,10 @@ fun WardHeader(
  * On transfusion screens only.
  */
 @Composable
-fun ReactionBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun ReactionBar(onClick: () -> Unit, modifier: Modifier = Modifier, minHeight: Dp = TvsSize.TouchLarge) {
     val c = Ward.c
     Row(
-        modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge)
+        modifier.fillMaxWidth().heightIn(min = minHeight)
             .background(c.dangerFill, TvsShape.Card)
             .border(TvsSize.Edge, c.dangerEdge, TvsShape.Card)
             .wardClick(onClick = onClick)

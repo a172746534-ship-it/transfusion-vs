@@ -30,7 +30,7 @@ object TvsSize {
     /** The type strip along a Home card. */
     val TypeStrip = 7.dp
     /** Home card's rail. */
-    val Rail = 20.dp
+    val Rail = 18.dp
     val RailLarge = 30.dp
 
     val IconSmall = 20.dp
@@ -39,7 +39,9 @@ object TvsSize {
     val Badge = 34.dp
 
     val Stepper = 92.dp
-    val TimelineColumn = 76.dp
+    val TimelineColumn = 60.dp
+    /** The clock time at the start of a Detail row. */
+    val TimeColumn = 68.dp
     val TimelineDot = 20.dp
 
     val Edge = 2.dp

@@ -36,6 +36,7 @@ import app.transfusionvs.ui.PRIMARY_TAG
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.WardButton
 import app.transfusionvs.ui.components.WardHeader
+import app.transfusionvs.ui.components.largeFont
 import app.transfusionvs.ui.components.wardClick
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
@@ -149,14 +150,15 @@ fun ReactionScreen(
             ) {
                 if (beds.size > 2) {
                     CapsLabel("Transfusion stopped for:")
+                    val columns = if (largeFont()) 1 else 3
                     Column(
-                        Modifier.heightIn(max = TvsSize.Stepper * 2).verticalScroll(rememberScrollState()),
+                        Modifier.heightIn(max = TvsSize.TouchLarge * 2 + TvsSpace.s8 + TvsSize.IconMedium).verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
                     ) {
-                        beds.chunked(2).forEach { pair ->
+                        beds.chunked(columns).forEach { row ->
                             Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                                pair.forEach { bed -> StopButton(bed.bedLabel, { onStopped(bed.transfusionId) }, Modifier.weight(1f)) }
-                                if (pair.size == 1) Spacer(Modifier.weight(1f))
+                                row.forEach { bed -> StopButton(bed.bedLabel, { onStopped(bed.transfusionId) }, Modifier.weight(1f)) }
+                                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                             }
                         }
                     }

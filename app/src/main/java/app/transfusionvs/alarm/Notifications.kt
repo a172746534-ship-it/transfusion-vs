@@ -98,7 +98,7 @@ object Notifications {
             }
             // One ✓ per bed (the notification has room for two beds plus Snooze).
             if (spec.beds.size == 1) {
-                builder.addAction(0, "Measured & documented ✓", ackIntent(context, spec.beds[0].checkpointIds))
+                builder.addAction(0, Labels.ACK, ackIntent(context, spec.beds[0].checkpointIds))
             } else if (spec.beds.size == 2) {
                 spec.beds.forEach { builder.addAction(0, "✓ ${it.shortLabel}", ackIntent(context, it.checkpointIds)) }
             }
@@ -185,7 +185,7 @@ object Notifications {
                 .setLocalOnly(false)
                 .setContentIntent(openApp(context))
                 .setDeleteIntent(receiverIntent(context, AlarmReceiver.ACTION_REPOST, "tvs://repost/overdue/$transfusionId"))
-                .addAction(0, "Measured & documented ✓", ackIntent(context, rows.map { it.id }))
+                .addAction(0, Labels.ACK, ackIntent(context, rows.map { it.id }))
                 .build()
             notifySafe(context, TAG_OVERDUE, transfusionId.toInt(), n)
         }

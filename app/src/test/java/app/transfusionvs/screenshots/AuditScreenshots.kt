@@ -2,15 +2,13 @@ package app.transfusionvs.screenshots
 
 import android.content.Intent
 import android.widget.FrameLayout
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import app.transfusionvs.alarm.DoneContent
 import app.transfusionvs.data.UndoAction
 import app.transfusionvs.schedule.BedViews
-import app.transfusionvs.ui.components.UndoBar
+import app.transfusionvs.ui.components.LocalUndo
+import app.transfusionvs.ui.components.UndoState
+import app.transfusionvs.ui.theme.Ward
 import app.transfusionvs.widget.BedsWidget
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -247,16 +245,12 @@ class AuditScreenshots {
         DoneContent(UndoAction(id = 1, ownerKey = "T2", label = "Bed 14 · 15-min check done", at = Fakes.now, expiresAt = Fakes.now + 300_000, snapshot = ""), onUndo = {})
     }
     @Test fun undo_bar_on_home() = shots("undo_bar_on_home") {
-        Box(Modifier.fillMaxSize()) {
-            Home(tx = Fakes.home)
-            UndoBar(
-                UndoAction(id = 1, ownerKey = "T2", label = "Bed 5 · transfusion started", at = Fakes.now, expiresAt = Fakes.now + 300_000, snapshot = ""),
-                onUndo = {}, modifier = Modifier.align(Alignment.BottomCenter), clockNow = Fakes.now,
-            )
-        }
+        val action = UndoAction(id = 1, ownerKey = "T2", label = "Bed 5 · transfusion started", at = System.currentTimeMillis(), expiresAt = Long.MAX_VALUE, snapshot = "")
+        CompositionLocalProvider(LocalUndo provides UndoState(action) {}) { Home(tx = Fakes.home) }
     }
     @Test fun widget() = shots("widget") {
         val beds = Fakes.home.map { BedViews.of(it, Fakes.now) } + TurnFakes.home.map { BedViews.of(it, Fakes.now, 10) }
-        AndroidView(factory = { ctx -> BedsWidget.build(ctx, BedViews.sorted(beds), Fakes.now).apply(ctx, FrameLayout(ctx)) })
+        val night = Ward.c.isNight
+        AndroidView(factory = { ctx -> BedsWidget.build(ctx, BedViews.sorted(beds), Fakes.now, night).apply(ctx, FrameLayout(ctx)) })
     }
 }

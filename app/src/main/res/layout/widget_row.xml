@@ -50,15 +50,17 @@
     <TextView
         android:id="@+id/row_ack"
         android:layout_width="wrap_content"
-        android:layout_height="@dimen/widget_row"
+        android:layout_height="wrap_content"
+        android:minHeight="@dimen/widget_row"
         android:layout_marginStart="@dimen/widget_gap"
         android:background="@drawable/widget_action"
         android:fontFamily="@font/rh_display_black"
         android:gravity="center"
+        android:maxWidth="@dimen/widget_action"
         android:paddingStart="@dimen/widget_pad"
         android:paddingEnd="@dimen/widget_pad"
         android:text="@string/widget_done"
         android:textColor="@color/widget_on_action"
-        android:textSize="@dimen/widget_bed"
+        android:textSize="@dimen/widget_body"
         android:visibility="gone" />
 </LinearLayout>

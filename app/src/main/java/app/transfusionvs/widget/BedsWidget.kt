@@ -18,6 +18,7 @@ import app.transfusionvs.schedule.BedView
 import app.transfusionvs.schedule.BedViews
 import app.transfusionvs.schedule.Labels
 import app.transfusionvs.schedule.Urgency
+import app.transfusionvs.ui.components.nightNow
 import kotlinx.coroutines.launch
 
 /**
@@ -48,7 +49,8 @@ object BedsWidget {
             val manager = AppWidgetManager.getInstance(context) ?: return
             val ids = manager.getAppWidgetIds(ComponentName(context, BedsWidgetProvider::class.java))
             if (ids.isEmpty()) return
-            manager.updateAppWidget(ids, build(context, beds(dao, turnDao, settings), System.currentTimeMillis()))
+            val night = nightNow(settings, context.resources.configuration)
+            manager.updateAppWidget(ids, build(context, beds(dao, turnDao, settings), System.currentTimeMillis(), night))
         }
     }
 
@@ -69,13 +71,20 @@ object BedsWidget {
     }
 
     /** Also used by the emulator test that renders the widget to an image. */
-    fun build(context: Context, beds: List<BedView>, now: Long): RemoteViews {
+    fun build(context: Context, beds: List<BedView>, now: Long, night: Boolean = false): RemoteViews {
         val root = RemoteViews(context.packageName, R.layout.widget_beds)
+        val ink = context.getColor(if (night) R.color.widget_ink_night else R.color.widget_ink)
+        val muted = context.getColor(if (night) R.color.widget_muted_night else R.color.widget_muted)
+        root.setInt(R.id.widget_root, "setBackgroundResource", if (night) R.drawable.widget_bg_night else R.drawable.widget_bg)
+        root.setTextColor(R.id.widget_title, ink)
+        root.setTextColor(R.id.widget_updated, muted)
+        root.setTextColor(R.id.widget_more, muted)
+        root.setTextColor(R.id.widget_empty, muted)
         root.setTextViewText(R.id.widget_title, BedViews.summary(beds))
         root.setTextViewText(R.id.widget_updated, "as of ${Labels.clock(now)}")
         root.setOnClickPendingIntent(R.id.widget_root, Notifications.openApp(context))
         root.removeAllViews(R.id.widget_rows)
-        beds.take(MAX_ROWS).forEach { root.addView(R.id.widget_rows, row(context, it)) }
+        beds.take(MAX_ROWS).forEach { root.addView(R.id.widget_rows, row(context, it, night)) }
         val more = beds.size - MAX_ROWS
         root.setViewVisibility(R.id.widget_more, if (more > 0) View.VISIBLE else View.GONE)
         if (more > 0) root.setTextViewText(R.id.widget_more, "+$more more")
@@ -83,8 +92,16 @@ object BedsWidget {
         return root
     }
 
-    private fun row(context: Context, bed: BedView): RemoteViews {
+    private fun row(context: Context, bed: BedView, night: Boolean): RemoteViews {
         val r = RemoteViews(context.packageName, R.layout.widget_row)
+        val ink = context.getColor(if (night) R.color.widget_ink_night else R.color.widget_ink)
+        val muted = context.getColor(if (night) R.color.widget_muted_night else R.color.widget_muted)
+        val alertColor = context.getColor(if (night) R.color.widget_alert_night else R.color.widget_alert)
+        r.setTextColor(R.id.row_bed, ink)
+        r.setTextColor(R.id.row_what, muted)
+        r.setInt(R.id.row_icon, "setColorFilter", muted)
+        r.setInt(R.id.row_ack, "setBackgroundResource", if (night) R.drawable.widget_action_night else R.drawable.widget_action)
+        r.setTextColor(R.id.row_ack, context.getColor(if (night) R.color.widget_on_action_night else R.color.widget_on_action))
         val mark = when {
             bed.stoppedForReaction -> "◆ "
             bed.urgency == Urgency.OVERDUE -> "◆ "
@@ -96,7 +113,7 @@ object BedsWidget {
         r.setTextViewText(R.id.row_bed, bed.bed)
         r.setTextViewText(R.id.row_what, stateWord(bed) + bed.what)
         val alert = bed.stoppedForReaction || bed.urgency == Urgency.OVERDUE
-        r.setTextColor(R.id.row_time, context.getColor(if (alert) R.color.widget_alert else R.color.widget_ink))
+        r.setTextColor(R.id.row_time, if (alert) alertColor else ink)
         val canAck = bed.ackIds.isNotEmpty() && !bed.stoppedForReaction
         r.setViewVisibility(R.id.row_ack, if (canAck) View.VISIBLE else View.GONE)
         if (canAck) r.setOnClickPendingIntent(R.id.row_ack, Notifications.ackIntent(context, bed.ackIds))

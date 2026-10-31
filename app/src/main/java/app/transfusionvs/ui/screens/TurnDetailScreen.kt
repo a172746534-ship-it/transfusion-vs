@@ -40,6 +40,7 @@ import app.transfusionvs.ui.components.PositionIcon
 import app.transfusionvs.ui.components.PrimaryButton
 import app.transfusionvs.ui.components.SecondaryButton
 import app.transfusionvs.ui.components.StatusPill
+import app.transfusionvs.ui.components.UndoSlot
 import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
@@ -53,6 +54,7 @@ fun TurnDetailContent(
     item: TurnPlanWithSlots?,
     now: Long,
     windowMin: Int,
+    missedTimeoutMin: Int = 10,
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onStop: (Long) -> Unit,
@@ -92,7 +94,11 @@ fun TurnDetailContent(
                     PositionIcon(p.currentPosition, c.ink, TvsSize.IconLarge)
                     Spacer(Modifier.width(TvsSpace.s12))
                     Column(Modifier.weight(1f)) {
-                        Text("Lying: ${p.currentPosition.label}", color = c.ink, style = WardType.Lead)
+                        val since = slots.filter { it.status == TurnSlotStatus.ACKED }.mapNotNull { it.ackAt }.maxOrNull()
+                        Text(
+                            "Lying: ${p.currentPosition.label}" + (since?.let { " · since ${Labels.clock(it)}" } ?: ""),
+                            color = c.ink, style = WardType.Lead,
+                        )
                         val next = slots.filter { it.status == TurnSlotStatus.PENDING && it.slotAt > now }.minByOrNull { it.slotAt }
                         if (next != null && p.status == TurnPlanStatus.RUNNING) {
                             Text(
@@ -103,22 +109,20 @@ fun TurnDetailContent(
                     }
                 }
                 val turnTimes = slots.filter { it.status == TurnSlotStatus.ACKED }.mapNotNull { it.ackAt }
-                val since = maxOf(p.startAt, now - 24 * 60 * MINUTE_MS)
-                val gap = TurnGrid.longestGapMs(turnTimes, since, now)
-                val tooLong = gap > (p.intervalMin + windowMin) * MINUTE_MS
+                val gap = TurnGrid.longestGapMs(turnTimes, maxOf(p.startAt, now - 24 * 60 * MINUTE_MS), now)
                 Row(
                     Modifier.fillMaxWidth().background(c.bg, TvsShape.Control).padding(TvsSpace.s12),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("Longest gap without a turn (24\u00A0h)", color = c.muted, style = WardType.BodyBold, modifier = Modifier.weight(1f))
                     Spacer(Modifier.width(TvsSpace.s8))
-                    Text(TurnStatus.gap(gap), style = WardType.Time, color = if (tooLong) c.overdue else c.ink)
+                    Text(TurnStatus.gap(gap), style = WardType.Time, color = c.ink)
                 }
             }
 
             Panel {
-                CapsLabel("Ward clock")
-                Text("Every ${Labels.duration(p.intervalMin)} · late turns don't move it", color = c.muted, style = WardType.Body)
+                CapsLabel("Turn times")
+                Text("Every ${Labels.duration(p.intervalMin)} · a late turn doesn't move them", color = c.muted, style = WardType.Body)
                 CardTimeline(TurnTimeline.live(p, slots, now))
             }
 
@@ -126,7 +130,7 @@ fun TurnDetailContent(
                 CapsLabel("Turns")
                 slots.filter { it.status != TurnSlotStatus.CANCELLED && (it.status != TurnSlotStatus.PENDING || it.slotAt <= now + 4 * 60 * MINUTE_MS) }
                     .sortedBy { it.slotAt }
-                    .forEach { s -> TurnRow(s, now, windowMin, onOpenRound) }
+                    .forEach { s -> TurnRow(s, now, windowMin, missedTimeoutMin, onOpenRound) }
             }
 
             if (p.status == TurnPlanStatus.RUNNING) {
@@ -134,7 +138,11 @@ fun TurnDetailContent(
             }
         }
 
-        Column(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = TvsSpace.s12).padding(bottom = TvsSpace.s8)) {
+        Column(
+            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = TvsSpace.s12).padding(bottom = TvsSpace.s8),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
+        ) {
+            UndoSlot()
             if (p.status == TurnPlanStatus.RUNNING) {
                 PrimaryButton("Stop plan", { onStop(p.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
             } else {
@@ -145,12 +153,12 @@ fun TurnDetailContent(
 }
 
 @Composable
-private fun TurnRow(s: TurnSlot, now: Long, windowMin: Int, onOpenRound: () -> Unit) {
+private fun TurnRow(s: TurnSlot, now: Long, windowMin: Int, missedTimeoutMin: Int, onOpenRound: () -> Unit) {
     val c = Ward.c
-    val status = TurnStatus.of(s, now, windowMin)
+    val status = TurnStatus.of(s, now, windowMin, missedTimeoutMin)
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(Labels.clock(s.slotAt), style = WardType.Time, color = c.ink, modifier = Modifier.width(TvsSize.TimelineColumn))
+            Text(Labels.clock(s.slotAt), style = WardType.Time, color = c.ink, softWrap = false, modifier = Modifier.width(TvsSize.TimeColumn))
             Column(Modifier.weight(1f)) {
                 val to = s.positionTo
                 if (s.status == TurnSlotStatus.ACKED && to != null) {

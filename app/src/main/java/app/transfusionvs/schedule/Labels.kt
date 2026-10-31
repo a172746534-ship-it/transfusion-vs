@@ -8,6 +8,9 @@ import java.time.format.DateTimeFormatter
 /** Wording shared by the alarm screen, notifications and lists — same words as the card. */
 object Labels {
 
+    /** The acknowledge action, the same words everywhere. The ✓ stays on the last word's line. */
+    const val ACK = "Measured & documented\u00A0✓"
+
     fun title(type: CheckpointType, offsetMin: Int): String = when (type) {
         CheckpointType.START -> "Start"
         CheckpointType.M15 -> "15-min check"

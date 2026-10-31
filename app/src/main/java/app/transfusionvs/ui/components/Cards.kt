@@ -81,12 +81,13 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
     val c = Ward.c
     val shape = TvsShape.Card
     val stopped = view.stoppedForReaction
-    val ink = if (stopped) c.onDangerFill else c.ink
-    val sub = if (stopped) c.onDangerFill else c.muted
-    val background = if (stopped) c.dangerFill else c.card
-    val tint = if (stopped) c.onDangerFill else view.type.color()
+    val ink = c.ink
+    val sub = c.muted
+    val background = c.card
+    val tint = view.type.color()
+    // A stopped bed is a record, not a control: red edge and red words, the fill stays for the reaction bar.
     val edge = when {
-        stopped -> c.dangerEdge
+        stopped -> c.danger
         view.urgency == Urgency.OVERDUE -> c.overdue
         else -> null
     }
@@ -98,8 +99,9 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
             .wardClick(onClick = onOpen),
     ) {
         if (!stopped) Box(Modifier.width(TvsSize.TypeStrip).fillMaxHeight().background(view.type.color(), TvsShape.CardStart))
-        Column(Modifier.weight(1f).padding(start = TvsSpace.s10, end = TvsSpace.s12, top = TvsSpace.s6, bottom = TvsSpace.s6)) {
-            val time = view.time?.let { Labels.clock(it) }
+        Column(Modifier.weight(1f).padding(start = TvsSpace.s10, end = TvsSpace.s4, top = TvsSpace.s4, bottom = TvsSpace.s4)) {
+            // A stopped bed says when in words: that corner always means the next check.
+            val time = view.time?.takeIf { !stopped }?.let { Labels.clock(it) }
             if (large) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TypeTag(view.type, tint)
@@ -118,8 +120,8 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
                 }
             }
             if (stopped) {
-                Text(view.stateText, color = ink, style = WardType.Button)
-                Text(view.what, color = sub, style = WardType.Body)
+                Text(view.stateText, color = c.danger, style = WardType.Button)
+                Text(view.what, color = ink, style = WardType.Body)
             } else if (large) {
                 Text(view.what, color = sub, style = WardType.Body)
                 StateText(view)
@@ -135,6 +137,11 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
             }
             actions()
         }
+        // The whole card opens the bed; the chevron says so.
+        Icon(
+            painterResource(R.drawable.ic_chevron), contentDescription = null, tint = c.muted,
+            modifier = Modifier.align(Alignment.CenterVertically).padding(end = TvsSpace.s4).size(TvsSize.IconSmall),
+        )
     }
 }
 

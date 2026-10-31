@@ -38,6 +38,9 @@ data class BedView(
     val ackIds: List<Long> = emptyList(),
     /** A turn is open: the card offers to open the round. */
     val roundOpen: Boolean = false,
+    /** Still going, as opposed to ended and waiting on something. */
+    val running: Boolean = false,
+    val ackLabel: String = Labels.ACK,
 )
 
 object BedViews {
@@ -70,6 +73,11 @@ object BedViews {
 
     private fun lateText(at: Long, now: Long) = "OVERDUE +${((now - at).coerceAtLeast(0)) / MINUTE_MS} min"
 
+    private fun dueText(at: Long, now: Long): String {
+        val late = (now - at) / MINUTE_MS
+        return if (late >= 1) "DUE +$late min" else "DUE NOW"
+    }
+
     private fun upcoming(at: Long, now: Long): Pair<Urgency, String> {
         val left = at - now
         return when {
@@ -90,11 +98,18 @@ object BedViews {
         val endPrompt = rows.firstOrNull { it.type == CheckpointType.END && it.status == CheckpointStatus.PENDING }
         val next = rows.filter { it.status == CheckpointStatus.PENDING && it.type.rings }.minByOrNull { it.scheduledAt }
         fun titles(list: List<Checkpoint>) = list.joinToString(" + ") { Labels.title(it.type, it.offsetMin) }
-        val base = BedView(BedType.TRANSFUSION, t.id, t.bedLabel, null, "", Urgency.CALM, "", rail)
+        val base = BedView(BedType.TRANSFUSION, t.id, t.bedLabel, null, "", Urgency.CALM, "", rail, running = t.status == TransfusionStatus.RUNNING)
         return when {
             t.status == TransfusionStatus.STOPPED_REACTION -> base.copy(
-                time = t.endAt, what = "Transfusion stopped", urgency = Urgency.OVERDUE,
-                stateText = "STOPPED — REACTION", stoppedForReaction = true, ackIds = missed.map { it.id },
+                time = t.endAt, what = "Stopped at ${t.endAt?.let { Labels.clock(it) } ?: ""}", urgency = Urgency.OVERDUE,
+                stateText = "STOPPED — REACTION", stoppedForReaction = true,
+            )
+            // Ended: the End VS is what the card is about, and a missed check doesn't vanish behind it.
+            endPrompt != null -> base.copy(
+                time = endPrompt.scheduledAt,
+                what = "Measure, then document in Cerner" + if (missed.isNotEmpty()) " · ${titles(missed)} missed" else "",
+                urgency = if (missed.isNotEmpty()) Urgency.OVERDUE else Urgency.NOW,
+                stateText = "ENDED · END VS", ackIds = listOf(endPrompt.id), ackLabel = "End VS measured & documented\u00A0✓",
             )
             missed.isNotEmpty() -> base.copy(
                 time = missed.first().scheduledAt, what = titles(missed), urgency = Urgency.OVERDUE,
@@ -104,13 +119,14 @@ object BedViews {
                 val snoozedUntil = ringing.mapNotNull { it.snoozeUntil }.filter { it > now }.minOrNull()
                 base.copy(
                     time = ringing.first().scheduledAt, what = titles(ringing), urgency = Urgency.NOW,
-                    stateText = if (snoozedUntil != null && ringing.all { (it.snoozeUntil ?: 0) > now }) "SNOOZED · ${Labels.clock(snoozedUntil)}" else "DUE NOW",
+                    stateText = if (snoozedUntil != null && ringing.all { (it.snoozeUntil ?: 0) > now }) {
+                        "SNOOZED · ${Labels.clock(snoozedUntil)}"
+                    } else {
+                        dueText(ringing.first().scheduledAt, now)
+                    },
+                    ackIds = ringing.map { it.id },
                 )
             }
-            endPrompt != null -> base.copy(
-                time = endPrompt.scheduledAt, what = "Measure, then document in Cerner", urgency = Urgency.NOW,
-                stateText = "END VS", ackIds = listOf(endPrompt.id),
-            )
             next != null && t.status == TransfusionStatus.RUNNING -> {
                 val (u, text) = upcoming(next.scheduledAt, now)
                 base.copy(time = next.scheduledAt, what = Labels.title(next.type, next.offsetMin), urgency = u, stateText = text)
@@ -130,7 +146,7 @@ object BedViews {
         val open = slots.filter { it.status == TurnSlotStatus.RINGING }.sortedBy { it.slotAt }
         val next = slots.filter { it.status == TurnSlotStatus.PENDING && it.slotAt > now }.minByOrNull { it.slotAt }
         val turn = "${p.currentPosition.label} → ${TurnGrid.nextPosition(p.currentPosition, rotation).label}"
-        val base = BedView(BedType.TURN, p.id, p.bedLabel, null, turn, Urgency.CALM, "", rail)
+        val base = BedView(BedType.TURN, p.id, p.bedLabel, null, turn, Urgency.CALM, "", rail, running = p.status == TurnPlanStatus.RUNNING)
         return when {
             p.status == TurnPlanStatus.STOPPED -> base.copy(what = "Lying ${p.currentPosition.label}", stateText = "Stopped", idle = true)
             open.isNotEmpty() -> {
@@ -144,7 +160,7 @@ object BedViews {
                     stateText = when {
                         overdue -> lateText(s.slotAt, now)
                         snoozed -> "SNOOZED · ${Labels.clock(s.snoozeUntil!!)}"
-                        else -> "DUE NOW"
+                        else -> dueText(s.slotAt, now)
                     },
                     roundOpen = true,
                 )
@@ -189,7 +205,7 @@ object BedViews {
 
     /** "6 BEDS RUNNING". */
     fun running(beds: List<BedView>): String {
-        val n = beds.count { !it.idle && !it.stoppedForReaction }
+        val n = beds.count { it.running }
         return when (n) {
             0 -> "NO BEDS RUNNING"
             1 -> "1 BED RUNNING"

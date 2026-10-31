@@ -51,6 +51,7 @@ import app.transfusionvs.ui.components.EmptyCard
 import app.transfusionvs.ui.components.PrimaryButton
 import app.transfusionvs.ui.components.ReactionBar
 import app.transfusionvs.ui.components.SecondaryButton
+import app.transfusionvs.ui.components.UndoSlot
 import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.components.largeFont
 import app.transfusionvs.ui.components.rememberNow
@@ -58,6 +59,7 @@ import app.transfusionvs.ui.components.wardClick
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
+import app.transfusionvs.ui.theme.WardType
 
 @Composable
 fun HomeScreen(
@@ -196,7 +198,8 @@ fun HomeContent(
                 .padding(bottom = TvsSpace.s8),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         ) {
-            if (anyTransfusion) ReactionBar(onClick = onReaction)
+            UndoSlot()
+            if (anyTransfusion) ReactionBar(onClick = onReaction, minHeight = TvsSize.Touch)
             if (!large) StartActions(onStartTransfusion, onStartTurning, stacked = false)
         }
     }
@@ -214,8 +217,8 @@ private fun StartActions(onStartTransfusion: () -> Unit, onStartTurning: () -> U
         }
     } else {
         Row(Modifier.fillMaxWidth().testTag(PRIMARY_TAG), horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-            PrimaryButton("Start transfusion", onStartTransfusion, Modifier.weight(1f), icon = R.drawable.ic_drop)
-            PrimaryButton("Start turning", onStartTurning, Modifier.weight(1f), icon = R.drawable.ic_turn)
+            PrimaryButton("Start transfusion", onStartTransfusion, Modifier.weight(1f), icon = R.drawable.ic_drop, minHeight = TvsSize.Touch, style = WardType.ButtonSmall)
+            PrimaryButton("Start turning", onStartTurning, Modifier.weight(1f), icon = R.drawable.ic_turn, minHeight = TvsSize.Touch, style = WardType.ButtonSmall)
         }
     }
 }
@@ -232,7 +235,7 @@ private fun HomeBed(
     BedCard(bed, onOpen) {
         if (bed.ackIds.isNotEmpty() && !bed.stoppedForReaction) {
             Spacer(Modifier.height(TvsSpace.s6))
-            AckButton("${bed.bed} · Measured & documented ✓", { onAcknowledge(bed.ackIds) })
+            AckButton("${bed.bed} · ${bed.ackLabel}", { onAcknowledge(bed.ackIds) })
         }
         if (bed.roundOpen) {
             Spacer(Modifier.height(TvsSpace.s6))

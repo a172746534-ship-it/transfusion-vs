@@ -14,4 +14,11 @@
     <color name="widget_alert">#FFA80F1C</color>
     <color name="widget_action">#FFF5A623</color>
     <color name="widget_on_action">#FF13233F</color>
+
+    <color name="widget_bg_night">#FF141F33</color>
+    <color name="widget_ink_night">#FFE8EDF6</color>
+    <color name="widget_muted_night">#FFA5B1C6</color>
+    <color name="widget_alert_night">#FFFF7269</color>
+    <color name="widget_action_night">#FFC98F36</color>
+    <color name="widget_on_action_night">#FF060B14</color>
 </resources>
