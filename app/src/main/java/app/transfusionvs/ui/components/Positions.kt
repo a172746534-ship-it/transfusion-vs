@@ -13,14 +13,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
 import app.transfusionvs.R
 import app.transfusionvs.data.Position
-import app.transfusionvs.ui.theme.TvsFont
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
+import app.transfusionvs.ui.theme.WardType
 
 /** One vector per position: a top-down figure on a bed (same grid and stroke as the other icons). */
 fun Position.iconRes(): Int = when (this) {
@@ -47,20 +46,20 @@ fun PositionChange(
     to: Position,
     color: Color,
     iconSize: Dp = TvsSize.IconMedium,
-    fontSize: TextUnit = TvsFont.Body,
+    style: TextStyle = WardType.Body,
 ) {
     FlowRow(itemVerticalAlignment = Alignment.CenterVertically) {
-        PositionLabel(from, color, iconSize, fontSize, FontWeight.Normal)
-        Text("  →  ", color = color, fontSize = fontSize, fontWeight = FontWeight.Black, softWrap = false)
-        PositionLabel(to, color, iconSize, fontSize, FontWeight.Black)
+        PositionLabel(from, color, iconSize, style)
+        Text("  →  ", color = color, style = style, softWrap = false)
+        PositionLabel(to, color, iconSize, WardType.Lead)
     }
 }
 
 @Composable
-private fun PositionLabel(p: Position, color: Color, iconSize: Dp, fontSize: TextUnit, weight: FontWeight) {
+private fun PositionLabel(p: Position, color: Color, iconSize: Dp, style: TextStyle) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         PositionIcon(p, color, iconSize)
         Spacer(Modifier.width(TvsSpace.s6))
-        Text(p.label, color = color, fontSize = fontSize, fontWeight = weight, softWrap = false, maxLines = 1)
+        Text(p.label, color = color, style = style, softWrap = false, maxLines = 1)
     }
 }

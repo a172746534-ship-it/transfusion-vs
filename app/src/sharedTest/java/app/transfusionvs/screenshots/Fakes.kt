@@ -66,6 +66,21 @@ object Fakes {
 
     val home = listOf(bed12, bed14)
 
+    /** The ward's beds, entered once in Settings. */
+    val wardBeds = (1..19).map { "Bed $it" } + "Isolation Bed 23"
+
+    /** Every urgency at once: overdue, due now, soon, calm. */
+    fun sixBeds(): List<TransfusionWithCheckpoints> = listOf(
+        bed12,
+        transfusion(3, "Bed 14", 1, "2026-01-15T10:50", 120).let { b ->
+            b.copy(checkpoints = b.checkpoints.map { if (it.type == CheckpointType.M15) it.copy(status = CheckpointStatus.RINGING, firedAt = now) else it })
+        },
+        transfusion(4, "Bed 7", 2, "2026-01-15T10:15", 120).with(CheckpointType.M15, 15, 1).with(CheckpointType.M30, 30, 1),
+        transfusion(5, "Bed 21", 3, "2026-01-15T10:52", 120),
+        transfusion(6, "Bed 3", 4, "2026-01-15T10:40", 180),
+        transfusion(7, "Isolation Bed 23", 5, "2026-01-15T10:00", 240).with(CheckpointType.M15, 15, 1).with(CheckpointType.M30, 30, 1).with(CheckpointType.HOURLY, 60, 2),
+    )
+
     fun ringing(bed: TransfusionWithCheckpoints, type: CheckpointType, offset: Int, firedAt: Long = now): CheckpointWithBed {
         val c: Checkpoint = bed.checkpoints.first { it.type == type && it.offsetMin == offset }
         val t = bed.transfusion

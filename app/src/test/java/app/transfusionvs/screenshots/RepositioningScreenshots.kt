@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import app.transfusionvs.alarm.AlarmContent
 import app.transfusionvs.alarm.RoundChoice
 import app.transfusionvs.data.CheckpointType
-import app.transfusionvs.ui.screens.ChooserContent
 import app.transfusionvs.ui.screens.HomeContent
 import app.transfusionvs.ui.screens.TurnDetailContent
 import app.transfusionvs.ui.screens.TurnStartContent
@@ -44,7 +43,7 @@ class RepositioningScreenshots {
     fun home() = shot("repositioning_home") {
         HomeContent(
             home = listOf(Fakes.bed14), turns = TurnFakes.home, ringing = false, setupProblems = 0, now = Fakes.now,
-            onStart = {}, onOpen = {}, onOpenTurnPlan = {}, onReaction = {}, onSetup = {}, onSettings = {}, onOpenAlarm = {}, onAcknowledge = {},
+            onStartTransfusion = {}, onStartTurning = {}, onOpen = {}, onOpenTurnPlan = {}, onReaction = {}, onSetup = {}, onSettings = {}, onOpenAlarm = {}, onAcknowledge = {},
         )
     }
 
@@ -52,26 +51,21 @@ class RepositioningScreenshots {
     fun homeOnlyRepositioning() = shot("repositioning_home_only") {
         HomeContent(
             home = emptyList(), turns = listOf(TurnFakes.bed3), ringing = false, setupProblems = 0, now = Fakes.now,
-            onStart = {}, onOpen = {}, onOpenTurnPlan = {}, onReaction = {}, onSetup = {}, onSettings = {}, onOpenAlarm = {}, onAcknowledge = {},
+            onStartTransfusion = {}, onStartTurning = {}, onOpen = {}, onOpenTurnPlan = {}, onReaction = {}, onSetup = {}, onSettings = {}, onOpenAlarm = {}, onAcknowledge = {},
         )
-    }
-
-    @Test
-    fun chooser() = shot("start_chooser") {
-        ChooserContent(onTransfusion = {}, onRepositioning = {}, onBack = {})
     }
 
     /** Started at 09:45: 10:00 is under 30 min away, so the first turn defaults to 12:00. */
     @Test
     @Config(qualifiers = XTALL_PHONE)
     fun start() = shot("repositioning_start") {
-        TurnStartContent(editing = null, defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = {})
+        TurnStartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = {})
     }
 
     @Test
     @Config(qualifiers = TALL_PHONE)
     fun edit() = shot("repositioning_edit") {
-        TurnStartContent(editing = TurnFakes.isolation.plan, defaultIntervalMin = 120, openedAt = Fakes.now, onSubmit = {}, onBack = {})
+        TurnStartContent(editing = TurnFakes.isolation.plan, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.now, onSubmit = {}, onBack = {})
     }
 
     @Test

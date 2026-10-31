@@ -5,7 +5,6 @@ import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,20 +13,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,9 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.transfusionvs.BuildConfig
@@ -49,6 +40,7 @@ import app.transfusionvs.alarm.AlarmActivity
 import app.transfusionvs.app
 import app.transfusionvs.data.CheckpointStatus
 import app.transfusionvs.data.CheckpointWithBed
+import app.transfusionvs.data.WardBed
 import app.transfusionvs.schedule.Labels
 import app.transfusionvs.schedule.MINUTE_MS
 import app.transfusionvs.setup.CheckItem
@@ -56,16 +48,23 @@ import app.transfusionvs.setup.OemGuide
 import app.transfusionvs.setup.OemGuides
 import app.transfusionvs.setup.OemStep
 import app.transfusionvs.setup.SetupChecks
+import app.transfusionvs.ui.PRIMARY_TAG
+import app.transfusionvs.ui.components.Alert
 import app.transfusionvs.ui.components.CapsLabel
-import app.transfusionvs.ui.components.TopBar
-import app.transfusionvs.ui.theme.Tvs
-import kotlinx.coroutines.launch
+import app.transfusionvs.ui.components.Panel
+import app.transfusionvs.ui.components.PrimaryButton
+import app.transfusionvs.ui.components.SecondaryButton
+import app.transfusionvs.ui.components.WardButton
+import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
-import app.transfusionvs.ui.theme.TvsFont
+import app.transfusionvs.ui.theme.Ward
+import app.transfusionvs.ui.theme.WardType
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
-/** Setup check: live permission checklist, per-brand steps, and real test alarms. */
+/** Setup check: the ward's beds, a live permission checklist, per-brand steps, and real test alarms. */
 @Composable
 fun SetupScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -83,6 +82,9 @@ fun SetupScreen(onBack: () -> Unit) {
     val guide = remember { OemGuides.forThisPhone(context) }
     val tests by app.db.dao().observeTests().collectAsStateWithLifecycle(initialValue = emptyList())
     val ringing by app.db.dao().observeRinging().collectAsStateWithLifecycle(initialValue = emptyList())
+    val wardDao = app.db.wardDao()
+    val bedsFlow = remember { wardDao.observeBeds().map { list -> list.map { it.label } } }
+    val beds by bedsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     var message by rememberSaveable { mutableStateOf<String?>(null) }
 
     fun fix(item: CheckItem) {
@@ -106,6 +108,9 @@ fun SetupScreen(onBack: () -> Unit) {
         tests = tests,
         ringing = ringing.isNotEmpty(),
         message = message,
+        beds = beds,
+        onAddBeds = { labels -> app.scope.launch { wardDao.addBeds(labels.map { WardBed(it) }) } },
+        onRemoveBed = { label -> app.scope.launch { wardDao.removeBed(label) } },
         onBack = onBack,
         onFix = ::fix,
         onOpenStep = { SetupChecks.open(context, it.intents) },
@@ -126,6 +131,9 @@ fun SetupContent(
     tests: List<CheckpointWithBed>,
     ringing: Boolean,
     message: String?,
+    beds: List<String> = emptyList(),
+    onAddBeds: (List<String>) -> Unit = {},
+    onRemoveBed: (String) -> Unit = {},
     onBack: () -> Unit,
     onFix: (CheckItem) -> Unit,
     onOpenStep: (OemStep) -> Unit,
@@ -134,8 +142,9 @@ fun SetupContent(
     onOpenAlarm: () -> Unit,
     versionName: String,
 ) {
-    Column(Modifier.fillMaxSize().background(Tvs.Panel).verticalScroll(rememberScrollState())) {
-        TopBar(
+    val c = Ward.c
+    Column(Modifier.fillMaxSize().background(c.bg)) {
+        WardHeader(
             caps = "Setup check",
             title = "Make sure alarms can't be missed",
             subtitle = "${checks.count { it.ok }} of ${checks.size} ready",
@@ -143,137 +152,108 @@ fun SetupContent(
         )
 
         Column(
-            Modifier.padding(TvsSpace.s16).windowInsetsPadding(WindowInsets.navigationBars),
-            verticalArrangement = Arrangement.spacedBy(TvsSpace.s16),
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(TvsSpace.s12),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
-            if (ringing) {
-                Box(
-                    Modifier.fillMaxWidth().background(Tvs.Red, TvsShape.Card)
-                        .clickable(onClick = onOpenAlarm)
-                        .padding(TvsSpace.s18),
-                ) {
-                    Text("Alarm ringing — tap to open", color = Tvs.White, fontSize = TvsFont.Lead, fontWeight = FontWeight.Black)
-                }
-            }
+            if (ringing) Alert("Alarm ringing — tap to open", c.dangerFill, c.onDangerFill, onOpenAlarm)
 
             // 1. Live checklist
-            Card {
-                CapsLabel("This phone", Tvs.Navy)
+            Panel {
+                CapsLabel("This phone")
                 checks.forEach { item -> CheckRow(item, onFix = { onFix(item) }) }
             }
 
+            WardBedsPanel(beds, onAddBeds, onRemoveBed)
+
             // 2. Brand-specific steps
-            Card {
-                CapsLabel("${guide.brand} — extra steps", Tvs.Navy)
-                Text(
-                    "Android can't report these, so do each one by hand, then run a test below.",
-                    color = Tvs.Muted, fontSize = TvsFont.Caption,
-                )
+            Panel {
+                CapsLabel("${guide.brand} — extra steps")
+                Text("Android can't report these, so do each one by hand, then run a test below.", color = c.muted, style = WardType.Body)
                 guide.steps.forEachIndexed { i, step ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         NumberBadge(i + 1)
                         Spacer(Modifier.width(TvsSpace.s12))
-                        Text(step.text, color = Tvs.Navy, fontSize = TvsFont.Body, modifier = Modifier.weight(1f))
-                        if (step.intents.isNotEmpty()) {
-                            Spacer(Modifier.width(TvsSpace.s8))
-                            OutlinedButton(
-                                onClick = { onOpenStep(step) },
-                                modifier = Modifier.heightIn(min = TvsSize.Touch),
-                                shape = TvsShape.Control,
-                            ) { Text("Open", fontWeight = FontWeight.Bold) }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
+                            Text(step.text, color = c.ink, style = WardType.Body)
+                            if (step.intents.isNotEmpty()) {
+                                SecondaryButton("Open phone settings", { onOpenStep(step) })
+                            }
                         }
                     }
                 }
-                Text(
-                    "Never use \"Force stop\" on this app — Android then cancels its alarms until you open it again.",
-                    color = Tvs.Red, fontSize = TvsFont.Caption, fontWeight = FontWeight.Bold,
-                )
+                Text("Never use \"Force stop\" on this app — Android then cancels its alarms until you open it again.", color = c.ink, style = WardType.BodyBold)
             }
 
-            // 3. Real test alarms through the full alarm path
-            Card {
-                CapsLabel("Test", Tvs.Navy)
-                Button(
-                    onClick = { onTest(MINUTE_MS, "Lock the phone now and wait — it must ring even on silent.") },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchXL),
-                    shape = TvsShape.Card,
-                    colors = ButtonDefaults.buttonColors(containerColor = Tvs.Navy, contentColor = Tvs.White),
-                ) { Text("Test alarm in 1 minute", fontSize = TvsFont.Heading, fontWeight = FontWeight.Black) }
-                Text("Long tests (overnight, after swiping the app away, or after a reboot):", color = Tvs.Muted, fontSize = TvsFont.Caption)
+            // 3. Long tests through the full alarm path
+            Panel {
+                CapsLabel("Long tests")
+                Text("Overnight, after swiping the app away, or after a reboot:", color = c.muted, style = WardType.Body)
                 Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
                     listOf(2, 6).forEach { h ->
-                        OutlinedButton(
-                            onClick = {
-                                onTest(h * 60 * MINUTE_MS, "Swipe the app away or restart the phone — it must still ring on time.")
-                            },
-                            modifier = Modifier.weight(1f).heightIn(min = TvsSize.Touch),
-                            shape = TvsShape.Control,
-                        ) { Text("Test in $h h", fontWeight = FontWeight.Bold) }
+                        SecondaryButton(
+                            "Test in $h h",
+                            { onTest(h * 60 * MINUTE_MS, "Swipe the app away or restart the phone — it must still ring on time.") },
+                            Modifier.weight(1f),
+                        )
                     }
                 }
-                message?.let { Text(it, color = Tvs.Blue, fontSize = TvsFont.BodySmall, fontWeight = FontWeight.Bold) }
+                message?.let { Text(it, color = c.ink, style = WardType.BodyBold) }
             }
 
             // 4. What happened to the tests
             if (tests.isNotEmpty()) {
-                Card {
-                    CapsLabel("Test log", Tvs.Navy)
+                Panel {
+                    CapsLabel("Test log")
                     tests.forEach { t ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Set for ${Labels.clock(t.scheduledAt)}", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
-                                Text(testStatus(t), color = statusColor(t), fontSize = TvsFont.Caption)
-                            }
+                        Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
+                            Text("Set for ${Labels.clock(t.scheduledAt)}", color = c.ink, style = WardType.BodyBold)
+                            Text(testStatus(t), color = statusColor(t), style = WardType.Body)
                             if (t.status == CheckpointStatus.PENDING) {
-                                OutlinedButton(
-                                    onClick = { onCancelTest(t.id) },
-                                    modifier = Modifier.heightIn(min = TvsSize.Touch),
-                                    shape = TvsShape.Control,
-                                ) { Text("Cancel") }
+                                SecondaryButton("Cancel test at ${Labels.clock(t.scheduledAt)}", { onCancelTest(t.id) })
                             }
                         }
                     }
                 }
             }
 
-            Text("Transfusion VS $versionName", color = Tvs.Muted, fontSize = TvsFont.Footnote)
+            Text("A S · Transfusion VS $versionName", color = c.muted, style = WardType.Body)
+        }
+
+        Box(Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars).padding(TvsSpace.s12)) {
+            PrimaryButton("Test alarm in 1 minute", { onTest(MINUTE_MS, "Lock the phone now and wait — it must ring even on silent.") })
         }
     }
 }
 
 @Composable
-private fun Card(content: @Composable () -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().background(Tvs.White, TvsShape.Card).padding(TvsSpace.s16),
-        verticalArrangement = Arrangement.spacedBy(TvsSpace.s14),
-    ) { content() }
-}
-
-@Composable
 private fun CheckRow(item: CheckItem, onFix: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(TvsSize.Dot).background(if (item.ok) Tvs.Green else Tvs.Red, CircleShape))
-        Spacer(Modifier.width(TvsSpace.s12))
-        Column(Modifier.weight(1f)) {
-            Text(item.title, color = Tvs.Navy, fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Bold)
-            Text(item.detail, color = Tvs.Muted, fontSize = TvsFont.Caption)
+    val c = Ward.c
+    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // ✓ or ! in the badge, so the state never rests on colour alone.
+            Box(Modifier.size(TvsSize.Badge).background(if (item.ok) c.ink else c.danger, CircleShape), contentAlignment = Alignment.Center) {
+                Text(if (item.ok) "✓" else "!", color = if (item.ok) c.card else c.onDanger, style = WardType.Lead)
+            }
+            Spacer(Modifier.width(TvsSpace.s12))
+            Column(Modifier.weight(1f)) {
+                Text(item.title, color = c.ink, style = WardType.BodyBold)
+                Text(item.detail, color = c.muted, style = WardType.Body)
+            }
         }
         if (!item.ok) {
-            Spacer(Modifier.width(TvsSpace.s8))
-            Button(
-                onClick = onFix,
-                modifier = Modifier.heightIn(min = TvsSize.Touch),
-                shape = TvsShape.Control,
-                colors = ButtonDefaults.buttonColors(containerColor = Tvs.Red, contentColor = Tvs.White),
-            ) { Text("Fix", fontWeight = FontWeight.Black) }
+            WardButton(
+                "Fix: ${item.title}", onFix, Modifier.fillMaxWidth(),
+                fill = c.danger, content = c.onDanger, minHeight = TvsSize.Touch, style = WardType.ButtonSmall, shape = TvsShape.Control,
+            )
         }
     }
 }
 
 @Composable
 private fun NumberBadge(n: Int) {
-    Box(Modifier.size(TvsSize.Badge).background(Tvs.Navy, CircleShape), contentAlignment = Alignment.Center) {
-        Text("$n", color = Tvs.White, fontWeight = FontWeight.Black, fontSize = TvsFont.Caption)
+    val c = Ward.c
+    Box(Modifier.size(TvsSize.Badge).background(c.primary, CircleShape), contentAlignment = Alignment.Center) {
+        Text("$n", color = c.onPrimary, style = WardType.Lead)
     }
 }
 
@@ -292,8 +272,9 @@ private fun testStatus(t: CheckpointWithBed): String = when (t.status) {
     CheckpointStatus.CANCELLED -> "Cancelled"
 }
 
+@Composable
 private fun statusColor(t: CheckpointWithBed): Color = when (t.status) {
-    CheckpointStatus.ACKED -> Tvs.Green
-    CheckpointStatus.MISSED, CheckpointStatus.RINGING -> Tvs.Red
-    else -> Tvs.Muted
+    CheckpointStatus.ACKED -> Ward.c.ink
+    CheckpointStatus.MISSED, CheckpointStatus.RINGING -> Ward.c.danger
+    else -> Ward.c.muted
 }

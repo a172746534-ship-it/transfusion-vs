@@ -1,41 +1,28 @@
 package app.transfusionvs.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.transfusionvs.R
 import app.transfusionvs.data.Checkpoint
 import app.transfusionvs.data.CheckpointStatus
 import app.transfusionvs.data.CheckpointType
@@ -44,24 +31,26 @@ import app.transfusionvs.data.TransfusionStatus
 import app.transfusionvs.data.TransfusionWithCheckpoints
 import app.transfusionvs.schedule.Labels
 import app.transfusionvs.schedule.MINUTE_MS
-import app.transfusionvs.schedule.StatusKind
 import app.transfusionvs.schedule.TimelineBuilder
 import app.transfusionvs.schedule.Timeliness
 import app.transfusionvs.ui.MainViewModel
+import app.transfusionvs.ui.PRIMARY_TAG
+import app.transfusionvs.ui.components.AckButton
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.CardTimeline
-import app.transfusionvs.ui.components.HourlyPill
 import app.transfusionvs.ui.components.MeasureDocumentBlocks
 import app.transfusionvs.ui.components.Panel
+import app.transfusionvs.ui.components.PrimaryButton
+import app.transfusionvs.ui.components.ReactionBar
+import app.transfusionvs.ui.components.SecondaryButton
 import app.transfusionvs.ui.components.StatusPill
-import app.transfusionvs.ui.components.TopBar
+import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.components.rememberNow
-import app.transfusionvs.ui.theme.TimeFigures
-import app.transfusionvs.ui.theme.Tvs
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
-import app.transfusionvs.ui.theme.TvsFont
+import app.transfusionvs.ui.theme.Ward
+import app.transfusionvs.ui.theme.WardType
 
 /** Full timeline in the card layout, every checkpoint with its status, and End / Edit / Stopped. */
 @Composable
@@ -84,6 +73,10 @@ fun DetailScreen(
         onReaction = onReaction,
         onEnd = vm::end,
         onAcknowledge = vm::acknowledge,
+        onForget = {
+            vm.forgetStopped(it)
+            onBack()
+        },
     )
 }
 
@@ -98,15 +91,15 @@ fun DetailContent(
     onReaction: () -> Unit,
     onEnd: (Long) -> Unit,
     onAcknowledge: (List<Long>) -> Unit,
+    onForget: (Long) -> Unit = {},
 ) {
-    var confirmEnd by rememberSaveable { mutableStateOf(false) }
-    var laterEndVs by rememberSaveable { mutableStateOf(false) }
-
+    val c = Ward.c
     val t = item?.transfusion
     val rows = item?.checkpoints.orEmpty()
+    val stopped = t?.status == TransfusionStatus.STOPPED_REACTION
 
-    Column(Modifier.fillMaxSize().background(Tvs.Panel)) {
-        TopBar(
+    Column(Modifier.fillMaxSize().background(c.bg)) {
+        WardHeader(
             caps = when (t?.status) {
                 TransfusionStatus.RUNNING -> "Blood transfusion running"
                 TransfusionStatus.ENDED -> "Ended"
@@ -116,92 +109,71 @@ fun DetailContent(
             title = t?.bedLabel ?: "",
             subtitle = t?.let { subtitle(it) },
             onBack = onBack,
-            showDrop = t?.status == TransfusionStatus.RUNNING,
+            icon = R.drawable.ic_drop,
+            background = if (stopped) c.dangerFill else c.header,
+            content = if (stopped) c.onDangerFill else c.onHeader,
+            capsColor = if (stopped) c.onDangerFill else c.headerCaps,
         )
         if (t == null) return@Column
 
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(TvsSpace.s16),
-            verticalArrangement = Arrangement.spacedBy(TvsSpace.s16),
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(TvsSpace.s12),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
-            Panel(background = Tvs.White) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    BedDot(t.colorIndex)
-                    Spacer(Modifier.width(TvsSpace.s8))
-                    CapsLabel("Time from start", Tvs.Navy)
-                    Text(" · baseline first", color = Tvs.Muted, fontSize = TvsFont.Label)
+            if (stopped) {
+                Column(
+                    Modifier.fillMaxWidth().background(c.dangerFill, TvsShape.Card).border(TvsSize.Edge, c.dangerEdge, TvsShape.Card).padding(TvsSpace.s12),
+                    verticalArrangement = Arrangement.spacedBy(TvsSpace.s4),
+                ) {
+                    Text("STOPPED — REACTION", color = c.onDangerFill, style = WardType.Title)
+                    Text(
+                        "Stopped at ${t.endAt?.let { Labels.clock(it) } ?: ""}. Remaining alarms for this bed are cancelled.",
+                        color = c.onDangerFill, style = WardType.Body,
+                    )
                 }
-                HourlyPill()
+            }
+
+            // The End VS prompt, right after End, until documented.
+            val endVs = rows.firstOrNull { it.type == CheckpointType.END && it.status == CheckpointStatus.PENDING }
+            if (endVs != null) {
+                Panel {
+                    CapsLabel("End VS — ${t.bedLabel}")
+                    Text("Transfusion ended at ${Labels.clock(endVs.scheduledAt)}.", color = c.ink, style = WardType.Body)
+                    MeasureDocumentBlocks(c.ink, c.muted, c.calm, c.typeTx, c.card)
+                    AckButton("${t.bedLabel} · Measured & documented ✓", { onAcknowledge(listOf(endVs.id)) })
+                }
+            }
+
+            Panel {
+                CapsLabel("Time from start")
+                Text("Baseline first · hourly = same minute as start", color = c.muted, style = WardType.Body)
                 CardTimeline(TimelineBuilder.live(t, rows, now))
             }
 
             Panel {
-                CapsLabel("Checkpoints", Tvs.Navy)
-                visibleRows(t, rows, now).forEach { c ->
-                    CheckpointRow(c, now, toleranceMin, onAck = { onAcknowledge(listOf(c.id)) })
+                CapsLabel("Checkpoints")
+                visibleRows(t, rows, now).forEach { row ->
+                    CheckpointRow(row, now, toleranceMin, t.bedLabel, onAck = { onAcknowledge(listOf(row.id)) })
                 }
             }
 
             if (t.status == TransfusionStatus.RUNNING) {
-                Button(
-                    onClick = { confirmEnd = true },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge),
-                    shape = TvsShape.Card,
-                    colors = ButtonDefaults.buttonColors(containerColor = Tvs.Navy, contentColor = Tvs.White),
-                ) { Text("End transfusion", fontSize = TvsFont.Button, fontWeight = FontWeight.Black) }
-                OutlinedButton(
-                    onClick = onEdit,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
-                    shape = TvsShape.Card,
-                ) { Text("Edit start time or duration", fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Bold, color = Tvs.Navy) }
-                Button(
-                    onClick = onReaction,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
-                    shape = TvsShape.Card,
-                    colors = ButtonDefaults.buttonColors(containerColor = Tvs.Red, contentColor = Tvs.White),
-                ) { Text("⚠ Transfusion stopped (reaction)", fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Black) }
+                SecondaryButton("Edit start time or duration", onEdit)
             }
-            Spacer(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
+            if (stopped) {
+                SecondaryButton("Remove from Home", { onForget(t.id) })
+            }
         }
-    }
 
-    if (confirmEnd && t != null) {
-        AlertDialog(
-            onDismissRequest = { confirmEnd = false },
-            title = { Text("End ${t.bedLabel} now?") },
-            text = { Text("End time ${Labels.clock(System.currentTimeMillis())} is logged and the remaining alarms are cancelled.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onEnd(t.id)
-                    confirmEnd = false
-                    laterEndVs = false
-                }) { Text("End transfusion", fontWeight = FontWeight.Black) }
-            },
-            dismissButton = { TextButton(onClick = { confirmEnd = false }) { Text("Cancel") } },
-        )
-    }
-
-    // The End VS prompt, shown right after End until documented (or "Later": it stays on Home).
-    val endVs = rows.firstOrNull { it.type == CheckpointType.END && it.status == CheckpointStatus.PENDING }
-    if (endVs != null && !laterEndVs && t != null) {
-        AlertDialog(
-            onDismissRequest = { laterEndVs = true },
-            title = { Text("End VS — ${t.bedLabel}", fontWeight = FontWeight.Black) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s12)) {
-                    Text("Transfusion ended at ${Labels.clock(endVs.scheduledAt)}.")
-                    MeasureDocumentBlocks()
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { onAcknowledge(listOf(endVs.id)) },
-                    modifier = Modifier.heightIn(min = TvsSize.Touch),
-                    colors = ButtonDefaults.buttonColors(containerColor = Tvs.Amber, contentColor = Tvs.Navy),
-                ) { Text("Measured & documented ✓", fontWeight = FontWeight.Black) }
-            },
-            dismissButton = { TextButton(onClick = { laterEndVs = true }) { Text("Later") } },
-        )
+        Column(
+            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = TvsSpace.s12).padding(bottom = TvsSpace.s8),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
+        ) {
+            ReactionBar(onClick = onReaction)
+            if (t.status == TransfusionStatus.RUNNING) {
+                PrimaryButton("End transfusion", { onEnd(t.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
+            }
+        }
     }
 }
 
@@ -217,40 +189,31 @@ private fun subtitle(t: Transfusion): String = when (t.status) {
 private fun visibleRows(t: Transfusion, rows: List<Checkpoint>, now: Long): List<Checkpoint> =
     rows.filter { it.status != CheckpointStatus.CANCELLED }
         .filter { it.offsetMin <= t.plannedDurationMin || it.status != CheckpointStatus.PENDING || it.scheduledAt <= now + 60 * MINUTE_MS || it.type == CheckpointType.LIMIT_WARNING }
+        .filter { !(it.type == CheckpointType.END && it.status == CheckpointStatus.PENDING) } // shown above, as the prompt
         .sortedBy { it.scheduledAt }
 
 @Composable
-private fun CheckpointRow(c: Checkpoint, now: Long, toleranceMin: Int, onAck: () -> Unit) {
-    val status = Timeliness.status(c, now, toleranceMin)
-    val needsAck = c.status == CheckpointStatus.RINGING ||
-        (c.status == CheckpointStatus.MISSED && c.ackAt == null) ||
-        (c.type == CheckpointType.END && c.status == CheckpointStatus.PENDING)
+private fun CheckpointRow(row: Checkpoint, now: Long, toleranceMin: Int, bed: String, onAck: () -> Unit) {
+    val c = Ward.c
+    val status = Timeliness.status(row, now, toleranceMin)
+    val needsAck = row.status == CheckpointStatus.RINGING || (row.status == CheckpointStatus.MISSED && row.ackAt == null)
 
-    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                Labels.clock(c.scheduledAt),
-                style = TimeFigures, color = Tvs.Navy, fontSize = TvsFont.Lead, fontWeight = FontWeight.Black,
-                modifier = Modifier.width(TvsSize.TimeColumn),
-            )
+            Text(Labels.clock(row.scheduledAt), style = WardType.Time, color = c.ink, modifier = Modifier.width(TvsSize.TimelineColumn))
             Column(Modifier.weight(1f)) {
-                Text(Labels.title(c.type, c.offsetMin), color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
-                if (c.type == CheckpointType.PLANNED_END || c.type == CheckpointType.LIMIT_WARNING) {
-                    Text(Labels.subtitle(c.type), color = Tvs.Muted, fontSize = TvsFont.Label)
+                Text(Labels.title(row.type, row.offsetMin), color = c.ink, style = WardType.BodyBold)
+                if (row.type == CheckpointType.PLANNED_END || row.type == CheckpointType.LIMIT_WARNING) {
+                    Text(Labels.subtitle(row.type), color = c.muted, style = WardType.Body)
                 }
-                if (c.ackAt != null && c.type != CheckpointType.START) {
-                    Text("Documented ${Labels.clock(c.ackAt)}", color = Tvs.Muted, fontSize = TvsFont.Label)
+                if (row.ackAt != null && row.type != CheckpointType.START) {
+                    Text("Documented ${Labels.clock(row.ackAt)}", color = c.muted, style = WardType.Body)
                 }
             }
-            if (c.type != CheckpointType.START) StatusPill(status) else StatusPill("logged", Tvs.Navy, Tvs.White)
+            if (row.type != CheckpointType.START) StatusPill(status) else Text("logged", color = c.muted, style = WardType.BodyBold)
         }
         if (needsAck) {
-            Button(
-                onClick = onAck,
-                modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
-                shape = TvsShape.Control,
-                colors = ButtonDefaults.buttonColors(containerColor = Tvs.Amber, contentColor = Tvs.Navy),
-            ) { Text("Measured & documented ✓", fontSize = TvsFont.Body, fontWeight = FontWeight.Black) }
+            AckButton("$bed · Measured & documented ✓", onAck)
         }
     }
 }

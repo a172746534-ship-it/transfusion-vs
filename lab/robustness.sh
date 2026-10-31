@@ -42,8 +42,13 @@ run_ui w360_f13 1.3 360
 adb shell am instrument -w -r -e class app.transfusionvs.uicheck.TapBudget \
   $PKG.test/androidx.test.runner.AndroidJUnitRunner > "$OUT/tap_budget.txt" 2>&1
 adb logcat -d -s TAPS:I > "$OUT/tap_budget.findings.txt"
+adb logcat -c
+adb shell am instrument -w -r -e class app.transfusionvs.uicheck.Robustness \
+  $PKG.test/androidx.test.runner.AndroidJUnitRunner > "$OUT/robust.txt" 2>&1
+adb logcat -d -s ROBUST:I > "$OUT/robust.findings.txt"
+adb shell "cat /sdcard/Android/data/$PKG/files/widget.png" > "$OUT/widget.png" 2>/dev/null
 
-# --- Rotation and process death mid-flow: the typed bed must survive ----------------------------
+# --- Rotation and process death mid-flow: the picked bed must survive ---------------------------
 adb shell pm clear $PKG; grant
 adb shell am start -W -n $HOME_ACT >/dev/null; sleep 3
 adb shell input keyevent KEYCODE_BACK; sleep 1   # leave first-run Setup
@@ -56,16 +61,16 @@ m=re.search(r'text=\"$1\"[^>]*bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"',sys.std
 print((int(m[1])+int(m[3]))//2,(int(m[2])+int(m[4]))//2) if m else print('')")
   [ -n "$xy" ] && adb shell input tap $xy && sleep 1
 }
-tap_text Start; tap_text Transfusion
-tap_text "e.g. Bed 12"; adb shell input text "Bed77"; adb shell input keyevent KEYCODE_BACK; sleep 1
+adb shell am broadcast -n $PKG/.lab.LabReceiver -a lab.ADD_BEDS --es beds "75-78" -f 0x20 > /dev/null; sleep 1
+tap_text "Start transfusion"; tap_text "Bed 77"
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 1; sleep 3
-if dump | grep -q 'Bed77'; then echo "PASS rotation keeps the typed bed"; else echo "FAIL rotation lost the typed bed"; fi | tee "$OUT/rotation.txt"
+if dump | grep -q '✓ Bed 77'; then echo "PASS rotation keeps the picked bed"; else echo "FAIL rotation lost the picked bed"; fi | tee "$OUT/rotation.txt"
 adb shell settings put system user_rotation 0; sleep 2
 adb shell input keyevent KEYCODE_HOME; sleep 2
 adb shell am kill $PKG; sleep 2
 adb shell am start -W -n $HOME_ACT >/dev/null; sleep 3
-if dump | grep -q 'Bed77'; then echo "PASS process death keeps the typed bed"; else echo "FAIL process death lost the typed bed"; fi | tee "$OUT/process_death.txt"
+if dump | grep -q '✓ Bed 77'; then echo "PASS process death keeps the picked bed"; else echo "FAIL process death lost the picked bed"; fi | tee "$OUT/process_death.txt"
 
 # --- Monkey (debug build: LeakCanary and StrictMode are on) --------------------------------------
 adb shell pm clear $PKG; grant

@@ -117,9 +117,6 @@ def grant():
     if api >= 31 and api < 33:
         sh(f"appops set {PKG} SCHEDULE_EXACT_ALARM allow")
     sh(f"cmd notification allow_dnd {PKG}")
-    if api < 28:
-        sh(f"settings put secure enabled_notification_policy_access_packages {PKG}")
-        time.sleep(1)
 
 
 def reset():
@@ -127,10 +124,17 @@ def reset():
     wake()
     sh("dumpsys battery reset")
     sh("settings put global low_power 0")
-    set_dnd("off")
+    # A refused do-not-disturb hook must only fail the tests that need it, not every test.
+    try:
+        set_dnd("off")
+    except RuntimeError as e:
+        print(f"reset: {e}")
     sh(f"pm clear {PKG}")
     grant()
-    hook("RINGER", mode="NORMAL")
+    try:
+        hook("RINGER", mode="NORMAL")
+    except RuntimeError as e:
+        print(f"reset: {e}")
     set_stream_volume(4, 5)
     sh("input keyevent KEYCODE_HOME")
     time.sleep(1)
@@ -141,6 +145,24 @@ def set_dnd(mode):
         sh(f"cmd notification set_dnd {mode}")
     else:
         hook("DND", mode=mode)
+
+
+def grant_policy_access_by_hand():
+    """Android 8 has no shell command for it: the Do Not Disturb access screen, as a person would."""
+    sh("pm clear com.android.settings")
+    sh("am start -W -a android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS")
+    time.sleep(3)
+    log = []
+    for label, why in (("A S", "the app's row"), ("(?:ALLOW|Allow)", "the confirmation")):
+        xml = sh("uiautomator dump /sdcard/lab.xml >/dev/null 2>&1; cat /sdcard/lab.xml")
+        m = re.search(rf'text="{label}"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+        log.append(f"{why}: {'found' if m else 'NOT FOUND'}")
+        if m:
+            sh(f"input tap {(int(m.group(1)) + int(m.group(3))) // 2} {(int(m.group(2)) + int(m.group(4))) // 2}")
+            time.sleep(2)
+    screenshot("api26_policy_access")
+    sh("input keyevent KEYCODE_HOME")
+    return "; ".join(log)
 
 
 def set_stream_volume(stream, value):
@@ -637,21 +659,133 @@ def t_volume(name):
     return warned, f"Home warning shown={warned}"
 
 
-# ---------------------------------------------------------------- not built yet
+# ---------------------------------------------------------------- pocket guards and undo
+
+def dump_xml():
+    for _ in range(5):
+        raw = sh("uiautomator dump /sdcard/lab.xml >/dev/null 2>&1; cat /sdcard/lab.xml")
+        if "<hierarchy" in raw:
+            return raw
+        time.sleep(1)
+    return ""
+
+
+def centre_of(pattern, xml=None):
+    xml = xml or dump_xml()
+    m = re.search(rf'text="[^"]*{pattern}[^"]*"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+    if not m:
+        return None
+    return (int(m.group(1)) + int(m.group(3))) // 2, (int(m.group(2)) + int(m.group(4))) // 2
+
+
+def row_status(cid):
+    row = fired_row(hook("NOOP"), cid)
+    return row and row["status"], row
+
+
+def ringing_alarm(name):
+    due = arrange_transfusion()
+    sleep_screen()
+    ok, msg, _ = assert_fired(due, name)
+    return due, ok, msg
+
+
+ACK = "Measured &amp; documented"
+
 
 @test("A17_pocket_guard_first_second")
 def t_guard_second(name):
-    return False, "not in this build: touches are accepted from the first frame"
+    due, ok, msg = ringing_alarm(name)
+    if not ok:
+        return False, msg
+    xy = centre_of(ACK)
+    if not xy:
+        return False, "acknowledge button not found"
+    run("adb logcat -c")
+    # The screen goes off and on: the alarm is shown again and its first second starts over.
+    sh("input keyevent KEYCODE_SLEEP")
+    time.sleep(2)
+    sh("input keyevent KEYCODE_WAKEUP")
+    time.sleep(0.45)
+    sh(f"input tap {xy[0]} {xy[1]}")
+    time.sleep(0.2)
+    status_early, _ = row_status(due["id"])
+    log = run("adb logcat -d -s PocketGuard:I", 30)
+    ignored = "first second" in log
+    time.sleep(2)
+    sh(f"input tap {xy[0]} {xy[1]}")
+    time.sleep(3)
+    status_late, _ = row_status(due["id"])
+    save(name, f"{log}\nearly={status_early} late={status_late}")
+    return status_early == "RINGING" and ignored and status_late == "ACKED", f"tap in the first second: {status_early}, guard logged it: {ignored}; tap after it: {status_late}"
 
 
 @test("A18_pocket_guard_proximity")
 def t_guard_prox(name):
-    return False, "not in this build: no proximity guard"
+    if "proximity" not in sh("dumpsys sensorservice").lower():
+        return False, "no proximity sensor on this emulator image"
+    due, ok, msg = ringing_alarm(name)
+    if not ok:
+        return False, msg
+    xy = centre_of(ACK)
+    if not xy:
+        return False, "acknowledge button not found"
+    run("adb logcat -c")
+    run("adb emu sensor set proximity 0")
+    time.sleep(3)
+    sh(f"input tap {xy[0]} {xy[1]}")
+    time.sleep(1)
+    covered_status, _ = row_status(due["id"])
+    log = run("adb logcat -d -s PocketGuard:I", 30)
+    ignored = "covered" in log
+    run("adb emu sensor set proximity 100")
+    time.sleep(3)
+    sh(f"input tap {xy[0]} {xy[1]}")
+    time.sleep(3)
+    free_status, _ = row_status(due["id"])
+    save(name, f"{log}\ncovered={covered_status} uncovered={free_status}")
+    return covered_status == "RINGING" and ignored and free_status == "ACKED", f"tap while covered: {covered_status}, guard logged it: {ignored}; tap uncovered: {free_status}"
 
 
 @test("A19_undo_snackbar_and_undo_last")
 def t_undo(name):
-    return False, "not in this build: acknowledgements cannot be undone"
+    due, ok, msg = ringing_alarm(name)
+    if not ok:
+        return False, msg
+    _, before = row_status(due["id"])
+    keys = ("status", "firedAt", "ackAt", "snoozeCount")
+    time.sleep(2)
+    xy = centre_of(ACK)
+    sh(f"input tap {xy[0]} {xy[1]}")
+    time.sleep(1.5)
+    screenshot(name + "_done")
+    undo_xy = centre_of("Undo")
+    if not undo_xy:
+        return False, "no Undo after acknowledging"
+    sh(f"input tap {undo_xy[0]} {undo_xy[1]}")
+    time.sleep(3)
+    _, after_bar = row_status(due["id"])
+    bar_exact = all(before[k] == after_bar[k] for k in keys)
+    playing, _ = audio_alarm_playing()
+
+    # Again, this time from the bed's card on Home, after the alarm has closed.
+    xy = centre_of(ACK)
+    sh(f"input tap {xy[0]} {xy[1]}")
+    time.sleep(7)
+    skip_first_run()
+    sh(f"am start -W -n {HOME}")
+    time.sleep(2)
+    xml = dump_xml()
+    screenshot(name + "_card")
+    save(name, xml)
+    last_xy = centre_of("Undo last", xml)
+    if not last_xy:
+        return False, f"snackbar undo exact={bar_exact}; no Undo last on the card"
+    sh(f"input tap {last_xy[0]} {last_xy[1]}")
+    time.sleep(3)
+    _, after_card = row_status(due["id"])
+    card_exact = all(before[k] == after_card[k] for k in keys)
+    return bar_exact and card_exact and playing, f"snackbar restored exactly={bar_exact}, alarm rings again={playing}; Undo last restored exactly={card_exact}"
 
 
 # ---------------------------------------------------------------- collisions and follow-ups
@@ -777,6 +911,8 @@ def main():
     print(f"API {api}")
     run("adb logcat -G 16M")
     print(run(f"adb install -r -g {args.apk}", 300))
+    if api < 28:
+        print("policy access:", grant_policy_access_by_hand(), hook("NOOP").get("policyAccess"))
     sh("settings put global auto_time 0")
     sh("settings put global auto_time_zone 0")
     sh("settings put global window_animation_scale 0")

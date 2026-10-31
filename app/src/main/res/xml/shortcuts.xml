@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_drop"
+        android:shortcutId="start_transfusion"
+        android:shortcutShortLabel="@string/shortcut_transfusion">
+        <intent
+            android:action="app.transfusionvs.action.START_TRANSFUSION"
+            android:targetClass="app.transfusionvs.ui.MainActivity"
+            android:targetPackage="app.transfusionvs" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_turn"
+        android:shortcutId="start_turning"
+        android:shortcutShortLabel="@string/shortcut_turning">
+        <intent
+            android:action="app.transfusionvs.action.START_TURNING"
+            android:targetClass="app.transfusionvs.ui.MainActivity"
+            android:targetPackage="app.transfusionvs" />
+    </shortcut>
+</shortcuts>

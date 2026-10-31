@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
@@ -28,9 +29,15 @@ class AlarmService : Service() {
     private var playingTurn = false
     private var wakeLock: PowerManager.WakeLock? = null
 
+    /** Opening the sound file reads the disk, so playback runs on its own thread, in order. */
+    private val audioThread = HandlerThread("alarm-audio")
+    private lateinit var audio: Handler
+
     override fun onCreate() {
         super.onCreate()
         instance = this
+        audioThread.start()
+        audio = Handler(audioThread.looper)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -54,14 +61,16 @@ class AlarmService : Service() {
         Notifications.notifyAlarm(this, spec)
         // A transfusion joining a ringing round (or the reverse) switches to that type's sound.
         if (player != null && playingTurn != spec.turnOnly) {
-            player?.stop()
+            player?.let { old -> audio.post { old.stop() } }
             player = null
         }
         if (player == null) {
             if (wakeLock == null) acquireWakeLock(spec.missedTimeoutMin)
             playingTurn = spec.turnOnly
             val uri = if (spec.turnOnly) spec.turnSoundUri else spec.soundUri
-            player = AlarmPlayer(this).also { it.start(spec.soundOn, uri, spec.turnOnly) }
+            val next = AlarmPlayer(this)
+            player = next
+            audio.post { next.start(spec.soundOn, uri, spec.turnOnly) }
         }
     }
 
@@ -81,7 +90,7 @@ class AlarmService : Service() {
     }
 
     private fun releasePlayback() {
-        player?.stop()
+        player?.let { old -> audio.post { old.stop() } }
         player = null
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
@@ -89,6 +98,7 @@ class AlarmService : Service() {
 
     override fun onDestroy() {
         releasePlayback()
+        audioThread.quitSafely()
         isRunning = false
         instance = null
         super.onDestroy()

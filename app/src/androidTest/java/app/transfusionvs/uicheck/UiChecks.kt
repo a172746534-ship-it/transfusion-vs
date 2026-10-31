@@ -16,14 +16,16 @@ import androidx.compose.ui.test.tryPerformAccessibilityChecks
 import androidx.compose.ui.text.TextLayoutResult
 import app.transfusionvs.alarm.AlarmContent
 import app.transfusionvs.alarm.RoundChoice
+import app.transfusionvs.data.CheckpointStatus
 import app.transfusionvs.data.CheckpointType
+import app.transfusionvs.data.TransfusionWithCheckpoints
 import app.transfusionvs.screenshots.Fakes
 import app.transfusionvs.screenshots.Fakes.with
 import app.transfusionvs.screenshots.TurnFakes
 import app.transfusionvs.setup.CheckItem
 import app.transfusionvs.setup.OemGuide
+import app.transfusionvs.ui.PRIMARY_TAG
 import app.transfusionvs.ui.screens.BedChoice
-import app.transfusionvs.ui.screens.ChooserContent
 import app.transfusionvs.ui.screens.DetailContent
 import app.transfusionvs.ui.screens.HomeContent
 import app.transfusionvs.ui.screens.ReactionScreen
@@ -42,16 +44,17 @@ import org.junit.Test
  * The fixed thresholds of docs/TEST_LOOP.md §4, measured on the real screens on an emulator (run
  * at several widths and font scales by lab/robustness.sh): touch targets ≥ 56 dp (alarm actions
  * ≥ 64 dp), ≥ 8 dp between targets, body text ≥ 16 sp, no truncated text, every action labelled,
- * zero Accessibility Test Framework errors. Every finding is logged with tag UICHECK.
+ * exactly one primary action in the bottom third, zero Accessibility Test Framework errors.
+ * Every finding is logged with tag UICHECK.
  */
 class UiChecks {
 
     @get:Rule val rule = createComposeRule()
 
-    private fun check(name: String, alarm: Boolean = false, content: @Composable () -> Unit) {
-        rule.setContent { TvsTheme { content() } }
+    private fun check(name: String, alarm: Boolean = false, primary: Boolean = false, night: Boolean = false, content: @Composable () -> Unit) {
+        rule.setContent { TvsTheme(night = night) { content() } }
         rule.waitForIdle()
-        val findings = measure(name, if (alarm) 64f else 56f).toMutableList()
+        val findings = measure(name, if (alarm) 64f else 56f, primary).toMutableList()
         rule.enableAccessibilityChecks()
         try {
             rule.onRoot().tryPerformAccessibilityChecks()
@@ -63,12 +66,13 @@ class UiChecks {
         assertTrue("$name: ${findings.size} findings\n" + findings.joinToString("\n"), findings.isEmpty())
     }
 
-    private fun measure(name: String, minTarget: Float): List<String> {
+    private fun measure(name: String, minTarget: Float, primary: Boolean): List<String> {
         val root = rule.onRoot(useUnmergedTree = true).fetchSemanticsNode()
         val all = mutableListOf<SemanticsNode>()
         fun rec(n: SemanticsNode) { all += n; n.children.forEach(::rec) }
         rec(root)
         val density = root.layoutInfo.density.density
+        val fontScale = root.layoutInfo.density.fontScale
         val out = mutableListOf<String>()
 
         val targets = all.filter { it.config.contains(SemanticsActions.OnClick) && !it.config.contains(SemanticsProperties.Disabled) }
@@ -109,6 +113,15 @@ class UiChecks {
             val sp = r.layoutInput.style.fontSize.value
             if (!sp.isNaN() && sp < 16f) out += "SMALLTEXT $name '${text.take(40)}' ${sp}sp < 16sp"
         }
+        if (primary && fontScale < 1.3f) {
+            val primaries = all.filter { it.config.getOrNull(SemanticsProperties.TestTag) == PRIMARY_TAG }
+            if (primaries.size != 1) {
+                out += "PRIMARY $name has ${primaries.size} primary actions, wants exactly 1"
+            } else {
+                val centre = primaries[0].positionInRoot.y + primaries[0].size.height / 2f
+                if (centre < root.size.height * 2f / 3f) out += "PRIMARY $name centre at ${"%.0f".format(100 * centre / root.size.height)}% of the height, above the bottom third"
+            }
+        }
         return out
     }
 
@@ -119,70 +132,98 @@ class UiChecks {
     }
 
     private val noop: () -> Unit = {}
+    private val longBed = "Isolation Bed 23"
+    private val wardBeds = (1..19).map { "Bed $it" } + longBed
 
-    @Composable
-    private fun Home(ringing: Boolean = false, problems: Int = 0, n: Int = 2) = HomeContent(
-        home = if (n == 0) emptyList() else Fakes.home.take(n), turns = if (n == 0) emptyList() else TurnFakes.home.take(n),
-        ringing = ringing, setupProblems = problems, now = Fakes.now,
-        onStart = noop, onOpen = {}, onOpenTurnPlan = {}, onReaction = noop, onSetup = noop, onSettings = noop, onOpenAlarm = noop, onAcknowledge = {},
+    private val manyBeds = (1..20).map { i ->
+        Fakes.transfusion(100L + i, if (i == 20) longBed else "Bed $i", i % 8, "2026-01-15T10:${(i * 2).toString().padStart(2, '0')}", 120)
+    }
+
+    private fun ringingBed(): TransfusionWithCheckpoints = Fakes.bed14.copy(
+        checkpoints = Fakes.bed14.checkpoints.map { if (it.type == CheckpointType.M15) it.copy(status = CheckpointStatus.RINGING, firedAt = Fakes.now) else it },
     )
 
-    @Test fun homeEmpty() = check("home_empty") { Home(n = 0) }
-    @Test fun homeBeds() = check("home_beds") { Home(ringing = true, problems = 2) }
-    @Test fun chooser() = check("chooser") { ChooserContent(onTransfusion = noop, onRepositioning = noop, onBack = noop) }
-    @Test fun start() = check("start") {
-        StartContent(editing = null, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop)
+    @Composable
+    private fun Home(ringing: Boolean = false, problems: Int = 0, n: Int = 2, tx: List<TransfusionWithCheckpoints>? = null) = HomeContent(
+        home = tx ?: if (n == 0) emptyList() else Fakes.home.take(n), turns = if (n == 0) emptyList() else TurnFakes.home.take(n),
+        ringing = ringing, setupProblems = problems, now = Fakes.now,
+        onStartTransfusion = noop, onStartTurning = noop, onOpen = {}, onOpenTurnPlan = {}, onReaction = noop, onSetup = noop, onSettings = noop, onOpenAlarm = noop, onAcknowledge = {},
+    )
+
+    @Test fun homeEmpty() = check("home_empty", primary = true) { Home(n = 0) }
+    @Test fun homeBeds() = check("home_beds", primary = true) { Home(ringing = true, problems = 2) }
+    @Test fun homeTwentyBeds() = check("home_20beds", primary = true) { Home(tx = manyBeds) }
+    @Test fun homeBedsNight() = check("home_beds_night", primary = true, night = true) { Home() }
+    @Test fun start() = check("start", primary = true) {
+        StartContent(
+            editing = null, beds = wardBeds, busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15,
+            openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop,
+        )
     }
-    @Test fun detail() = check("detail") {
+    @Test fun detail() = check("detail", primary = true) {
         DetailContent(
             item = Fakes.bed12.with(CheckpointType.HOURLY, 60, ackAfterMin = 9), now = Fakes.at("2026-01-15T11:40"), toleranceMin = 5,
             onBack = noop, onEdit = noop, onReaction = noop, onEnd = {}, onAcknowledge = {},
         )
     }
-    @Test fun reaction() = check("reaction") {
-        ReactionScreen(beds = listOf(BedChoice(1, "Bed 12", 0), BedChoice(2, "Isolation Bed 23", 1)), onStopped = {}, onBack = noop)
+    @Test fun reaction() = check("reaction", primary = true) {
+        ReactionScreen(beds = listOf(BedChoice(1, "Bed 12", 0), BedChoice(2, longBed, 1)), onStopped = {}, onBack = noop)
     }
-    @Test fun alarm() = check("alarm", alarm = true) {
+    @Test fun reactionManyBeds() = check("reaction_20beds", primary = true) {
+        ReactionScreen(beds = (1..20).map { BedChoice(it.toLong(), if (it == 20) longBed else "Bed $it", it % 8) }, onStopped = {}, onBack = noop)
+    }
+    @Test fun alarm() = check("alarm", alarm = true, primary = true) {
         AlarmContent(
             rows = listOf(Fakes.ringing(Fakes.bed14, CheckpointType.M15, 15)), now = Fakes.now, snoozeMin = 2,
             onAcknowledge = {}, onSnooze = noop, onStopForReaction = {},
         )
     }
+    @Test fun alarmNight() = check("alarm_night", alarm = true, primary = true, night = true) {
+        AlarmContent(
+            rows = listOf(Fakes.ringing(Fakes.bed14, CheckpointType.M15, 15)), now = Fakes.now, snoozeMin = 2,
+            onAcknowledge = {}, onSnooze = noop, onStopForReaction = {},
+        )
+    }
+    // Several beds on the alarm: each has its own ✓, so there is no single primary action by design.
     @Test fun alarmTwoBeds() = check("alarm_two_beds", alarm = true) {
         AlarmContent(
             rows = listOf(Fakes.ringing(Fakes.bed12, CheckpointType.HOURLY, 60), Fakes.ringing(Fakes.bed14, CheckpointType.M15, 15)),
             now = Fakes.now, snoozeMin = 2, onAcknowledge = {}, onSnooze = noop, onStopForReaction = {},
         )
     }
-    @Test fun round() = check("round", alarm = true) {
+    @Test fun round() = check("round", alarm = true, primary = true) {
         AlarmContent(rows = emptyList(), now = Fakes.now, snoozeMin = 2, onAcknowledge = {}, onSnooze = noop, onStopForReaction = {}, round = TurnFakes.round())
     }
-    @Test fun roundChecklist() = check("round_checklist", alarm = true) {
+    @Test fun roundSeven() = check("round_seven", alarm = true, primary = true) {
+        AlarmContent(rows = emptyList(), now = Fakes.now, snoozeMin = 2, onAcknowledge = {}, onSnooze = noop, onStopForReaction = {}, round = TurnFakes.round(TurnFakes.sevenBeds))
+    }
+    @Test fun roundChecklist() = check("round_checklist", alarm = true, primary = true) {
         AlarmContent(
             rows = emptyList(), now = Fakes.now, snoozeMin = 2, onAcknowledge = {}, onSnooze = noop, onStopForReaction = {},
             round = TurnFakes.round(started = true), initiallyOpen = mapOf(61L to RoundChoice.CANT_TURN, 62L to RoundChoice.OTHER_POSITION),
         )
     }
-    @Test fun turnStart() = check("turn_start") {
-        TurnStartContent(editing = null, defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop)
+    @Test fun turnStart() = check("turn_start", primary = true) {
+        TurnStartContent(editing = null, beds = wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initiallyExpanded = true)
     }
-    @Test fun turnDetail() = check("turn_detail") {
+    @Test fun turnDetail() = check("turn_detail", primary = true) {
         TurnDetailContent(item = TurnFakes.bed3, now = Fakes.now, windowMin = 15, onBack = noop, onEdit = noop, onStop = {}, onRestart = {}, onOpenRound = noop)
     }
-    @Test fun settings() = check("settings") {
+    @Test fun settings() = check("settings", primary = true) {
         SettingsContent(
             values = SettingsValues(
                 soundOn = true, soundUri = null, snoozeMin = 2, missedTimeoutMin = 10, toleranceMin = 5,
                 preAlertMin = 0, limitMin = 240, warnBeforeMin = 15,
             ),
-            soundTitle = "Phone's default alarm sound", onChange = {}, onPickSound = noop, onBack = noop, onSetup = noop,
+            beds = wardBeds, soundTitle = "Phone's default alarm sound", onChange = {}, onPickSound = noop, onBack = noop, onSetup = noop,
         )
     }
-    @Test fun setup() = check("setup") {
+    @Test fun setup() = check("setup", primary = true) {
         SetupContent(
             checks = listOf(CheckItem("Notifications allowed", "Needed for the full-screen alarm and the Overdue reminder.", false, listOf(Intent()))),
             guide = OemGuide("Android", emptyList()), tests = emptyList(), ringing = false, message = null,
             onBack = noop, onFix = {}, onOpenStep = {}, onTest = { _, _ -> }, onCancelTest = {}, onOpenAlarm = noop, versionName = "test",
         )
     }
+    @Test fun homeRinging() = check("home_ringing", primary = true) { Home(tx = listOf(ringingBed())) }
 }

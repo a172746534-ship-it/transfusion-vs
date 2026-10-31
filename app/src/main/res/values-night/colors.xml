@@ -1,0 +1,8 @@
+<resources>
+    <color name="widget_bg">#FF141F33</color>
+    <color name="widget_ink">#FFE8EDF6</color>
+    <color name="widget_muted">#FFA5B1C6</color>
+    <color name="widget_alert">#FFFF7269</color>
+    <color name="widget_action">#FFC98F36</color>
+    <color name="widget_on_action">#FF060B14</color>
+</resources>

@@ -1,8 +1,15 @@
 package app.transfusionvs.alarm
 
 import android.graphics.Color as AndroidColor
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
+import android.util.Log
+import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -10,76 +17,87 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import app.transfusionvs.R
 import app.transfusionvs.app
 import app.transfusionvs.data.CheckpointWithBed
+import app.transfusionvs.data.Position
 import app.transfusionvs.data.Settings
+import app.transfusionvs.data.SkipReason
+import app.transfusionvs.data.UndoAction
 import app.transfusionvs.schedule.Labels
+import app.transfusionvs.schedule.BedViews
+import app.transfusionvs.schedule.Urgency
+import app.transfusionvs.ui.PRIMARY_TAG
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.MeasureDocumentBlocks
-import app.transfusionvs.ui.components.ReactionBanner
+import app.transfusionvs.ui.components.PositionChange
+import app.transfusionvs.ui.components.Rail
+import app.transfusionvs.ui.components.ReactionBar
+import app.transfusionvs.ui.components.UNDO_BAR_MS
+import app.transfusionvs.ui.components.WardButton
+import app.transfusionvs.ui.components.largeFont
+import app.transfusionvs.ui.components.nightNow
+import app.transfusionvs.ui.components.rememberNight
 import app.transfusionvs.ui.screens.BedChoice
 import app.transfusionvs.ui.screens.ReactionScreen
-import app.transfusionvs.ui.theme.Tvs
-import app.transfusionvs.ui.theme.TvsTheme
-import java.time.ZoneId
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
-import app.transfusionvs.ui.theme.TvsFont
-import app.transfusionvs.ui.components.PositionChange
-import app.transfusionvs.ui.components.ChoiceChip
-import app.transfusionvs.data.SkipReason
-import app.transfusionvs.data.Position
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import app.transfusionvs.ui.theme.TvsTheme
+import app.transfusionvs.ui.theme.Ward
+import app.transfusionvs.ui.theme.WardType
+import java.time.ZoneId
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The alarm screen, shown over the lock screen with the screen turned on and kept on.
  * It lists everything ringing (any bed) and closes itself once all of it is acknowledged.
- * Back is blocked and there is no swipe-to-dismiss.
+ * Back is blocked and there is no swipe-to-dismiss. One tap must never be an accident: see [PocketGuard].
  */
-class AlarmActivity : ComponentActivity() {
+class AlarmActivity : ComponentActivity(), SensorEventListener {
+
+    private val guard = PocketGuard()
+    private var proximity: Sensor? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,15 +106,48 @@ class AlarmActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
         )
-        setContent { TvsTheme { AlarmScreen(onAllDone = { finish() }) } }
+        // The window is already dark from the first frame; settings load off the main thread.
+        lifecycleScope.launch {
+            val settings = withContext(Dispatchers.IO) { app.settings.also { it.setupSeen } }
+            if (nightNow(settings, resources.configuration)) {
+                // At night the alarm must not light up a sleeping child's room more than it has to.
+                window.attributes = window.attributes.apply { screenBrightness = NIGHT_BRIGHTNESS }
+            }
+            setContent {
+                TvsTheme(night = rememberNight(app)) { AlarmScreen(onAllDone = { finish() }) }
+            }
+        }
     }
 
     override fun onResume() {
         super.onResume()
+        guard.onShown(SystemClock.uptimeMillis())
+        val sensors = getSystemService(SensorManager::class.java)
+        proximity = sensors?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+        proximity?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
         // This screen is visible, so it may start the ringing service itself if it isn't running
         // (e.g. it was opened by the fallback notification).
         app.scope.launch { app.engine.syncRinging(canStartService = true) }
     }
+
+    override fun onPause() {
+        getSystemService(SensorManager::class.java)?.unregisterListener(this)
+        guard.covered = false
+        super.onPause()
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (guard.allows(ev.actionMasked, ev.eventTime)) return super.dispatchTouchEvent(ev)
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) Log.i("PocketGuard", if (guard.covered) "touch ignored: covered" else "touch ignored: first second")
+        return true
+    }
+
+    override fun onSensorChanged(event: SensorEvent) {
+        val sensor = proximity ?: return
+        guard.covered = event.values.firstOrNull()?.let { it < sensor.maximumRange } ?: false
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
     private fun showOverLockScreen() {
         if (Build.VERSION.SDK_INT >= 27) {
@@ -110,6 +161,10 @@ class AlarmActivity : ComponentActivity() {
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
+
+    private companion object {
+        const val NIGHT_BRIGHTNESS = 0.2f
+    }
 }
 
 @Composable
@@ -118,6 +173,7 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
     val app = context.app
     val rows by app.db.dao().observeRinging().collectAsStateWithLifecycle(initialValue = null)
     val plans by app.db.turnDao().observeRound().collectAsStateWithLifecycle(initialValue = null)
+    val undo by app.db.wardDao().observeUndo().collectAsStateWithLifecycle(initialValue = null)
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -126,8 +182,19 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
             now = System.currentTimeMillis()
         }
     }
-    // Closes itself once nothing is open: neither a transfusion check nor a turn.
-    LaunchedEffect(rows, plans) { if (rows?.isEmpty() == true && plans?.isEmpty() == true) onAllDone() }
+    val nothingOpen = rows?.isEmpty() == true && plans?.isEmpty() == true
+    val justDone = undo?.firstOrNull()?.takeIf { System.currentTimeMillis() - it.at < UNDO_BAR_MS }
+    // Closes itself once nothing is open, after giving the last action its moment for Undo.
+    LaunchedEffect(nothingOpen, undo == null, justDone?.id) {
+        if (nothingOpen && undo != null) {
+            if (justDone != null) delay(UNDO_BAR_MS - (System.currentTimeMillis() - justDone.at))
+            onAllDone()
+        }
+    }
+    if (nothingOpen) {
+        DoneContent(justDone, onUndo = { id -> app.scope.launch { app.engine.undo(id) } })
+        return
+    }
     AlarmContent(
         rows = rows ?: emptyList(),
         now = now,
@@ -137,11 +204,29 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
         onStopForReaction = { id -> app.scope.launch { app.engine.stopForReaction(id) } },
         round = RoundBuilder.build(plans.orEmpty(), now, ZoneId.systemDefault()),
         onStartRound = { app.scope.launch { app.engine.startRound() } },
+        onAllTurned = { app.scope.launch { app.engine.allTurned() } },
         onTurned = { slotId, position -> app.scope.launch { app.engine.turned(slotId, position) } },
         onCantTurn = { slotId, reason -> app.scope.launch { app.engine.cantTurn(slotId, reason) } },
         onSnoozeRound = { app.scope.launch { app.engine.snooze() } },
         onRemind = { app.scope.launch { app.engine.remindTurns() } },
     )
+}
+
+/** All done: the alarm stays for its last 5 seconds with one big Undo, then closes itself. */
+@Composable
+fun DoneContent(done: UndoAction?, onUndo: (Long) -> Unit) {
+    val c = Ward.c
+    Column(
+        Modifier.fillMaxSize().background(c.alarmBg).safeDrawingPadding().padding(TvsSpace.s16),
+        verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
+    ) {
+        Spacer(Modifier.weight(1f))
+        if (done != null) {
+            Text("✓ ${done.label}", color = c.alarmInk, style = WardType.AlarmTitle)
+            Spacer(Modifier.weight(1f))
+            AlarmSecondary("Undo", { onUndo(done.id) })
+        }
+    }
 }
 
 /** Stateless alarm screen (rendered by the screenshot tests with fake data). */
@@ -155,6 +240,7 @@ fun AlarmContent(
     onStopForReaction: (Long) -> Unit,
     round: RoundUi? = null,
     onStartRound: () -> Unit = {},
+    onAllTurned: () -> Unit = {},
     onTurned: (slotId: Long, Position) -> Unit = { _, _ -> },
     onCantTurn: (slotId: Long, SkipReason) -> Unit = { _, _ -> },
     onSnoozeRound: () -> Unit = {},
@@ -162,15 +248,15 @@ fun AlarmContent(
     /** For screenshots: which beds start with "Other position" / "Can't turn" open. */
     initiallyOpen: Map<Long, RoundChoice> = emptyMap(),
 ) {
+    val c = Ward.c
     var showReaction by rememberSaveable { mutableStateOf(false) }
     // Back never dismisses the alarm (acknowledge or snooze); it only closes the reaction view.
     BackHandler { showReaction = false }
 
-    val list = rows
-    val beds = RingSpec.groupByBed(list)
-    val audible = list.filter { it.snoozeUntil == null || it.snoozeUntil <= now }
+    val beds = RingSpec.groupByBed(rows)
+    val audible = rows.filter { it.snoozeUntil == null || it.snoozeUntil <= now }
     val canSnooze = audible.isNotEmpty() && audible.all { it.snoozeCount < Settings.MAX_SNOOZES }
-    val snoozedUntil = list.mapNotNull { it.snoozeUntil }.filter { it > now }.minOrNull()
+    val snoozedUntil = rows.mapNotNull { it.snoozeUntil }.filter { it > now }.minOrNull()
     val isTest = beds.isNotEmpty() && beds.all { it.isTest }
 
     if (showReaction) {
@@ -182,182 +268,182 @@ fun AlarmContent(
                 showReaction = false
             },
             onBack = { showReaction = false },
-            backLabel = "‹  Back to alarm",
         )
         return
     }
 
-    Box(Modifier.fillMaxSize().background(Tvs.Navy).safeDrawingPadding()) {
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(TvsSpace.s20),
-            verticalArrangement = Arrangement.spacedBy(TvsSpace.s16),
-        ) {
-            if (beds.isNotEmpty()) {
-                TransfusionSection(beds, list, isTest, canSnooze, snoozedUntil, snoozeMin, onAcknowledge, onSnooze)
-            }
-            // Turning round below any transfusion due in the same minute (transfusion first).
-            if (round != null && round.beds.isNotEmpty()) {
-                if (beds.isNotEmpty()) Spacer(Modifier.height(TvsSpace.s8))
-                RoundSection(
-                    round, big = beds.isEmpty(), snoozeMin = snoozeMin, initiallyOpen = initiallyOpen,
-                    onStartRound = onStartRound, onTurned = onTurned, onCantTurn = onCantTurn,
-                    onSnoozeRound = onSnoozeRound, onRemind = onRemind,
-                )
-            }
-            if (beds.isNotEmpty()) {
-                Spacer(Modifier.height(TvsSpace.s8))
-                ReactionBanner(onClick = { showReaction = true })
-            }
+    Column(Modifier.fillMaxSize().background(c.alarmBg).safeDrawingPadding().padding(TvsSpace.s16)) {
+        when {
+            // A transfusion goes first; a round due in the same minute takes over once it is done.
+            beds.isNotEmpty() -> TransfusionAlarm(
+                beds, rows, isTest, canSnooze, snoozedUntil, snoozeMin, round, onAcknowledge, onSnooze,
+                onReaction = { showReaction = true },
+            )
+            round != null && round.beds.isNotEmpty() -> RoundAlarm(
+                round, snoozeMin, initiallyOpen, onStartRound, onAllTurned, onTurned, onCantTurn, onSnoozeRound, onRemind,
+            )
         }
     }
 }
 
 @Composable
-private fun TransfusionSection(
+private fun AlarmPrimary(text: String, onClick: () -> Unit, big: Boolean = true) {
+    val c = Ward.c
+    WardButton(
+        text, onClick, Modifier.fillMaxWidth().testTag(PRIMARY_TAG),
+        fill = c.alarmAction, content = c.alarmOnAction,
+        minHeight = if (big) TvsSize.AckHuge else TvsSize.TouchLarge,
+        style = if (big) WardType.ButtonLarge else WardType.Button,
+    )
+}
+
+@Composable
+private fun AlarmSecondary(text: String, onClick: () -> Unit, modifier: Modifier = Modifier.fillMaxWidth(), style: TextStyle = WardType.Button) {
+    val c = Ward.c
+    WardButton(text, onClick, modifier, fill = c.alarmBg, content = c.alarmInk, edge = c.alarmMuted, style = style)
+}
+
+/** The Snooze slot never vanishes, so a thumb that learned its place can't land on something else. */
+@Composable
+private fun SnoozeSlot(canSnooze: Boolean, snoozedUntil: Long?, snoozeMin: Int, onSnooze: () -> Unit) {
+    val c = Ward.c
+    if (canSnooze) {
+        AlarmSecondary("Snooze $snoozeMin min", onSnooze)
+    } else {
+        Box(
+            Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge).border(TvsSize.Edge, c.alarmEdge, TvsShape.Card).padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s6),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                if (snoozedUntil != null) "Snoozed — rings again at ${Labels.clock(snoozedUntil)}" else "No snoozes left",
+                color = c.alarmInk, style = WardType.BodyBold, textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlarmCaps(icon: Int, text: String) {
+    val c = Ward.c
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(painterResource(icon), contentDescription = null, tint = c.alarmCaps, modifier = Modifier.size(TvsSize.IconSmall))
+        Spacer(Modifier.width(TvsSpace.s8))
+        CapsLabel(text, c.alarmCaps)
+    }
+}
+
+/** Bed and time side by side, big enough to read at arm's length; stacked when they can't fit. */
+@Composable
+private fun KeyNumbers(first: String, second: String, firstStyle: TextStyle = WardType.AlarmKey, secondStyle: TextStyle = WardType.AlarmKey) {
+    val c = Ward.c
+    if (first.length > 6 || largeFont()) {
+        Text(first, color = c.alarmInk, style = firstStyle)
+        Text(second, color = c.alarmInk, style = secondStyle)
+    } else {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(first, color = c.alarmInk, style = firstStyle, modifier = Modifier.weight(1f))
+            Text(second, color = c.alarmInk, style = secondStyle)
+        }
+    }
+}
+
+@Composable
+private fun AlarmSteps() {
+    val c = Ward.c
+    MeasureDocumentBlocks(c.alarmInk, c.alarmEdge, c.alarmStep, c.alarmAction, c.alarmBg)
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
     beds: List<RingBed>,
-    list: List<CheckpointWithBed>,
+    rows: List<CheckpointWithBed>,
     isTest: Boolean,
     canSnooze: Boolean,
     snoozedUntil: Long?,
     snoozeMin: Int,
+    round: RoundUi?,
     onAcknowledge: (List<Long>) -> Unit,
     onSnooze: () -> Unit,
+    onReaction: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s16)) {
-            CapsLabel(if (isTest) "Test alarm" else "Blood transfusion running", Tvs.Amber)
-            Text(
-                when {
-                    beds.isEmpty() -> ""
-                    beds.size == 1 -> beds[0].title
-                    else -> "${beds.size} beds due now"
-                },
-                color = Tvs.White, fontSize = TvsFont.AlarmTitle, lineHeight = TvsFont.AlarmTitleLine, fontWeight = FontWeight.Black,
-            )
-            if (beds.size == 1) {
-                Text(beds[0].subtitle, color = Tvs.OnNavyMuted, fontSize = TvsFont.BodyLarge)
-            }
-
-            MeasureDocumentBlocks()
-
-            if (snoozedUntil != null) {
-                Text(
-                    "Snoozed — rings again at ${Labels.clock(snoozedUntil)}",
-                    color = Tvs.Amber, fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Bold,
-                )
-            }
-
-            if (beds.size == 1) {
-                AckButton("Measured & documented ✓", big = true) { onAcknowledge(beds[0].checkpointIds) }
-            } else {
-                beds.forEach { bed -> BedRow(bed, list) { onAcknowledge(bed.checkpointIds) } }
-            }
-
-            if (canSnooze) {
-                OutlinedButton(
-                    onClick = onSnooze,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
-                    shape = TvsShape.Card,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Tvs.White),
-                ) { Text("Snooze $snoozeMin min", fontSize = TvsFont.Lead, fontWeight = FontWeight.Bold) }
-            }
+    val c = Ward.c
+    Column(
+        Modifier.weight(1f).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
+    ) {
+        AlarmCaps(R.drawable.ic_drop, if (isTest) "Test alarm" else "Blood transfusion running")
+        if (beds.size == 1) {
+            val bed = beds[0]
+            Text(bed.what, color = c.alarmInk, style = WardType.AlarmTitle)
+            val due = rows.filter { it.id in bed.checkpointIds }.minOfOrNull { it.scheduledAt }
+            KeyNumbers(bed.shortLabel, due?.let { Labels.clock(it) } ?: "")
+            val first = rows.firstOrNull { it.id in bed.checkpointIds }
+            if (!isTest && first != null) Rail(BedViews.alarmRail(first.offsetMin, first.plannedDurationMin), Urgency.NOW, height = TvsSize.RailLarge, ink = c.alarmInk, background = c.alarmBg, beadColor = c.alarmAction, onBead = c.alarmOnAction)
+            Text(bed.subtitle, color = c.alarmMuted, style = WardType.Body)
+        } else {
+            Text("${beds.size} beds due now", color = c.alarmInk, style = WardType.AlarmTitle)
+        }
+        AlarmSteps()
+        if (beds.size > 1) beds.forEach { bed -> BedRow(bed, rows) { onAcknowledge(bed.checkpointIds) } }
+        // A round due in the same minute is announced here and takes the screen once this is done.
+        if (round != null && round.beds.isNotEmpty()) {
+            Text("Then: Turning round · ${Labels.clock(round.slotAt)} · ${round.beds.joinToString(", ") { it.bedLabel }}", color = c.alarmInk, style = WardType.Lead)
+        }
+    }
+    Spacer(Modifier.size(TvsSpace.s8))
+    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+        if (beds.size == 1) AlarmPrimary("Measured & documented ✓", { onAcknowledge(beds[0].checkpointIds) })
+        SnoozeSlot(canSnooze, snoozedUntil, snoozeMin, onSnooze)
+        if (!isTest) ReactionBar(onClick = onReaction)
     }
 }
 
 @Composable
 private fun BedRow(bed: RingBed, rows: List<CheckpointWithBed>, onAck: () -> Unit) {
+    val c = Ward.c
     val due = rows.filter { it.id in bed.checkpointIds }.minOfOrNull { it.scheduledAt }
     Column(
-        Modifier.fillMaxWidth().background(Tvs.OnNavyTint, TvsShape.Card).padding(TvsSpace.s14),
-        verticalArrangement = Arrangement.spacedBy(TvsSpace.s10),
+        Modifier.fillMaxWidth().background(c.alarmTint, TvsShape.Card).padding(TvsSpace.s12),
+        verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(TvsSize.Dot).background(Tvs.bedColor(bed.colorIndex), CircleShape))
-            Spacer(Modifier.size(TvsSpace.s10))
-            Column {
-                Text(bed.shortLabel, color = Tvs.White, fontSize = TvsFont.Number, fontWeight = FontWeight.Black)
-                Text(
-                    bed.what + (due?.let { " · due ${Labels.clock(it)}" } ?: ""),
-                    color = Tvs.OnNavyMuted, fontSize = TvsFont.Body,
-                )
-            }
-        }
-        AckButton("✓ ${bed.shortLabel} — measured & documented", big = false, onClick = onAck)
+        KeyNumbers(bed.shortLabel, due?.let { Labels.clock(it) } ?: "", WardType.AlarmKeySmall, WardType.AlarmKeySmall)
+        Text(bed.what, color = c.alarmMuted, style = WardType.Lead)
+        WardButton(
+            "✓ ${bed.shortLabel} — measured & documented", onAck, Modifier.fillMaxWidth(),
+            fill = c.alarmAction, content = c.alarmOnAction, style = WardType.ButtonSmall,
+        )
     }
 }
 
+/**
+ * One alarm for every bed due on this slot. "Start round" stops the sound, then one tap finishes the
+ * whole round as suggested; only exceptions need more.
+ */
 @Composable
-private fun AckButton(text: String, big: Boolean, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().heightIn(min = if (big) TvsSize.AckHuge else TvsSize.TouchLarge),
-        shape = TvsShape.Card,
-        colors = ButtonDefaults.buttonColors(containerColor = Tvs.Amber, contentColor = Tvs.Navy),
-    ) {
-        Text(text, fontSize = if (big) TvsFont.Title else TvsFont.Lead, fontWeight = FontWeight.Black)
-    }
-}
-
-/** "Turning round · 10:00 · 4 beds": one alarm for every bed due on this slot. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun RoundSection(
+private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
     round: RoundUi,
-    big: Boolean,
     snoozeMin: Int,
     initiallyOpen: Map<Long, RoundChoice>,
     onStartRound: () -> Unit,
+    onAllTurned: () -> Unit,
     onTurned: (Long, Position) -> Unit,
     onCantTurn: (Long, SkipReason) -> Unit,
     onSnoozeRound: () -> Unit,
     onRemind: () -> Unit,
 ) {
+    val c = Ward.c
     val open = remember { mutableStateMapOf<Long, RoundChoice>().apply { putAll(initiallyOpen) } }
-    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s16)) {
-        CapsLabel("Repositioning round", Tvs.Amber)
-        Text(
-            "Turning round · ${Labels.clock(round.slotAt)} · ${round.beds.size} bed${if (round.beds.size > 1) "s" else ""}",
-            color = Tvs.White,
-            fontSize = if (big) TvsFont.AlarmTitle else TvsFont.Title,
-            lineHeight = if (big) TvsFont.AlarmTitleLine else TvsFont.TitleLine,
-            fontWeight = FontWeight.Black,
-        )
-        Text("Check pressure points: occiput · ears · sacrum · heels", color = Tvs.OnNavyMuted, fontSize = TvsFont.BodyLarge)
-
-        if (round.snoozedUntil != null) {
-            Text(
-                "Snoozed — rings again at ${Labels.clock(round.snoozedUntil)}",
-                color = Tvs.Amber, fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Bold,
-            )
-        }
-
-        if (!round.started) {
-            // Before "Start round": who and what, then one big button that stops the sound.
-            round.beds.forEach { bed ->
-                // Same layout and sizes as a transfusion bed row: bed on one line, the turn below.
-                Column(
-                    Modifier.fillMaxWidth().background(Tvs.OnNavyTint, TvsShape.Card).padding(TvsSpace.s14),
-                    verticalArrangement = Arrangement.spacedBy(TvsSpace.s6),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(TvsSize.Dot).background(Tvs.bedColor(bed.colorIndex), CircleShape))
-                        Spacer(Modifier.size(TvsSpace.s10))
-                        Text(bed.bedLabel, color = Tvs.White, fontSize = TvsFont.Number, fontWeight = FontWeight.Black)
-                    }
-                    PositionChange(bed.from, bed.suggested, Tvs.White)
-                }
-            }
-            AckButton("Start round", big = true, onClick = onStartRound)
-            if (round.canSnooze && big) { // next to a transfusion, its Snooze above covers everything
-                OutlinedButton(
-                    onClick = onSnoozeRound,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
-                    shape = TvsShape.Card,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Tvs.White),
-                ) { Text("Snooze $snoozeMin min", fontSize = TvsFont.Lead, fontWeight = FontWeight.Bold) }
-            }
-        } else {
-            // The checklist: one row per bed.
-            round.beds.forEach { bed ->
+    val count = "${round.beds.size} bed${if (round.beds.size > 1) "s" else ""}"
+    Column(
+        Modifier.weight(1f).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(TvsSpace.s10),
+    ) {
+        AlarmCaps(R.drawable.ic_turn, "Repositioning round")
+        Text("Turning round", color = c.alarmInk, style = WardType.AlarmTitle)
+        KeyNumbers(Labels.clock(round.slotAt), count, WardType.AlarmKey, WardType.AlarmTitle)
+        Text("Check pressure points: occiput · ears · sacrum · heels", color = c.alarmMuted, style = WardType.Body)
+        round.beds.forEach { bed ->
+            if (round.started) {
                 RoundBedRow(
                     bed = bed,
                     open = open[bed.slotId],
@@ -365,20 +451,30 @@ private fun RoundSection(
                     onTurned = { p -> onTurned(bed.slotId, p) },
                     onCantTurn = { r -> onCantTurn(bed.slotId, r) },
                 )
+            } else {
+                Column(
+                    Modifier.fillMaxWidth().background(c.alarmTint, TvsShape.Control).padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s8),
+                    verticalArrangement = Arrangement.spacedBy(TvsSpace.s2),
+                ) {
+                    Text(bed.bedLabel, color = c.alarmInk, style = WardType.CardBed)
+                    PositionChange(bed.from, bed.suggested, c.alarmInk)
+                }
             }
-            if (round.canRemind) {
-                OutlinedButton(
-                    onClick = onRemind,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
-                    shape = TvsShape.Card,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Tvs.White),
-                ) { Text("Remind me in 30 min", fontSize = TvsFont.Lead, fontWeight = FontWeight.Bold) }
-            }
+        }
+    }
+    Spacer(Modifier.size(TvsSpace.s8))
+    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+        if (round.started) {
+            AlarmPrimary("All turned as suggested ✓", onAllTurned)
+            if (round.canRemind) AlarmSecondary("Remind me in 30 min", onRemind)
+        } else {
+            AlarmPrimary("Start round", onStartRound)
+            SnoozeSlot(round.canSnooze, round.snoozedUntil, snoozeMin, onSnoozeRound)
         }
     }
 }
 
-/** Mirrors the transfusion bed row: bed, the turn to make, one big ✓, and two secondary actions. */
+/** One bed on the started round: the turn to make, its own ✓, and the two exceptions. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RoundBedRow(
@@ -388,29 +484,32 @@ private fun RoundBedRow(
     onTurned: (Position) -> Unit,
     onCantTurn: (SkipReason) -> Unit,
 ) {
+    val c = Ward.c
     Column(
-        Modifier.fillMaxWidth().background(Tvs.OnNavyTint, TvsShape.Card).padding(TvsSpace.s14),
-        verticalArrangement = Arrangement.spacedBy(TvsSpace.s10),
+        Modifier.fillMaxWidth().background(c.alarmTint, TvsShape.Card).padding(TvsSpace.s12),
+        verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(TvsSize.Dot).background(Tvs.bedColor(bed.colorIndex), CircleShape))
-            Spacer(Modifier.size(TvsSpace.s10))
-            Text(bed.bedLabel, color = Tvs.White, fontSize = TvsFont.Number, fontWeight = FontWeight.Black)
+        Text(bed.bedLabel, color = c.alarmInk, style = WardType.CardBed)
+        PositionChange(bed.from, bed.suggested, c.alarmInk)
+        AlarmSecondary("✓ Turned to ${bed.suggested.label}", { onTurned(bed.suggested) }, style = WardType.ButtonSmall)
+        val stacked = largeFont()
+        @Composable
+        fun choice(choice: RoundChoice, label: String, modifier: Modifier) {
+            val on = open == choice
+            WardButton(
+                label, { onOpen(choice) }, modifier,
+                fill = if (on) c.alarmInk else c.alarmBg,
+                content = if (on) c.alarmBg else c.alarmInk,
+                edge = c.alarmMuted, style = WardType.BodyBold, shape = TvsShape.Control,
+            )
         }
-        PositionChange(bed.from, bed.suggested, Tvs.White)
-        AckButton("✓ Turned to ${bed.suggested.label}", big = false, onClick = { onTurned(bed.suggested) })
-        Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-            listOf(RoundChoice.OTHER_POSITION to "Other position", RoundChoice.CANT_TURN to "Can't turn").forEach { (choice, label) ->
-                OutlinedButton(
-                    onClick = { onOpen(choice) },
-                    modifier = Modifier.weight(1f).heightIn(min = TvsSize.Touch),
-                    contentPadding = PaddingValues(horizontal = TvsSpace.s8),
-                    shape = TvsShape.Control,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (open == choice) Tvs.White else Tvs.Navy,
-                        contentColor = if (open == choice) Tvs.Navy else Tvs.White,
-                    ),
-                ) { Text(label, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold) }
+        if (stacked) {
+            choice(RoundChoice.OTHER_POSITION, "Other position", Modifier.fillMaxWidth())
+            choice(RoundChoice.CANT_TURN, "Can't turn", Modifier.fillMaxWidth())
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                choice(RoundChoice.OTHER_POSITION, "Other position", Modifier.weight(1f))
+                choice(RoundChoice.CANT_TURN, "Can't turn", Modifier.weight(1f))
             }
         }
         when (open) {
@@ -419,15 +518,23 @@ private fun RoundBedRow(
                 verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
             ) {
                 // Neither the suggestion (that is the big button) nor where the patient already lies.
-                bed.allowed.filter { it != bed.suggested && it != bed.from }.forEach { p -> ChoiceChip(p.label, false, { onTurned(p) }) }
+                bed.allowed.filter { it != bed.suggested && it != bed.from }.forEach { p ->
+                    AlarmChip(p.label) { onTurned(p) }
+                }
             }
             RoundChoice.CANT_TURN -> FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8),
                 verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
             ) {
-                SkipReason.entries.forEach { r -> ChoiceChip(r.label, false, { onCantTurn(r) }) }
+                SkipReason.entries.forEach { r -> AlarmChip(r.label) { onCantTurn(r) } }
             }
             null -> Unit
         }
     }
+}
+
+@Composable
+private fun AlarmChip(text: String, onClick: () -> Unit) {
+    val c = Ward.c
+    WardButton(text, onClick, fill = c.alarmInk, content = c.alarmBg, style = WardType.BodyBold, shape = TvsShape.Control)
 }

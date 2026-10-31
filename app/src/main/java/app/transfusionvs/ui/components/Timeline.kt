@@ -10,111 +10,89 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import app.transfusionvs.schedule.DotStyle
 import app.transfusionvs.schedule.Labels
 import app.transfusionvs.schedule.TimelinePoint
-import app.transfusionvs.ui.theme.TimeFigures
-import app.transfusionvs.ui.theme.Tvs
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
-import app.transfusionvs.ui.theme.TvsFont
+import app.transfusionvs.ui.theme.Ward
+import app.transfusionvs.ui.theme.WardType
 
 /**
- * The card's "TIME FROM START" row: label (0 / 15 min / … / End) over a dot on the line,
- * over a time chip. Scrolls sideways when a transfusion runs long.
- * [compact] is the mini version used on Home cards.
+ * The card's "TIME FROM START" row: label (0 / 15 min / … / End) over a dot on the line, over a time
+ * chip. Scrolls sideways when a transfusion runs long.
  */
 @Composable
-fun CardTimeline(points: List<TimelinePoint>, modifier: Modifier = Modifier, compact: Boolean = false) {
-    val columnWidth = if (compact) TvsSize.TimelineColumnCompact else TvsSize.TimelineColumn
-    val dotSize = if (compact) TvsSize.DotCompact else TvsSize.TimelineDot
+fun CardTimeline(points: List<TimelinePoint>, modifier: Modifier = Modifier) {
+    val c = Ward.c
     Row(modifier.horizontalScroll(rememberScrollState())) {
         points.forEachIndexed { i, p ->
-            Column(Modifier.width(columnWidth), horizontalAlignment = Alignment.CenterHorizontally) {
-                TimelineLabel(p, compact)
+            Column(Modifier.widthIn(min = TvsSize.TimelineColumn), horizontalAlignment = Alignment.CenterHorizontally) {
+                TimelineLabel(p)
                 Box(
-                    Modifier.fillMaxWidth().height(dotSize + TvsSpace.s8).drawBehind {
+                    Modifier.fillMaxWidth().height(TvsSize.TimelineDot + TvsSpace.s8).drawBehind {
                         val y = size.height / 2
                         val startX = if (i == 0) size.width / 2 else 0f
                         val endX = if (i == points.lastIndex) size.width / 2 else size.width
-                        if (endX > startX) {
-                            drawLine(Tvs.Navy, Offset(startX, y), Offset(endX, y), strokeWidth = TvsSize.Stroke.toPx())
-                        }
+                        if (endX > startX) drawLine(c.ink, Offset(startX, y), Offset(endX, y), strokeWidth = TvsSize.EdgeStrong.toPx())
                     },
                     contentAlignment = Alignment.Center,
-                ) { Dot(p.dot, dotSize) }
-                TimeChip(Labels.clock(p.time), p.filledChip, compact)
+                ) { Dot(p.dot) }
+                TimeChip(Labels.clock(p.time), p.filledChip)
             }
         }
     }
 }
 
 @Composable
-private fun TimelineLabel(p: TimelinePoint, compact: Boolean) {
+private fun TimelineLabel(p: TimelinePoint) {
+    val c = Ward.c
     if (p.position != null) {
         // Repositioning: the position icon takes the number's place (same height).
-        PositionIcon(p.position, Tvs.Navy, if (compact) TvsSize.IconSmall else TvsSize.IconTimeline)
+        PositionIcon(p.position, c.ink, TvsSize.IconMedium)
         return
     }
-    Row(verticalAlignment = Alignment.Bottom) {
-        Text(
-            p.number,
-            style = TimeFigures,
-            color = Tvs.Navy,
-            fontSize = if (compact) TvsFont.Caption else TvsFont.Number,
-            fontWeight = FontWeight.Black,
-        )
-        if (p.unit != null) {
-            Text(
-                " ${p.unit}",
-                color = Tvs.Navy,
-                fontSize = if (compact) TvsFont.Micro else TvsFont.Tiny,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = if (compact) TvsSpace.s2 else TvsSpace.s3),
-            )
-        }
-    }
+    Text(if (p.unit != null) "${p.number} ${p.unit}" else p.number, color = c.ink, style = WardType.BodyBold)
 }
 
 @Composable
-private fun Dot(style: DotStyle, size: androidx.compose.ui.unit.Dp) {
-    val base = Modifier.size(size)
+private fun Dot(style: DotStyle) {
+    val c = Ward.c
+    val base = Modifier.size(TvsSize.TimelineDot)
     when (style) {
-        DotStyle.FILLED -> Box(base.background(Tvs.Navy, CircleShape))
-        DotStyle.OVERDUE -> Box(base.background(Tvs.Red, CircleShape))
-        DotStyle.HOLLOW -> Box(base.background(Tvs.White, CircleShape).border(TvsSize.Stroke, Tvs.Navy, CircleShape))
+        DotStyle.FILLED -> Box(base.background(c.ink, CircleShape))
+        DotStyle.OVERDUE -> Box(base.semantics { contentDescription = "Overdue" }.background(c.overdue, TvsShape.Pill))
+        DotStyle.HOLLOW -> Box(
+            base.background(c.card, CircleShape).drawBehind {
+                drawCircle(c.ink, size.minDimension / 2 - TvsSize.EdgeStrong.toPx() / 2, style = Stroke(TvsSize.EdgeStrong.toPx()))
+            },
+        )
     }
 }
 
-/** Navy-filled for start and hourly; outlined for 15 min, 30 min and End. */
+/** Filled for start and hourly; outlined for 15 min, 30 min and End, as on the card. */
 @Composable
-fun TimeChip(text: String, filled: Boolean, compact: Boolean = false) {
-    val shape = if (compact) TvsShape.ChipCompact else TvsShape.Chip
-    val modifier = if (filled) {
-        Modifier.background(Tvs.Navy, shape)
-    } else {
-        Modifier.background(Tvs.White, shape).border(TvsSize.Border, Tvs.Outline, shape)
-    }
+fun TimeChip(text: String, filled: Boolean) {
+    val c = Ward.c
+    val shape = TvsShape.Pill
+    val modifier = if (filled) Modifier.background(c.primary, shape) else Modifier.background(c.card, shape).border(TvsSize.Edge, c.muted, shape)
     Text(
         text,
-        modifier = modifier.padding(horizontal = if (compact) TvsSpace.s4 else TvsSpace.s5, vertical = if (compact) TvsSpace.s3 else TvsSpace.s5),
-        style = TimeFigures,
-        color = if (filled) Tvs.White else Tvs.Navy,
-        fontSize = if (compact) TvsFont.Tiny else TvsFont.Label,
-        fontWeight = FontWeight.Black,
+        modifier = modifier.padding(horizontal = TvsSpace.s6, vertical = TvsSpace.s2),
+        style = WardType.BodyBold,
+        color = if (filled) c.onPrimary else c.ink,
     )
 }

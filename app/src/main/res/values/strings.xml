@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">A S</string>
+    <string name="shortcut_transfusion">Start transfusion</string>
+    <string name="shortcut_turning">Start turning</string>
+    <string name="widget_label">Beds: next checks</string>
+    <string name="widget_empty">No beds running</string>
+    <string name="widget_done">Done ✓</string>
 </resources>

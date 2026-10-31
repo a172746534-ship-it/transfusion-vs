@@ -1,6 +1,17 @@
 package app.transfusionvs.screenshots
 
 import android.content.Intent
+import android.widget.FrameLayout
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
+import app.transfusionvs.alarm.DoneContent
+import app.transfusionvs.data.UndoAction
+import app.transfusionvs.schedule.BedViews
+import app.transfusionvs.ui.components.UndoBar
+import app.transfusionvs.widget.BedsWidget
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
@@ -18,7 +29,6 @@ import app.transfusionvs.setup.CheckItem
 import app.transfusionvs.setup.OemGuide
 import app.transfusionvs.setup.OemStep
 import app.transfusionvs.ui.screens.BedChoice
-import app.transfusionvs.ui.screens.ChooserContent
 import app.transfusionvs.ui.screens.DetailContent
 import app.transfusionvs.ui.screens.HomeContent
 import app.transfusionvs.ui.screens.ReactionScreen
@@ -62,18 +72,19 @@ class AuditScreenshots {
 
     private val record = RoborazziOptions(taskType = RoborazziTaskType.Record)
 
-    private fun variant(tag: String, name: String, qualifiers: String, font: Float, content: @Composable () -> Unit) {
+    private fun variant(tag: String, name: String, qualifiers: String, font: Float, night: Boolean = false, content: @Composable () -> Unit) {
         RuntimeEnvironment.setQualifiers(qualifiers)
         captureRoboImage("build/audit/${name}__$tag.png", roborazziOptions = record) {
             val d = LocalDensity.current
-            CompositionLocalProvider(LocalDensity provides Density(d.density, font)) { TvsTheme { content() } }
+            CompositionLocalProvider(LocalDensity provides Density(d.density, font)) { TvsTheme(night = night) { content() } }
         }
     }
 
     private fun shots(name: String, content: @Composable () -> Unit) {
-        variant("w360_f10", name, "w360dp-h800dp-xxhdpi", 1f, content)
-        variant("w360_f20", name, "w360dp-h2600dp-xxhdpi", 2f, content)
-        variant("w412_f10", name, "w412dp-h915dp-xxhdpi", 1f, content)
+        variant("w360_f10", name, "w360dp-h800dp-xxhdpi", 1f, content = content)
+        variant("w360_f20", name, "w360dp-h2600dp-xxhdpi", 2f, content = content)
+        variant("w412_f10", name, "w412dp-h915dp-xxhdpi", 1f, content = content)
+        variant("w412_f10_night", name, "w412dp-h915dp-xxhdpi", 1f, night = true, content = content)
     }
 
     private val noop: () -> Unit = {}
@@ -90,7 +101,7 @@ class AuditScreenshots {
         problems: Int = 0,
     ) = HomeContent(
         home = tx, turns = turns, ringing = ringing, setupProblems = problems, now = Fakes.now,
-        onStart = noop, onOpen = {}, onOpenTurnPlan = {}, onReaction = noop, onSetup = noop, onSettings = noop, onOpenAlarm = noop, onAcknowledge = {},
+        onStartTransfusion = noop, onStartTurning = noop, onOpen = {}, onOpenTurnPlan = {}, onReaction = noop, onSetup = noop, onSettings = noop, onOpenAlarm = noop, onAcknowledge = {},
     )
 
     private fun ringingBed(): TransfusionWithCheckpoints = Fakes.bed14.copy(
@@ -121,13 +132,11 @@ class AuditScreenshots {
     @Test fun home_stopped_reaction() = shots("home_stopped_reaction") { Home(tx = listOf(ended(TransfusionStatus.STOPPED_REACTION))) }
     @Test fun home_20_beds() = shots("home_20beds") { Home(tx = many) }
 
-    @Test fun chooser() = shots("chooser") { ChooserContent(onTransfusion = noop, onRepositioning = noop, onBack = noop) }
-
     @Test fun start_empty() = shots("start_empty") {
-        StartContent(editing = null, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop)
+        StartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop)
     }
     @Test fun start_edit() = shots("start_edit") {
-        StartContent(editing = Fakes.bed12.transfusion, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop)
+        StartContent(editing = Fakes.bed12.transfusion, beds = Fakes.wardBeds, busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop)
     }
 
     @Composable
@@ -176,10 +185,10 @@ class AuditScreenshots {
     @Test fun reaction_20_beds() = shots("reaction_20beds") { ReactionScreen(beds = bedsChoice, onStopped = {}, onBack = noop) }
 
     @Test fun turn_start() = shots("turn_start") {
-        TurnStartContent(editing = null, defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop)
+        TurnStartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop)
     }
     @Test fun turn_edit() = shots("turn_edit") {
-        TurnStartContent(editing = TurnFakes.isolation.plan, defaultIntervalMin = 120, openedAt = Fakes.now, onSubmit = {}, onBack = noop)
+        TurnStartContent(editing = TurnFakes.isolation.plan, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.now, onSubmit = {}, onBack = noop)
     }
 
     @Composable
@@ -218,13 +227,36 @@ class AuditScreenshots {
 
     /** System language Arabic: English UI, Latin digits, and does the layout flip right-to-left? */
     @Test fun arabic_phone() {
-        variant("w360_f10_ar", "home_both_features", "ar-rEG-w360dp-h800dp-xxhdpi", 1f) { Home(tx = Fakes.home, turns = TurnFakes.home) }
-        variant("w360_f10_ar", "alarm_1bed", "ar-rEG-w360dp-h800dp-xxhdpi", 1f) { Alarm(listOf(Fakes.ringing(Fakes.bed14, CheckpointType.M15, 15))) }
+        variant("w360_f10_ar", "home_both_features", "ar-rEG-w360dp-h800dp-xxhdpi", 1f, content = { Home(tx = Fakes.home, turns = TurnFakes.home) })
+        variant("w360_f10_ar", "alarm_1bed", "ar-rEG-w360dp-h800dp-xxhdpi", 1f, content = { Alarm(listOf(Fakes.ringing(Fakes.bed14, CheckpointType.M15, 15))) })
     }
 
-    /** The app has no dark theme: the night qualifier must look identical. Kept as proof. */
-    @Test fun dark_system_setting() {
-        variant("w360_f10_night", "home_both_features", "w360dp-h800dp-night-xxhdpi", 1f) { Home(tx = Fakes.home, turns = TurnFakes.home) }
-        variant("w360_f10_night", "alarm_1bed", "w360dp-h800dp-night-xxhdpi", 1f) { Alarm(listOf(Fakes.ringing(Fakes.bed14, CheckpointType.M15, 15))) }
+    /** Six beds at once, every urgency: what task 1 must show without a scroll. */
+    @Test fun home_six_beds() = shots("home_6beds") { Home(tx = Fakes.sixBeds(), turns = emptyList(), problems = 0) }
+    @Test fun home_only_turning() = shots("home_only_turning") { Home(turns = listOf(TurnFakes.bed3)) }
+    @Test fun start_bed_picked() = shots("start_bed_picked") {
+        StartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop, initialBed = "Bed 5")
+    }
+    @Test fun turn_start_bed_picked() = shots("turn_start_bed_picked") {
+        TurnStartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initialBed = "Bed 6")
+    }
+    @Test fun turn_start_options() = shots("turn_start_options") {
+        TurnStartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initialBed = "Bed 6", initiallyExpanded = true)
+    }
+    @Test fun alarm_done_undo() = shots("alarm_done_undo") {
+        DoneContent(UndoAction(id = 1, ownerKey = "T2", label = "Bed 14 · 15-min check done", at = Fakes.now, expiresAt = Fakes.now + 300_000, snapshot = ""), onUndo = {})
+    }
+    @Test fun undo_bar_on_home() = shots("undo_bar_on_home") {
+        Box(Modifier.fillMaxSize()) {
+            Home(tx = Fakes.home)
+            UndoBar(
+                UndoAction(id = 1, ownerKey = "T2", label = "Bed 5 · transfusion started", at = Fakes.now, expiresAt = Fakes.now + 300_000, snapshot = ""),
+                onUndo = {}, modifier = Modifier.align(Alignment.BottomCenter), clockNow = Fakes.now,
+            )
+        }
+    }
+    @Test fun widget() = shots("widget") {
+        val beds = Fakes.home.map { BedViews.of(it, Fakes.now) } + TurnFakes.home.map { BedViews.of(it, Fakes.now, 10) }
+        AndroidView(factory = { ctx -> BedsWidget.build(ctx, BedViews.sorted(beds), Fakes.now).apply(ctx, FrameLayout(ctx)) })
     }
 }

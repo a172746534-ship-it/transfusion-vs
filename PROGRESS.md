@@ -47,3 +47,9 @@ Read this first after any restart, then docs/DESIGN_OVERHAUL.md and docs/TEST_LO
   `min_time_to_alarm` to prove an alarm set before Doze rings during Doze.
 - Monkey uses --ignore-crashes/--ignore-timeouts so another app's ANR doesn't end the run; this app's
   crashes and ANRs are still counted from the log and must be zero.
+
+## Maintainer's decisions on 2026-10-31 (Phase 2 stop answered)
+- Direction: **Ward Card**, on its own. Overdue keeps Ward Card's red diamond (no octagon from Halo).
+- The reaction guide belongs to transfusions only: it does not appear on repositioning screens or on a
+  round-only alarm. This overrides "2 touches from anywhere" for those screens, and F41 is withdrawn.
+  A reviewer finding that asks for it there is out of scope, and the rubric says so.

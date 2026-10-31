@@ -16,15 +16,20 @@ import app.transfusionvs.data.TransfusionStatus
 import app.transfusionvs.data.TurnDao
 import app.transfusionvs.data.TurnPlan
 import app.transfusionvs.data.TurnPlanStatus
+import app.transfusionvs.data.TurnSlotStatus
 import app.transfusionvs.data.TvsDao
+import app.transfusionvs.data.UndoAction
+import app.transfusionvs.data.WardDao
 import app.transfusionvs.schedule.ArmPlanner
 import app.transfusionvs.schedule.Grouping
 import app.transfusionvs.schedule.MINUTE_MS
 import app.transfusionvs.schedule.Reconciler
 import app.transfusionvs.schedule.ScheduleCalculator
 import app.transfusionvs.schedule.ScheduleConfig
+import app.transfusionvs.schedule.Labels
 import app.transfusionvs.schedule.TurnGrid
 import app.transfusionvs.ui.screens.TurnPlanDraft
+import app.transfusionvs.widget.BedsWidget
 import java.time.ZoneId
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -42,6 +47,7 @@ class Engine(
     private val context: Context,
     private val dao: TvsDao,
     private val turnDao: TurnDao,
+    private val wardDao: WardDao,
     private val settings: Settings,
     private val scheduler: AlarmScheduler,
 ) {
@@ -74,8 +80,10 @@ class Engine(
     suspend fun acknowledge(ids: List<Long>) {
         if (ids.isEmpty()) return
         val now = now()
+        var confirmed = false
         mutex.withLock {
-            val changed = dao.checkpoints(ids).mapNotNull { c ->
+            val before = dao.checkpoints(ids)
+            val changed = before.mapNotNull { c ->
                 when {
                     c.status == RINGING -> c.copy(status = ACKED, ackAt = now, snoozeUntil = null)
                     c.status == MISSED && c.ackAt == null -> c.copy(ackAt = now)
@@ -83,12 +91,92 @@ class Engine(
                     else -> null
                 }
             }
+            confirmed = changed.isNotEmpty()
+            recordAckUndoLocked(before, changed, now)
             dao.updateCheckpoints(changed)
             changed.forEach { scheduler.cancel(it.id) }
             closeFinishedTestsLocked(now)
         }
+        if (confirmed) Haptics.confirmed(context)
         syncRinging(canStartService = false)
         syncOverdue()
+    }
+
+    /** One entry per bed, so "Undo last" on a card only touches that bed. Test alarms have nothing to undo. */
+    private suspend fun recordAckUndoLocked(before: List<Checkpoint>, changed: List<Checkpoint>, now: Long) {
+        for ((transfusionId, rows) in changed.groupBy { it.transfusionId }) {
+            val t = dao.transfusion(transfusionId) ?: continue
+            if (t.isTest) continue
+            val ids = rows.map { it.id }.toSet()
+            val what = rows.joinToString(" + ") { Labels.title(it.type, it.offsetMin) }
+            recordUndoLocked(
+                UndoAction.transfusion(transfusionId), "${t.bedLabel} · $what done", now,
+                before.filter { it.id in ids }.map { UndoStep.of(it) },
+            )
+        }
+    }
+
+    private suspend fun recordUndoLocked(ownerKey: String, label: String, now: Long, steps: List<UndoStep>) {
+        if (steps.isEmpty()) return
+        wardDao.insertUndo(UndoAction(ownerKey = ownerKey, label = label, at = now, expiresAt = now + UNDO_MS, snapshot = UndoCodec.encode(steps)))
+    }
+
+    /** Puts back exactly what the action changed. A whole round goes back together. */
+    suspend fun undo(id: Long) {
+        val now = now()
+        mutex.withLock {
+            val action = wardDao.undo(id) ?: return@withLock
+            if (action.expiresAt > now) {
+                UndoCodec.decode(action.snapshot).forEach { applyUndoLocked(it) }
+            }
+            when (action.ownerKey) {
+                // The per-bed entries of a round undone as a whole are spent too, and so is the whole
+                // once one of its beds went back.
+                UndoAction.ROUND -> wardDao.deleteAllUndoAt(action.at)
+                else -> {
+                    wardDao.deleteUndo(id)
+                    wardDao.deleteUndoAt(action.at, UndoAction.ROUND)
+                }
+            }
+        }
+        update(canStartService = true)
+    }
+
+    private suspend fun applyUndoLocked(step: UndoStep) {
+        when (step) {
+            is UndoStep.RestoreCheckpoint -> dao.checkpoints(listOf(step.id)).firstOrNull()?.let {
+                dao.updateCheckpoints(
+                    listOf(it.copy(status = step.status, firedAt = step.firedAt, ackAt = step.ackAt, snoozeCount = step.snoozeCount, snoozeUntil = step.snoozeUntil)),
+                )
+            }
+            is UndoStep.RestoreSlot -> turnDao.slots(listOf(step.id)).firstOrNull()?.let {
+                turnDao.updateSlots(
+                    listOf(
+                        it.copy(
+                            status = step.status, firedAt = step.firedAt, ackAt = step.ackAt, positionFrom = step.positionFrom,
+                            positionTo = step.positionTo, skipReason = step.skipReason, snoozeCount = step.snoozeCount,
+                            snoozeUntil = step.snoozeUntil, silenced = step.silenced, remindAt = step.remindAt,
+                        ),
+                    ),
+                )
+            }
+            is UndoStep.RestoreTransfusion -> dao.transfusion(step.id)?.let { dao.updateTransfusion(it.copy(status = step.status, endAt = step.endAt)) }
+            is UndoStep.RestorePlan -> turnDao.plan(step.id)?.let {
+                turnDao.updatePlan(it.copy(status = step.status, stopAt = step.stopAt, currentPosition = step.current))
+            }
+            is UndoStep.DeleteCheckpoint -> {
+                scheduler.cancel(step.id)
+                dao.deleteCheckpoints(listOf(step.id))
+            }
+            is UndoStep.DeleteTransfusion -> {
+                dao.checkpointsFor(step.id).forEach { scheduler.cancel(it.id) }
+                dao.deleteTransfusion(step.id)
+            }
+            is UndoStep.DeletePlan -> {
+                turns.cancelOpen(step.id, includeRinging = true)
+                turnDao.deletePlan(step.id)
+            }
+        }
     }
 
     /** Snoozes everything that is sounding. Not offered once any of it reached the max snoozes. */
@@ -113,13 +201,14 @@ class Engine(
         mutex.withLock {
             val used = (dao.runningColors() + turnDao.runningColors()).toSet()
             val color = (0 until BED_COLOR_COUNT).firstOrNull { it !in used } ?: (used.size % BED_COLOR_COUNT)
-            turnDao.insertPlan(
+            val id = turnDao.insertPlan(
                 TurnPlan(
                     bedLabel = draft.bedLabel.trim(), colorIndex = color, intervalMin = draft.intervalMin,
                     startAt = now, firstSlotAt = draft.firstSlotAt, stopAt = draft.stopAt,
                     rotation = Position.toCsv(draft.rotation), currentPosition = draft.current,
                 ),
             )
+            recordUndoLocked(UndoAction.plan(id), "${draft.bedLabel.trim()} · turning started", now, listOf(UndoStep.DeletePlan(id)))
         }
         update(canStartService = true)
     }
@@ -145,7 +234,13 @@ class Engine(
 
     suspend fun stopTurnPlan(id: Long) {
         val now = now()
-        mutex.withLock { turns.stop(id, now) }
+        mutex.withLock {
+            turnDao.plan(id)?.let { p ->
+                val ringing = turnDao.slotsFor(id).filter { it.status == TurnSlotStatus.RINGING }
+                recordUndoLocked(UndoAction.plan(id), "${p.bedLabel} · turning stopped", now, listOf(UndoStep.of(p)) + ringing.map { UndoStep.of(it) })
+            }
+            turns.stop(id, now)
+        }
         update(canStartService = true)
     }
 
@@ -178,16 +273,57 @@ class Engine(
 
     suspend fun turned(slotId: Long, position: Position) {
         val now = now()
-        mutex.withLock { turns.turned(slotId, position, now) }
+        mutex.withLock {
+            recordTurnUndoLocked(slotId, now) { "$it · turned to ${position.label}" }
+            turns.turned(slotId, position, now)
+        }
+        Haptics.confirmed(context)
         syncRinging(canStartService = false)
         syncOverdue()
     }
 
     suspend fun cantTurn(slotId: Long, reason: SkipReason) {
         val now = now()
-        mutex.withLock { turns.cantTurn(slotId, reason, now) }
+        mutex.withLock {
+            recordTurnUndoLocked(slotId, now) { "$it · can't turn: ${reason.label}" }
+            turns.cantTurn(slotId, reason, now)
+        }
+        Haptics.confirmed(context)
         syncRinging(canStartService = false)
         syncOverdue()
+    }
+
+    /** "All turned as suggested ✓": each open bed moves to its suggested position, in one tap. */
+    suspend fun allTurned() {
+        val now = now()
+        mutex.withLock {
+            val round = RoundBuilder.build(turnDao.round(), now, ZoneId.systemDefault()) ?: return@withLock
+            val all = mutableListOf<UndoStep>()
+            for (bed in round.beds) {
+                val steps = turnStepsLocked(bed.slotId)
+                all += steps
+                recordUndoLocked(UndoAction.plan(bed.planId), "${bed.bedLabel} · turned to ${bed.suggested.label}", now, steps)
+                turns.turned(bed.slotId, bed.suggested, now)
+            }
+            if (round.beds.size > 1) {
+                recordUndoLocked(UndoAction.ROUND, "${round.beds.size} beds turned as suggested", now, all)
+            }
+        }
+        Haptics.confirmed(context)
+        syncRinging(canStartService = false)
+        syncOverdue()
+    }
+
+    private suspend fun turnStepsLocked(slotId: Long): List<UndoStep> {
+        val slot = turnDao.slots(listOf(slotId)).firstOrNull() ?: return emptyList()
+        val plan = turnDao.plan(slot.planId) ?: return emptyList()
+        return listOf(UndoStep.of(slot), UndoStep.of(plan))
+    }
+
+    private suspend fun recordTurnUndoLocked(slotId: Long, now: Long, label: (bed: String) -> String) {
+        val slot = turnDao.slots(listOf(slotId)).firstOrNull()?.takeIf { it.status == TurnSlotStatus.RINGING } ?: return
+        val plan = turnDao.plan(slot.planId) ?: return
+        recordUndoLocked(UndoAction.plan(plan.id), label(plan.bedLabel), now, listOf(UndoStep.of(slot), UndoStep.of(plan)))
     }
 
     /** "Remind me in 30 min": offered only if it lands before the next slot. */
@@ -253,7 +389,9 @@ class Engine(
                     plannedDurationMin = plannedDurationMin,
                     baselineConfirmed = true,
                 ),
-            )
+            ).also {
+                recordUndoLocked(UndoAction.transfusion(it), "${bedLabel.trim()} · transfusion started", now, listOf(UndoStep.DeleteTransfusion(it)))
+            }
         }
         update(canStartService = true) // creates the checkpoints; passed ones ring as one alarm
         return id
@@ -283,15 +421,20 @@ class Engine(
         mutex.withLock {
             val t = dao.transfusion(id)
             if (t != null && t.status == TransfusionStatus.RUNNING) {
+                val cancelled = dao.checkpointsFor(id).filter { it.status == PENDING }
                 dao.updateTransfusion(t.copy(status = TransfusionStatus.ENDED, endAt = now))
                 cancelOpenLocked(id, includeRinging = false)
-                dao.insertCheckpoints(
+                val endRow = dao.insertCheckpoints(
                     listOf(
                         Checkpoint(
                             transfusionId = id, type = CheckpointType.END,
                             offsetMin = ((now - t.startAt) / MINUTE_MS).toInt(), scheduledAt = now,
                         ),
                     ),
+                )
+                recordUndoLocked(
+                    UndoAction.transfusion(id), "${t.bedLabel} · transfusion ended", now,
+                    listOf(UndoStep.of(t)) + cancelled.map { UndoStep.of(it) } + endRow.map { UndoStep.DeleteCheckpoint(it) },
                 )
             }
         }
@@ -304,9 +447,23 @@ class Engine(
         mutex.withLock {
             val t = dao.transfusion(id)
             if (t != null && t.status != TransfusionStatus.STOPPED_REACTION) {
+                val open = dao.checkpointsFor(id).filter { it.status == PENDING || it.status == RINGING }
                 dao.updateTransfusion(t.copy(status = TransfusionStatus.STOPPED_REACTION, endAt = t.endAt ?: now))
                 cancelOpenLocked(id, includeRinging = true)
+                recordUndoLocked(
+                    UndoAction.transfusion(id), "${t.bedLabel} · marked stopped", now,
+                    listOf(UndoStep.of(t)) + open.map { UndoStep.of(it) },
+                )
             }
+        }
+        update(canStartService = true)
+    }
+
+    /** "Remove from Home" on a stopped bed. It would go by itself a day later. */
+    suspend fun forgetStopped(id: Long) {
+        mutex.withLock {
+            val t = dao.transfusion(id)
+            if (t != null && t.status == TransfusionStatus.STOPPED_REACTION) dao.deleteTransfusion(id)
         }
         update(canStartService = true)
     }
@@ -337,6 +494,7 @@ class Engine(
     private suspend fun refreshLocked(now: Long) {
         // 0. Finished transfusions are deleted a day later (Cerner is the record, not the phone).
         dao.deleteFinishedBefore(now - RETENTION_MS)
+        wardDao.deleteExpiredUndo(now)
 
         // 1. Missed timer: 10 min after the first ring (snoozes don't extend it).
         val timedOut = Grouping.timedOut(dao.activeCheckpoints(), now, settings.missedTimeoutMin)
@@ -432,16 +590,20 @@ class Engine(
         val now = now()
         val round = RoundBuilder.build(turnDao.round(), now, ZoneId.systemDefault())
         Notifications.syncTurnOverdue(context, turns.overdueBeds(now), canRemind = round?.canRemind == true)
+        BedsWidget.refresh(context, dao, turnDao, settings)
     }
 
     private fun canSnoozeCounts(snoozeCounts: List<Int>) =
         snoozeCounts.isNotEmpty() && snoozeCounts.all { it < Settings.MAX_SNOOZES }
 
     companion object {
-        /** Size of the bed colour palette (ui/theme/Theme.kt → Tvs.BedColors). */
+        /** Size of the bed colour palette (kept for the data; the UI tells beds apart by label). */
         const val BED_COLOR_COUNT = 8
 
         /** How long a finished transfusion stays on the phone. */
         const val RETENTION_MS = 24 * 60 * 60 * 1000L
+
+        /** "Undo last" stays on the bed's card this long. */
+        const val UNDO_MS = 5 * 60 * 1000L
     }
 }

@@ -16,6 +16,8 @@ import app.transfusionvs.alarm.AlarmService
 import app.transfusionvs.app
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.SkipReason
+import app.transfusionvs.data.WardBed
+import app.transfusionvs.schedule.BedInput
 import app.transfusionvs.schedule.TurnGrid
 import app.transfusionvs.ui.screens.TurnPlanDraft
 import java.time.ZoneId
@@ -74,6 +76,7 @@ class LabReceiver : BroadcastReceiver() {
                     "lab.DND" -> context.getSystemService(NotificationManager::class.java).setInterruptionFilter(
                         if (intent.getStringExtra("mode") == "off") NotificationManager.INTERRUPTION_FILTER_ALL else NotificationManager.INTERRUPTION_FILTER_PRIORITY,
                     )
+                    "lab.ADD_BEDS" -> app.db.wardDao().addBeds(BedInput.parse(intent.getStringExtra("beds") ?: "1-20").map { WardBed(it) })
                     "lab.DUMP_HEAP" -> leakcanary.LeakCanary.dumpHeap()
                     "lab.SET_MISSED_TIMEOUT" -> app.settings.missedTimeoutMin = intent.getIntExtra("min", 10)
                 }
@@ -91,6 +94,7 @@ class LabReceiver : BroadcastReceiver() {
         .put("zone", zone.id)
         .put("service", AlarmService.isRunning)
         .put("hasVibrator", app.getSystemService(Vibrator::class.java).hasVibrator())
+        .put("policyAccess", app.getSystemService(NotificationManager::class.java).isNotificationPolicyAccessGranted)
         .put("checkpoints", JSONArray(rows(app, "SELECT c.id,c.type,c.status,c.scheduledAt,c.firedAt,c.ackAt,c.snoozeCount,t.bedLabel FROM checkpoint c JOIN transfusion t ON t.id=c.transfusionId WHERE c.status!='CANCELLED' AND c.type!='START' ORDER BY c.scheduledAt LIMIT 12")))
         .put("slots", JSONArray(rows(app, "SELECT s.id,s.status,s.slotAt,s.firedAt,s.ackAt,s.silenced,s.skipReason,p.bedLabel FROM turn_slot s JOIN turn_plan p ON p.id=s.planId WHERE s.status!='CANCELLED' ORDER BY s.slotAt LIMIT 12")))
 

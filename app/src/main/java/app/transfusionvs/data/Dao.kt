@@ -42,7 +42,7 @@ interface TvsDao {
     @Query(
         """
         SELECT * FROM transfusion WHERE isTest = 0 AND (
-            status = 'RUNNING' OR id IN (
+            status IN ('RUNNING', 'STOPPED_REACTION') OR id IN (
                 SELECT transfusionId FROM checkpoint
                 WHERE status = 'RINGING'
                    OR (status = 'MISSED' AND ackAt IS NULL)
@@ -53,6 +53,30 @@ interface TvsDao {
     )
     fun observeHome(): Flow<List<TransfusionWithCheckpoints>>
 
+    /** Once, for the home-screen widget. */
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM transfusion WHERE isTest = 0 AND (
+            status IN ('RUNNING', 'STOPPED_REACTION') OR id IN (
+                SELECT transfusionId FROM checkpoint
+                WHERE status = 'RINGING'
+                   OR (status = 'MISSED' AND ackAt IS NULL)
+                   OR (type = 'END' AND status = 'PENDING')
+            )
+        ) ORDER BY startAt
+        """,
+    )
+    suspend fun homeOnce(): List<TransfusionWithCheckpoints>
+
+    /** True while any transfusion is on the phone: running, or finished within the last day. */
+    @Query("SELECT EXISTS(SELECT 1 FROM transfusion WHERE isTest = 0)")
+    fun observeAnyTransfusion(): Flow<Boolean>
+
+    /** Undoing a start, or removing a stopped bed from Home. Its checkpoints go too (CASCADE). */
+    @Query("DELETE FROM transfusion WHERE id = :id")
+    suspend fun deleteTransfusion(id: Long)
+
     @Transaction
     @Query("SELECT * FROM transfusion WHERE id = :id")
     fun observeTransfusion(id: Long): Flow<TransfusionWithCheckpoints?>
@@ -60,7 +84,7 @@ interface TvsDao {
     // ---- Checkpoints ----
 
     @Insert
-    suspend fun insertCheckpoints(rows: List<Checkpoint>)
+    suspend fun insertCheckpoints(rows: List<Checkpoint>): List<Long>
 
     @Update
     suspend fun updateCheckpoints(rows: List<Checkpoint>)

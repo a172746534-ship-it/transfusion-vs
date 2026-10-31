@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.room.Room
 import app.transfusionvs.alarm.AlarmScheduler
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -27,9 +28,11 @@ class MigrationTest {
 
     private val name = "migration_test.db"
 
-    private fun createV1(context: Context) {
+    private fun createV1(context: Context) = create(context, 1)
+
+    private fun create(context: Context, version: Int) {
         context.deleteDatabase(name)
-        val schema = JSONObject(File("schemas/app.transfusionvs.data.AppDatabase/1.json").readText()).getJSONObject("database")
+        val schema = JSONObject(File("schemas/app.transfusionvs.data.AppDatabase/$version.json").readText()).getJSONObject("database")
         val db = context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null)
         val entities = schema.getJSONArray("entities")
         for (i in 0 until entities.length()) {
@@ -56,7 +59,17 @@ class MigrationTest {
             "INSERT INTO checkpoint (id, transfusionId, type, offsetMin, scheduledAt, firedAt, ackAt, snoozeCount, snoozeUntil, status) " +
                 "VALUES (71, 7, 'M30', 30, 1801000, NULL, NULL, 0, NULL, 'PENDING')",
         )
-        db.version = 1
+        if (version >= 2) {
+            db.execSQL(
+                "INSERT INTO turn_plan (id, bedLabel, colorIndex, intervalMin, startAt, firstSlotAt, stopAt, status, rotation, currentPosition) " +
+                    "VALUES (3, 'Bed 9', 1, 120, 1000, 7200000, NULL, 'RUNNING', 'LEFT_30,BACK,RIGHT_30', 'BACK')",
+            )
+            db.execSQL(
+                "INSERT INTO turn_slot (id, planId, slotAt, firedAt, ackAt, positionFrom, positionTo, status, skipReason, snoozeCount, snoozeUntil, silenced, remindAt) " +
+                    "VALUES (30, 3, 7200000, NULL, NULL, 'BACK', NULL, 'PENDING', NULL, 0, NULL, 0, NULL)",
+            )
+        }
+        db.version = version
         db.close()
     }
 
@@ -89,6 +102,31 @@ class MigrationTest {
             )
             room.turnDao().insertSlots(listOf(TurnSlot(planId = planId, slotAt = 2, positionFrom = Position.BACK)))
             assertEquals(1, room.turnDao().slotsFor(planId).size)
+        } finally {
+            room.close()
+        }
+    }
+
+    /** The update from v2 (what phones have today) keeps both features and adds the bed list and undo. */
+    @Test
+    fun updatingFromV2KeepsEverythingAndAddsBedsAndUndo() = runBlocking {
+        val context: Context = RuntimeEnvironment.getApplication()
+        create(context, 2)
+
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).build()
+        try {
+            assertEquals("Bed 12", room.dao().runningTransfusions().single().bedLabel)
+            assertEquals(listOf(70L, 71L), room.dao().checkpointsFor(7).map { it.id })
+            assertEquals(CheckpointStatus.PENDING, room.dao().checkpointsFor(7)[1].status)
+            val plan = room.turnDao().allPlans().single()
+            assertEquals("Bed 9", plan.bedLabel)
+            assertEquals(Position.BACK, plan.currentPosition)
+            assertEquals(TurnSlotStatus.PENDING, room.turnDao().slotsFor(3).single().status)
+
+            room.wardDao().addBeds(listOf(WardBed("Bed 1"), WardBed("Bed 1"), WardBed("Bed 2")))
+            assertEquals(2, room.wardDao().observeBeds().first().size)
+            val undo = room.wardDao().insertUndo(UndoAction(ownerKey = "T7", label = "x", at = 1, expiresAt = 2, snapshot = ""))
+            assertEquals("T7", room.wardDao().undo(undo)!!.ownerKey)
         } finally {
             room.close()
         }

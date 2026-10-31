@@ -6,10 +6,10 @@ cd "$(dirname "$0")/.."
 SRC=app/src/main/java/app/transfusionvs
 
 files=$(find "$SRC" -name '*.kt' -not -path "*/ui/theme/*" -not -path "*/ui/components/*")
-pattern='\b[0-9]+(\.[0-9]+)?\.sp\b|\b([1-9][0-9]*(\.[0-9]+)?|0\.[0-9]*[1-9][0-9]*)\.dp\b|Color\(0x|\.copy\(alpha|RoundedCornerShape\(|\bColor\.(White|Black|Red|Green|Blue|Yellow|Gray|Cyan|Magenta)\b'
+pattern='\b[0-9]+(\.[0-9]+)?\.sp\b|\b([1-9][0-9]*(\.[0-9]+)?|0\.[0-9]*[1-9][0-9]*)\.dp\b|Color\(0x|0xFF[0-9A-Fa-f]{6}|\.copy\(alpha|RoundedCornerShape\(|\bColor\.(White|Black|Red|Green|Blue|Yellow|Gray|Cyan|Magenta)\b'
 
 if hits=$(grep -nE "$pattern" $files); then
-  echo "::error::Hard-coded style outside the design system (use TvsFont / TvsSpace / TvsSize / TvsShape / Tvs colours):"
+  echo "::error::Hard-coded style outside the design system (use WardType / TvsSpace / TvsSize / TvsShape / Ward.c):"
   echo "$hits"
   exit 1
 fi

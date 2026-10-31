@@ -1,11 +1,12 @@
 <resources>
-    <!-- Light theme only. Compose draws the screens; this just avoids a white flash. -->
-    <style name="Theme.TransfusionVS" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/panel</item>
+    <!-- Compose draws the screens; the window itself stays dark so the first frame never flashes white. -->
+    <style name="Theme.TransfusionVS" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ward_first_frame</item>
+        <item name="android:navigationBarColor">@color/ward_first_frame</item>
+        <item name="android:statusBarColor">@color/ward_first_frame</item>
     </style>
 
-    <!-- The alarm screen is navy from the first frame. -->
     <style name="Theme.TransfusionVS.Alarm" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/navy</item>
+        <item name="android:windowBackground">@color/ward_first_frame</item>
     </style>
 </resources>

@@ -59,9 +59,12 @@ for rob in sorted(root.rglob("robustness")):
     f = rob / "tap_budget.findings.txt"
     if f.exists():
         print("  taps ::", " ".join(sorted(re.findall(r"task=(\d+ taps=\d+) typing=\w+ budget=\d+ (\w+)", f.read_text(errors="replace")) and [m[0].replace(" taps=", ":") + m[1][0] for m in re.findall(r"task=(\d+ taps=\d+) typing=\w+ budget=\d+ (\w+)", f.read_text(errors="replace"))])))
+    f = rob / "robust.findings.txt"
+    if f.exists():
+        print("  double tap, undo, widget ::", " ".join(sorted(set(re.findall(r"ROBUST *: *(\w+ PASS)", f.read_text(errors="replace"))))))
     for f in sorted(rob.glob("ui_*.findings.txt")):
         text = f.read_text(errors="replace")
         counts = {}
-        for kind in ("TOUCH", "NOLABEL", "SPACING", "TRUNCATED", "MIDWORD", "SMALLTEXT", "ATF"):
+        for kind in ("TOUCH", "NOLABEL", "SPACING", "TRUNCATED", "MIDWORD", "SMALLTEXT", "PRIMARY", "ATF"):
             counts[kind] = len(set(re.findall(rf"UICHECK *: *({kind} .*)", text)))
         print(" ", f.name.replace(".findings.txt", ""), counts)
