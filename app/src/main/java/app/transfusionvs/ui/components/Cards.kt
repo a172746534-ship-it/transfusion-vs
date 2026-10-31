@@ -113,10 +113,13 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(painterResource(view.type.icon()), contentDescription = null, tint = tint, modifier = Modifier.size(TvsSize.IconSmall))
                     Spacer(Modifier.width(TvsSpace.s6))
-                    Text(view.bed, color = ink, style = WardType.CardBed)
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        Text(view.bed, color = ink, style = WardType.CardBed, modifier = Modifier.weight(1f, fill = false))
+                        Spacer(Modifier.width(TvsSpace.s8))
+                        Text(view.type.tag(), color = tint, style = WardType.Tag, softWrap = false, modifier = Modifier.semantics { contentDescription = view.type.spoken() })
+                    }
                     Spacer(Modifier.width(TvsSpace.s8))
-                    Text(view.type.tag(), color = tint, style = WardType.Tag, modifier = Modifier.weight(1f).semantics { contentDescription = view.type.spoken() })
-                    if (time != null) Text(time, color = ink, style = WardType.CardTime)
+                    if (time != null) Text(time, color = ink, style = WardType.CardTime, softWrap = false)
                 }
             }
             if (stopped) {

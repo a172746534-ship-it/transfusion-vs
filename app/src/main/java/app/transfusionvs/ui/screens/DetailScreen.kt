@@ -1,7 +1,6 @@
 package app.transfusionvs.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,7 +47,6 @@ import app.transfusionvs.ui.components.UndoSlot
 import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.components.largeFont
 import app.transfusionvs.ui.components.rememberNow
-import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
@@ -123,14 +121,10 @@ fun DetailContent(
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
             if (stopped) {
-                Column(
-                    Modifier.fillMaxWidth().background(c.dangerFill, TvsShape.Card).border(TvsSize.Edge, c.dangerEdge, TvsShape.Card).padding(TvsSpace.s12),
-                    verticalArrangement = Arrangement.spacedBy(TvsSpace.s4),
-                ) {
-                    Text("STOPPED — REACTION", color = c.onDangerFill, style = WardType.Title)
+                Panel {
                     Text(
                         "Stopped at ${t.endAt?.let { Labels.clock(it) } ?: ""}. Remaining alarms for this bed are cancelled.",
-                        color = c.onDangerFill, style = WardType.Body,
+                        color = c.ink, style = WardType.Lead,
                     )
                 }
             }
