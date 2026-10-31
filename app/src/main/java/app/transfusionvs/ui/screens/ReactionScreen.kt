@@ -100,15 +100,15 @@ fun ReactionScreen(
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
             // DO NOW — tap each step as it's done
-            Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+            Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
                 CapsLabel("Do now")
                 DO_NOW.forEachIndexed { i, (title, body) ->
                     Row(
-                        Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge)
+                        Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch)
                             .background(c.card, TvsShape.Control)
                             .border(TvsSize.Edge, if (done[i]) c.ink else c.card, TvsShape.Control)
                             .wardClick(role = Role.Checkbox) { done[i] = !done[i] }
-                            .padding(vertical = TvsSpace.s6, horizontal = TvsSpace.s10),
+                            .padding(vertical = TvsSpace.s4, horizontal = TvsSpace.s10),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
@@ -124,7 +124,7 @@ fun ReactionScreen(
                                 append("\n")
                                 append(body)
                             },
-                            color = c.ink, style = WardType.LeadPlain,
+                            color = c.ink, style = WardType.Body,
                         )
                     }
                 }
@@ -133,14 +133,21 @@ fun ReactionScreen(
             // STOP & CALL IF YOU SEE
             Column(
                 Modifier.fillMaxWidth().background(c.card, TvsShape.Card).padding(TvsSpace.s12),
-                verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
+                verticalArrangement = Arrangement.spacedBy(TvsSpace.s6),
             ) {
                 CapsLabel("Stop & call if you see", c.danger)
-                WARNING_SIGNS.forEach { sign ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(TvsSpace.s10).background(c.danger, CircleShape))
-                        Spacer(Modifier.width(TvsSpace.s12))
-                        Text(sign, color = c.ink, style = WardType.LeadPlain)
+                // In two columns, so the whole list is in view above the button.
+                val columns = if (largeFont()) 1 else 2
+                WARNING_SIGNS.chunked(columns).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                        row.forEach { sign ->
+                            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(TvsSpace.s10).background(c.danger, CircleShape))
+                                Spacer(Modifier.width(TvsSpace.s6))
+                                Text(sign, color = c.ink, style = WardType.Body)
+                            }
+                        }
+                        repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
@@ -156,8 +163,9 @@ fun ReactionScreen(
                 if (beds.size > 2) {
                     CapsLabel("Transfusion stopped for:")
                     val columns = patientColumns(beds.map { it.bedLabel })
+                    val list = rememberScrollState()
                     Column(
-                        Modifier.heightIn(max = TvsSize.TouchLarge * 2 + TvsSpace.s8 + TvsSize.IconMedium).verticalScroll(rememberScrollState()),
+                        Modifier.heightIn(max = TvsSize.TouchLarge + TvsSpace.s8 + TvsSize.IconMedium).moreBelow(list.canScrollForward).verticalScroll(list),
                         verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
                     ) {
                         beds.chunked(columns).forEach { row ->
@@ -172,7 +180,10 @@ fun ReactionScreen(
                     }
                 } else {
                     beds.forEach { bed ->
-                        PatientButton(bed.bedLabel, "Transfusion stopped", { onStopped(bed.transfusionId) }, fill = c.danger, content = c.onDanger, key = WardType.AlarmKeySmall)
+                        PatientButton(
+                            bed.bedLabel, "Transfusion stopped", { onStopped(bed.transfusionId) },
+                            fill = c.dangerFill, content = c.onDangerFill, edge = c.onDangerFill, key = WardType.KeyMedium, icon = R.drawable.ic_stop,
+                        )
                     }
                 }
             }

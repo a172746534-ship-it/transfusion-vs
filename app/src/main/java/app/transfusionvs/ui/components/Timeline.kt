@@ -1,5 +1,6 @@
 package app.transfusionvs.ui.components
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -66,7 +67,15 @@ private fun TimelineColumn(p: TimelinePoint, line: Boolean, first: Boolean = fal
                     val y = size.height / 2
                     val startX = if (first) size.width / 2 else 0f
                     val endX = if (last) size.width / 2 else size.width
-                    if (endX > startX) drawLine(c.ink, Offset(startX, y), Offset(endX, y), strokeWidth = TvsSize.EdgeStrong.toPx())
+                    val stroke = TvsSize.EdgeStrong.toPx()
+                    if (p.dot == DotStyle.OVERDUE) {
+                        val cut = TvsSize.TimelineDot.toPx() / 2 + stroke
+                        val middle = size.width / 2
+                        if (middle - cut > startX) drawLine(c.ink, Offset(startX, y), Offset(middle - cut, y), strokeWidth = stroke)
+                        if (endX > middle + cut) drawLine(c.ink, Offset(middle + cut, y), Offset(endX, y), strokeWidth = stroke)
+                    } else if (endX > startX) {
+                        drawLine(c.ink, Offset(startX, y), Offset(endX, y), strokeWidth = stroke)
+                    }
                 }
             },
             contentAlignment = Alignment.Center,
@@ -78,15 +87,17 @@ private fun TimelineColumn(p: TimelinePoint, line: Boolean, first: Boolean = fal
 @Composable
 private fun TimelineLabel(p: TimelinePoint) {
     val c = Ward.c
-    if (p.position != null) {
-        // Repositioning: the position icon takes the number's place (same height).
-        PositionIcon(p.position, c.ink, TvsSize.IconMedium)
-        return
+    Box(Modifier.heightIn(min = TvsSize.IconMedium), contentAlignment = Alignment.Center) {
+        if (p.position != null) {
+            // Repositioning: the position icon takes the number's place.
+            PositionIcon(p.position, c.ink, TvsSize.IconMedium)
+        } else {
+            Text(
+                if (p.unit != null) "${p.number}\u00A0${p.unit}" else p.number, color = c.ink, style = WardType.BodyBold,
+                modifier = Modifier.padding(horizontal = TvsSpace.s4), softWrap = false,
+            )
+        }
     }
-    Text(
-        if (p.unit != null) "${p.number}\u00A0${p.unit}" else p.number, color = c.ink, style = WardType.BodyBold,
-        modifier = Modifier.padding(horizontal = TvsSpace.s4), softWrap = false,
-    )
 }
 
 /** The same shapes as the rail: done, hollow, a ring for due, a diamond for overdue, a dash for skipped. */

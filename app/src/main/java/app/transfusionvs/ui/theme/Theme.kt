@@ -56,6 +56,10 @@ data class WardColors(
     val alarmStep: Color,
     /** The choices to tap next on an alarm (reasons, other positions). Dimmer than white at night. */
     val alarmChip: Color,
+    /** The hairline around a tappable card, so its edge is there for a gloved thumb. */
+    val cardEdge: Color,
+    /** Danger on the dark alarm surface. */
+    val alarmDanger: Color,
     /** "Alarms may not ring": amber by day, dim with an amber edge at night. */
     val alertFill: Color,
     val onAlert: Color,
@@ -66,6 +70,8 @@ data class WardColors(
     /** The rail's line: visible at 3:1 on a card. */
     val railLine: Color get() = muted.copy(alpha = 0.7f)
     val alarmMuted: Color get() = alarmInk.copy(alpha = 0.8f)
+    /** Behind a control in the header, so its target can be seen. */
+    val headerTint: Color get() = onHeader.copy(alpha = 0.14f)
     val alarmTint: Color get() = alarmInk.copy(alpha = 0.09f)
     val alarmEdge: Color get() = alarmInk.copy(alpha = 0.35f)
     val onHeaderMuted: Color get() = onHeader.copy(alpha = 0.85f)
@@ -95,6 +101,7 @@ val WardDay = WardColors(
     primary = Color(0xFF13233F), onPrimary = Color(0xFFFFFFFF), primaryEdge = Color(0xFF13233F),
     header = Color(0xFF13233F), onHeader = Color(0xFFFFFFFF), headerCaps = Color(0xFFC3CEE0),
     alarmCaps = Color(0xFFF5A623), alarmStep = Color(0xFF8FB4F5), alarmChip = Color(0xFFFFFFFF),
+    cardEdge = Color(0xFFD5DAE3), alarmDanger = Color(0xFFFF8A80),
     alertFill = Color(0xFFD28000), onAlert = Color(0xFF13233F), alertEdge = null, isNight = false,
 )
 
@@ -105,9 +112,10 @@ val WardNight = WardColors(
     danger = Color(0xFFFF7269), onDanger = Color(0xFF0A1220), typeTx = Color(0xFFC3A6E8), typeRp = Color(0xFF5CC0C4),
     alarmBg = Color(0xFF060B14), alarmInk = Color(0xFFE8EDF6), alarmAction = Color(0xFFC98F36), alarmOnAction = Color(0xFF060B14),
     dangerFill = Color(0xFF4A1518), onDangerFill = Color(0xFFFFDAD6), dangerEdge = Color(0xFFFF7269),
-    primary = Color(0xFF2A3B5F), onPrimary = Color(0xFFE8EDF6), primaryEdge = Color(0xFF7585A4),
+    primary = Color(0xFF4F6CA0), onPrimary = Color(0xFFFFFFFF), primaryEdge = Color(0xFF7585A4),
     header = Color(0xFF141F33), onHeader = Color(0xFFE8EDF6), headerCaps = Color(0xFFAEBBD0),
     alarmCaps = Color(0xFFC98F36), alarmStep = Color(0xFFA6C4FF), alarmChip = Color(0xFF8FA3C7),
+    cardEdge = Color(0xFF2A3550), alarmDanger = Color(0xFFFF7269),
     alertFill = Color(0xFF2E2A12), onAlert = Color(0xFFF9DC6E), alertEdge = Color(0xFFF9DC6E), isNight = true,
 )
 

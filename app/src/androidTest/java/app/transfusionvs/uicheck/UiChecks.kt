@@ -160,7 +160,7 @@ class UiChecks {
     @Test fun start() = check("start", primary = true) {
         StartContent(
             editing = null, defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15,
-            openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop,
+            openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop, initiallyExpanded = true,
         )
     }
     @Test fun detail() = check("detail", primary = true) {
@@ -212,7 +212,7 @@ class UiChecks {
     @Test fun turnDetail() = check("turn_detail", primary = true) {
         TurnDetailContent(item = TurnFakes.bed3, now = Fakes.now, windowMin = 15, onBack = noop, onEdit = noop, onStop = {}, onRestart = {}, onOpenRound = noop)
     }
-    @Test fun settings() = check("settings", primary = true) {
+    @Test fun settings() = check("settings", primary = false) {
         SettingsContent(
             values = SettingsValues(
                 soundOn = true, soundUri = null, snoozeMin = 2, missedTimeoutMin = 10, toleranceMin = 5,

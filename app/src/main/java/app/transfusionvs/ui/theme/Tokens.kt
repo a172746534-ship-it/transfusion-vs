@@ -33,6 +33,7 @@ object TvsSize {
     val Rail = 16.dp
     val RailLarge = 30.dp
 
+    val IconTiny = 16.dp
     val IconSmall = 20.dp
     val IconMedium = 28.dp
     val IconLarge = 34.dp
@@ -47,6 +48,7 @@ object TvsSize {
     /** The fade at the bottom of a scroll region with more below. */
     val Fade = 24.dp
 
+    val Hairline = 1.dp
     val Edge = 2.dp
     val EdgeStrong = 3.dp
 }

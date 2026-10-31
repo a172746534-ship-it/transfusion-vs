@@ -235,6 +235,9 @@ class AuditScreenshots {
     @Test fun start_bed_picked() = shots("start_bed_picked") {
         StartContent(editing = null, defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop, initialBed = "7654805")
     }
+    @Test fun start_options() = shots("start_options") {
+        StartContent(editing = null, defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop, initialBed = "7654805", initiallyExpanded = true)
+    }
     @Test fun turn_start_bed_picked() = shots("turn_start_bed_picked") {
         TurnStartContent(editing = null, defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initialBed = "7654806")
     }

@@ -190,17 +190,18 @@ fun SettingsContent(
             Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
+            // A link to another screen, not this screen's main action: first in the list, and nothing pinned over the settings.
+            SecondaryButton("Setup check & test alarm", onSetup)
+
             Panel {
                 CapsLabel("Night theme")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    listOf(
-                        NightRule.AUTO_CLOCK to "By the clock",
-                        NightRule.FOLLOW_SYSTEM to "Follow the phone",
-                        NightRule.ALWAYS_DAY to "Always day",
-                        NightRule.ALWAYS_NIGHT to "Always night",
-                    ).forEach { (mode, label) ->
-                        ChoiceChip(label, v.themeMode == mode, { onChange(v.copy(themeMode = mode)) })
-                    }
+                listOf(
+                    NightRule.AUTO_CLOCK to "By the clock",
+                    NightRule.FOLLOW_SYSTEM to "Follow the phone",
+                    NightRule.ALWAYS_DAY to "Always day",
+                    NightRule.ALWAYS_NIGHT to "Always night",
+                ).chunked(2).forEach { pair ->
+                    ChoiceRow(pair.map { it.second }, pair.indexOfFirst { it.first == v.themeMode }, { onChange(v.copy(themeMode = pair[it].first)) })
                 }
                 if (v.themeMode == NightRule.AUTO_CLOCK) {
                     Stepper(
@@ -301,9 +302,7 @@ fun SettingsContent(
                 SoundRow("Turning alarm sound", turnSoundTitle, onPickTurnSound)
             }
         }
-        Box(Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars).padding(TvsSpace.s12)) {
-            PrimaryButton("Setup check & test alarm", onSetup)
-        }
+        Spacer(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
     }
 }
 
@@ -326,7 +325,7 @@ private fun Stepper(title: String, hint: String?, value: String, onMinus: () -> 
             StepButton("−", "$title: less", onMinus)
             Spacer(Modifier.width(TvsSpace.s8))
             Text(
-                value, style = WardType.Time, color = c.ink,
+                value, style = WardType.Title, color = c.ink,
                 textAlign = TextAlign.Center, modifier = Modifier.weight(1f).widthIn(min = TvsSize.Stepper),
             )
             Spacer(Modifier.width(TvsSpace.s8))
@@ -341,7 +340,7 @@ private fun StepButton(label: String, description: String, onClick: () -> Unit) 
     val c = Ward.c
     WardButton(
         label, onClick, Modifier.semantics { contentDescription = description },
-        fill = c.card, content = c.ink, edge = c.muted, minHeight = TvsSize.Touch, shape = TvsShape.Control,
+        fill = c.card, content = c.ink, edge = c.muted, minHeight = TvsSize.Touch, shape = TvsShape.Control, style = WardType.AlarmTitle,
     )
 }
 

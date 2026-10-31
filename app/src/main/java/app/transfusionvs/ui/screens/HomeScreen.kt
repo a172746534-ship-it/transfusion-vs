@@ -1,5 +1,7 @@
 package app.transfusionvs.ui.screens
 
+import app.transfusionvs.schedule.Urgency
+import androidx.compose.foundation.shape.CircleShape
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -150,30 +152,43 @@ fun HomeContent(
     val live = undo.filter { it.expiresAt > now }
     val large = largeFont()
     val urgent = beds.firstOrNull { (it.ackIds.isNotEmpty() && !it.stoppedForReaction) || it.roundOpen }
+    val worstIsLate = beds.any { !it.idle && (it.stoppedForReaction || it.urgency == Urgency.OVERDUE) }
+    val worstIsDue = beds.any { !it.idle && it.urgency == Urgency.NOW }
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
         WardHeader(
             caps = BedViews.running(beds),
-            title = BedViews.summary(beds),
+            title = (if (worstIsLate) "◆ " else "") + BedViews.summary(beds),
             trailing = {
+                Spacer(Modifier.width(TvsSpace.s8))
                 Text(Labels.clock(now), color = c.onHeader, style = WardType.CardTime, softWrap = false)
-                Box(Modifier.size(TvsSize.Touch).wardClick(onClick = onSettings), contentAlignment = Alignment.Center) {
+                Spacer(Modifier.width(TvsSpace.s8))
+                Box(Modifier.size(TvsSize.Touch).background(c.headerTint, CircleShape).wardClick(onClick = onSettings), contentAlignment = Alignment.Center) {
                     Icon(painterResource(R.drawable.ic_settings), contentDescription = "Settings", tint = c.onHeader, modifier = Modifier.size(TvsSize.IconMedium))
                 }
             },
         )
+
+        // The first thing the eye lands on changes with the state, not only the cards below it.
+        val strip = when {
+            worstIsLate -> c.overdue
+            worstIsDue -> c.alarmAction
+            else -> null
+        }
+        if (strip != null) Box(Modifier.fillMaxWidth().height(TvsSpace.s6).background(strip))
 
         val list = rememberLazyListState()
         LazyColumn(
             Modifier.weight(1f).moreBelow(list.canScrollForward),
             state = list,
             contentPadding = PaddingValues(horizontal = TvsSpace.s12, vertical = TvsSpace.s4),
-            verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
+            // With nothing to list, the words sit just above the buttons they talk about.
+            verticalArrangement = if (beds.isEmpty()) Arrangement.spacedBy(TvsSpace.s8, Alignment.Bottom) else Arrangement.spacedBy(TvsSpace.s8),
         ) {
             if (setupProblems > 0) {
                 item {
                     Alert(
-                        "Setup: $setupProblems to fix. Alarms may not ring",
+                        "Setup: $setupProblems to fix\nAlarms may not ring",
                         R.drawable.ic_warning, c.alertFill, c.onAlert, c.alertEdge, onSetup,
                     )
                 }
@@ -189,9 +204,6 @@ fun HomeContent(
             if (home != null && turns != null && beds.isEmpty()) {
                 item { EmptyCard("Take the baseline vital signs first, then start a transfusion below.") }
             }
-            if (large) {
-                item { StartActions(onStartTransfusion, onStartTurning, stacked = true, quiet = urgent != null) }
-            }
         }
 
         Column(
@@ -202,8 +214,8 @@ fun HomeContent(
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         ) {
             UndoSlot()
-            // Outlined: the one filled action here is the patient's, just below.
-            if (ringing) Alert("Alarm ringing. Open it", R.drawable.ic_bell, c.card, c.ink, c.ink, onOpenAlarm)
+            // Amber like the alarm itself; the patient's own action just below it is navy.
+            if (ringing) Alert("Alarm ringing. Open it", R.drawable.ic_bell, c.alarmAction, c.alarmOnAction, null, onOpenAlarm)
             if (urgent != null) {
                 if (urgent.roundOpen) {
                     PatientButton(urgent.bed, "Open round", onOpenAlarm, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
@@ -211,8 +223,9 @@ fun HomeContent(
                     PatientButton(urgent.bed, urgent.ackLabel, { onAcknowledge(urgent.ackIds) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
                 }
             }
-            if (anyTransfusion) ReactionBar(onClick = onReaction, minHeight = TvsSize.Touch, quiet = true)
-            if (!large) StartActions(onStartTransfusion, onStartTurning, stacked = false, quiet = urgent != null)
+            if (anyTransfusion) ReactionBar(onClick = onReaction, minHeight = TvsSize.Touch, quiet = true, short = large)
+            // Always here, whatever the font size: the same place for the thumb.
+            StartActions(onStartTransfusion, onStartTurning, stacked = large, quiet = urgent != null)
         }
     }
 }

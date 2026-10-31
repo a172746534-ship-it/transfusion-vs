@@ -1,5 +1,8 @@
 package app.transfusionvs.ui.screens
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import app.transfusionvs.ui.components.WardButton
 import android.Manifest
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -49,7 +52,6 @@ import app.transfusionvs.setup.OemGuides
 import app.transfusionvs.setup.OemStep
 import app.transfusionvs.setup.SetupChecks
 import app.transfusionvs.ui.PRIMARY_TAG
-import app.transfusionvs.ui.components.AckButton
 import app.transfusionvs.ui.components.Alert
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.Panel
@@ -159,7 +161,7 @@ fun SetupContent(
                 CapsLabel("${guide.brand} — extra steps")
                 Text("Android can't report these, so do each one by hand, then run a test below.", color = c.muted, style = WardType.Body)
                 guide.steps.forEachIndexed { i, step ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row {
                         NumberBadge(i + 1)
                         Spacer(Modifier.width(TvsSpace.s12))
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
@@ -230,7 +232,10 @@ private fun CheckRow(item: CheckItem, onFix: () -> Unit) {
             }
         }
         if (!item.ok) {
-            AckButton("Fix: ${item.title}", onFix)
+            WardButton(
+                "Fix this", onFix, Modifier.fillMaxWidth().semantics { contentDescription = "Fix: ${item.title}" },
+                fill = c.alarmAction, content = c.alarmOnAction, style = WardType.ButtonSmall,
+            )
         }
     }
 }

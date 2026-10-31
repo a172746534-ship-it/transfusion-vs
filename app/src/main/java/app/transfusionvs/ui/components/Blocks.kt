@@ -27,26 +27,29 @@ import app.transfusionvs.ui.theme.WardType
  * buttons, so only the action is a filled block on the screen.
  */
 @Composable
-fun MeasureDocumentBlocks(ink: Color, edge: Color, accent: Color, onBadge: Color, modifier: Modifier = Modifier) {
-    Column(
-        modifier.fillMaxWidth().border(TvsSize.Edge, edge, TvsShape.Card).padding(TvsSpace.s12),
-        verticalArrangement = Arrangement.spacedBy(TvsSpace.s10),
-    ) {
-        Step("1", "MEASURE", "T · HR · RR · BP · SpO₂", accent, ink, onBadge)
-        Step("2", "DOCUMENT", "in Cerner, right away", accent, ink, onBadge)
+fun MeasureDocumentBlocks(ink: Color, edge: Color, modifier: Modifier = Modifier, compact: Boolean = false) {
+    val frame = modifier.fillMaxWidth().border(TvsSize.Edge, edge, TvsShape.Card).padding(TvsSpace.s12)
+    if (compact && !largeFont()) {
+        Row(frame, horizontalArrangement = Arrangement.spacedBy(TvsSpace.s12)) {
+            Step("1", "MEASURE", "T · HR · RR · BP · SpO₂", ink, Modifier.weight(1f))
+            Step("2", "DOCUMENT", "in Cerner, right away", ink, Modifier.weight(1f))
+        }
+    } else {
+        Column(frame, verticalArrangement = Arrangement.spacedBy(TvsSpace.s10)) {
+            Step("1", "MEASURE", "T · HR · RR · BP · SpO₂", ink)
+            Step("2", "DOCUMENT", "in Cerner, right away", ink)
+        }
     }
 }
 
 @Composable
-private fun Step(number: String, title: String, body: String, accent: Color, ink: Color, onBadge: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.sizeIn(minWidth = TvsSize.Badge, minHeight = TvsSize.Badge).background(accent, CircleShape), contentAlignment = Alignment.Center) {
-            Text(number, color = onBadge, style = WardType.Lead)
-        }
-        Spacer(Modifier.width(TvsSpace.s12))
+private fun Step(number: String, title: String, body: String, ink: Color, modifier: Modifier = Modifier) {
+    Row(modifier) {
+        Text(number, color = ink, style = WardType.Title)
+        Spacer(Modifier.width(TvsSpace.s8))
         Column {
-            Text(title, color = accent, style = WardType.Lead)
-            Text(body, color = ink, style = WardType.LeadPlain)
+            Text(title, color = ink, style = WardType.Lead)
+            Text(body, color = ink, style = WardType.Body)
         }
     }
 }

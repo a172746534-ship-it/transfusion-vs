@@ -1,5 +1,9 @@
 package app.transfusionvs.ui.screens
 
+import androidx.compose.ui.res.painterResource
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.layout.isImeVisible
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -159,7 +163,7 @@ fun TurnStartContent(
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
         WardHeader(
-            caps = if (editing == null) "New turning plan" else "Edit",
+            caps = if (WindowInsets.isImeVisible && largeFont()) "" else if (editing == null) "New turning plan" else "Edit",
             title = if (editing == null) "Start turning" else "Edit ${editing.bedLabel}",
             onBack = onBack,
             icon = R.drawable.ic_turn,
@@ -183,10 +187,16 @@ fun TurnStartContent(
             }
 
             if (defaultFirst != choices.first() && firstSlot == defaultFirst) {
-                Text(
-                    "${Labels.clock(choices.first())} is less than ${TurnGrid.MIN_LEAD_MIN} min away, so the first turn is ${Labels.clock(defaultFirst)}.",
-                    color = c.muted, style = WardType.Body,
-                )
+                Panel {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(painterResource(R.drawable.ic_clock), contentDescription = null, tint = c.muted, modifier = Modifier.size(TvsSize.IconSmall))
+                        Spacer(Modifier.width(TvsSpace.s8))
+                        Text(
+                            "${Labels.clock(choices.first())} is less than ${TurnGrid.MIN_LEAD_MIN} min away, so the first turn is ${Labels.clock(defaultFirst)}.",
+                            color = c.ink, style = WardType.Body,
+                        )
+                    }
+                }
             }
             if (editing == null) {
                 SecondaryButton(if (options) "Fewer options" else "More options", { options = !options })
@@ -220,7 +230,7 @@ fun TurnStartContent(
                                     val now = Position.parseList(included)
                                     included = Position.toCsv(if (checked) now + p else now - p)
                                 },
-                                modifier = Modifier.size(TvsSize.Touch).semantics { contentDescription = p.label },
+                                modifier = Modifier.size(TvsSize.Touch).scale(CHECKBOX_SCALE).semantics { contentDescription = p.label },
                                 colors = CheckboxDefaults.colors(checkedColor = c.primary, checkmarkColor = c.onPrimary, uncheckedColor = c.muted),
                             )
                             PositionIcon(p, if (on) c.ink else c.muted, TvsSize.IconMedium)
@@ -229,9 +239,9 @@ fun TurnStartContent(
                                 Text(p.label, color = if (on) c.ink else c.muted, style = WardType.BodyBold)
                                 if (!on) Text("not for this patient", color = c.muted, style = WardType.Body)
                             }
-                            OrderButton("↑", enabled = i > 0, description = "Move ${p.label} up") { order = Position.toCsv(orderList.swap(i, i - 1)) }
+                            OrderButton("↑", enabled = on && i > 0, description = "Move ${p.label} up") { order = Position.toCsv(orderList.swap(i, i - 1)) }
                             Spacer(Modifier.width(TvsSpace.s8))
-                            OrderButton("↓", enabled = i < orderList.lastIndex, description = "Move ${p.label} down") { order = Position.toCsv(orderList.swap(i, i + 1)) }
+                            OrderButton("↓", enabled = on && i < orderList.lastIndex, description = "Move ${p.label} down") { order = Position.toCsv(orderList.swap(i, i + 1)) }
                         }
                     }
                     Text(
@@ -283,16 +293,23 @@ fun TurnStartContent(
                     enabled = validPlan,
                 )
             } else {
-                ChangeRow("First turn ${Labels.clock(firstSlot)}, then every ${Labels.duration(interval)}" + (stopAt?.let { " until ${Labels.clock(it)}" } ?: "")) {
-                    options = true
-                    scope.launch {
-                        withFrameNanos { }
-                        scroll.animateScrollTo(scroll.maxValue)
+                // With the number pad up the MRN comes first; what's only a summary steps aside. At large font sizes the
+                // buttons do too, until Done closes the pad.
+                val typing = WindowInsets.isImeVisible
+                if (!typing) {
+                    ChangeRow("First turn ${Labels.clock(firstSlot)}, then every ${Labels.duration(interval)}" + (stopAt?.let { " until ${Labels.clock(it)}" } ?: "")) {
+                        options = true
+                        scope.launch {
+                            withFrameNanos { }
+                            scroll.animateScrollTo(scroll.maxValue)
+                        }
                     }
                 }
-                Text(if (bed.isBlank()) "Enter the MRN first" else "$bed: lying now? Tap to start", color = c.ink, style = WardType.Lead)
-                PositionButtons(rotation, enabled = validPlan) { p ->
-                    onSubmit(TurnPlanDraft(bed, interval, rotation, p, firstSlot, stopAt))
+                if (!(typing && largeFont())) {
+                    Text(if (bed.isBlank()) "Enter the MRN first" else "$bed: lying now? Tap to start", color = c.ink, style = WardType.Lead)
+                    PositionButtons(rotation, enabled = validPlan) { p ->
+                        onSubmit(TurnPlanDraft(bed, interval, rotation, p, firstSlot, stopAt))
+                    }
                 }
             }
         }
@@ -316,6 +333,9 @@ fun TurnStartContent(
         )
     }
 }
+
+/** A checkbox large enough to see in a glove's shadow. */
+private const val CHECKBOX_SCALE = 1.3f
 
 /** Big position buttons: icon + name. Tapping one is the action. */
 @Composable

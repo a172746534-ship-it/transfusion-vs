@@ -32,6 +32,7 @@ private const val SMALL_FIGURES = "tnum"
 object WardType {
     val AlarmKey = TextStyle(fontFamily = RedHatDisplay, fontWeight = FontWeight.Black, fontSize = 48.sp, lineHeight = 52.sp, fontFeatureSettings = KEY_FIGURES)
     val AlarmKeySmall = TextStyle(fontFamily = RedHatDisplay, fontWeight = FontWeight.Black, fontSize = 40.sp, lineHeight = 44.sp, fontFeatureSettings = KEY_FIGURES)
+    val KeyMedium = TextStyle(fontFamily = RedHatDisplay, fontWeight = FontWeight.Black, fontSize = 32.sp, lineHeight = 36.sp, fontFeatureSettings = KEY_FIGURES)
     val AlarmTitle = TextStyle(fontFamily = RedHatDisplay, fontWeight = FontWeight.Black, fontSize = 34.sp, lineHeight = 40.sp)
     val Hero = TextStyle(fontFamily = RedHatDisplay, fontWeight = FontWeight.Black, fontSize = 40.sp, lineHeight = 44.sp, fontFeatureSettings = KEY_FIGURES)
     val CardTime = TextStyle(fontFamily = RedHatDisplay, fontWeight = FontWeight.Black, fontSize = 26.sp, lineHeight = 30.sp, fontFeatureSettings = KEY_FIGURES)

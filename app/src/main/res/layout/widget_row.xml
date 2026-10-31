@@ -61,6 +61,7 @@
         android:id="@+id/row_ack"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/widget_pad"
         android:minHeight="@dimen/widget_row"
         android:background="@drawable/widget_action"
         android:fontFamily="@font/rh_display_black"

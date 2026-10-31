@@ -1,5 +1,6 @@
 package app.transfusionvs.ui.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -46,6 +47,9 @@ fun BedType.color(): Color = if (this == BedType.TRANSFUSION) Ward.c.typeTx else
 /** Past this, what is due and how urgent no longer fit side by side. */
 private const val LONG_WHAT = 28
 
+/** Past this, the MRN needs the type word's room on a card's first line. */
+private const val LONG_MRN = 8
+
 /** Full-width banner with an icon and a chevron, so it reads as something to tap. */
 @Composable
 fun Alert(text: String, icon: Int, color: Color, textColor: Color, edge: Color?, onClick: () -> Unit) {
@@ -77,7 +81,9 @@ fun StateText(view: BedView) {
         view.stoppedForReaction -> Unit
         view.urgency == Urgency.CALM -> PlainStatus(view.stateText, c.muted)
         view.urgency == Urgency.SOON -> OutlinedStatus(view.stateText, c.soon)
-        else -> FilledStatus(view.stateText, c.of(view.urgency), c.on(view.urgency), solid = view.urgency == Urgency.OVERDUE)
+        view.urgency == Urgency.OVERDUE -> FilledStatus("◆ ${view.stateText}", c.overdue, c.onOverdue, solid = true)
+        // The bell: this one is sounding.
+        else -> FilledStatus(view.stateText, c.of(view.urgency), c.on(view.urgency), icon = R.drawable.ic_bell.takeIf { view.running && !view.stateText.startsWith("SNOOZED") })
     }
 }
 
@@ -105,18 +111,14 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
     Row(
         Modifier.fillMaxWidth().height(IntrinsicSize.Min)
             .background(background, shape)
-            .let { if (edge != null) it.border(TvsSize.EdgeStrong, edge, shape) else it }
+            .border(if (edge != null) TvsSize.EdgeStrong else TvsSize.Hairline, edge ?: c.cardEdge, shape)
             .wardClick(onClick = onOpen),
     ) {
-        // The stripe gives way to a red edge, so the two never collide at the corners.
-        if (edge == null) {
-            Box(Modifier.width(TvsSize.TypeStrip).fillMaxHeight().background(view.type.color(), TvsShape.CardStart))
-        } else {
-            Spacer(Modifier.width(TvsSize.TypeStrip))
-        }
+        // On every card, inside the frame when there is one: the left edge is where the eye looks for the type.
+        Box(Modifier.width(TvsSize.TypeStrip).fillMaxHeight().background(view.type.color(), TvsShape.CardStart))
         Column(Modifier.weight(1f).padding(start = TvsSpace.s10, end = TvsSpace.s4, top = TvsSpace.s2, bottom = TvsSpace.s4)) {
             // A stopped bed says when in words: that corner always means the next check.
-            val time = view.time?.takeIf { !stopped }?.let { Labels.clock(it) }
+            val time = view.time?.takeIf { !stopped && view.cornerTime }?.let { Labels.clock(it) }
             if (large) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TypeTag(view.type, tint)
@@ -126,12 +128,16 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
                 LabelText(view.bed, ink, WardType.CardBed)
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(painterResource(view.type.icon()), contentDescription = null, tint = tint, modifier = Modifier.size(TvsSize.IconSmall))
+                    // A long MRN needs the room: the stripe and the icon still say the type.
+                    val roomForTag = view.bed.length <= LONG_MRN
+                    Icon(painterResource(view.type.icon()), contentDescription = view.type.spoken().takeIf { !roomForTag }, tint = tint, modifier = Modifier.size(TvsSize.IconSmall))
                     Spacer(Modifier.width(TvsSpace.s6))
                     Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                         LabelText(view.bed, ink, WardType.CardBed, Modifier.weight(1f, fill = false))
-                        Spacer(Modifier.width(TvsSpace.s8))
-                        Text(view.type.tag(), color = tint, style = WardType.Tag, softWrap = false, modifier = Modifier.semantics { contentDescription = view.type.spoken() })
+                        if (roomForTag) {
+                            Spacer(Modifier.width(TvsSpace.s8))
+                            Text(view.type.tag(), color = tint, style = WardType.Tag, softWrap = false, modifier = Modifier.semantics { contentDescription = view.type.spoken() })
+                        }
                     }
                     Spacer(Modifier.width(TvsSpace.s8))
                     if (time != null) Text(time, color = ink, style = WardType.CardTime, softWrap = false)
@@ -142,7 +148,8 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
                 Text(view.what, color = ink, style = WardType.Body)
             } else if (large || view.what.length > LONG_WHAT) {
                 Text(view.what, color = sub, style = WardType.Body)
-                StateText(view)
+                // Where the state always is: on the right, under the time.
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) { StateText(view) }
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(view.what, color = sub, style = WardType.Body, modifier = Modifier.weight(1f))
@@ -166,7 +173,12 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
 @Composable
 fun EmptyCard(body: String) {
     val c = Ward.c
-    Column(Modifier.fillMaxWidth().background(c.card, TvsShape.Card).padding(TvsSpace.s16)) {
+    Column(Modifier.fillMaxWidth().background(c.card, TvsShape.Card).padding(TvsSpace.s16), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s12)) {
+            Icon(painterResource(R.drawable.ic_drop), contentDescription = null, tint = c.typeTx, modifier = Modifier.size(TvsSize.IconLarge))
+            Icon(painterResource(R.drawable.ic_turn), contentDescription = null, tint = c.typeRp, modifier = Modifier.size(TvsSize.IconLarge))
+        }
         Text(body, color = c.ink, style = WardType.Lead)
+        Text("Or start turning, for a patient who needs repositioning.", color = c.muted, style = WardType.Body)
     }
 }

@@ -99,7 +99,11 @@ object BedsWidget {
         val alertColor = context.getColor(if (night) R.color.widget_alert_night else R.color.widget_alert)
         r.setTextColor(R.id.row_bed, ink)
         r.setTextColor(R.id.row_what, muted)
-        r.setInt(R.id.row_icon, "setColorFilter", muted)
+        val typeColor = when (bed.type) {
+            BedType.TRANSFUSION -> if (night) R.color.widget_type_tx_night else R.color.widget_type_tx
+            BedType.TURN -> if (night) R.color.widget_type_rp_night else R.color.widget_type_rp
+        }
+        r.setInt(R.id.row_icon, "setColorFilter", context.getColor(typeColor))
         r.setInt(R.id.row_ack, "setBackgroundResource", if (night) R.drawable.widget_action_night else R.drawable.widget_action)
         r.setTextColor(R.id.row_ack, context.getColor(if (night) R.color.widget_on_action_night else R.color.widget_on_action))
         val mark = when {

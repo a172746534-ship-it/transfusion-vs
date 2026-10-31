@@ -60,12 +60,12 @@ fun Rail(
     }
 }
 
-/** Hollow, half, solid with a ring, and a red diamond with "!". */
+/** A heavy ring, half, solid with a ring, and a red diamond. */
 private fun DrawScope.bead(u: Urgency, color: Color, center: Offset, r: Float, background: Color, onColor: Color) {
     when (u) {
         Urgency.CALM -> {
             drawCircle(background, r, center)
-            drawCircle(color, r, center, style = Stroke(r * 0.42f))
+            drawCircle(color, r, center, style = Stroke(r * 0.6f))
         }
         Urgency.SOON -> {
             drawCircle(background, r, center)
@@ -77,7 +77,7 @@ private fun DrawScope.bead(u: Urgency, color: Color, center: Offset, r: Float, b
             drawCircle(color, r * 1.25f, center, style = Stroke(r * 0.3f))
         }
         Urgency.OVERDUE -> {
-            val d = r * 1.35f
+            val d = r * 1.7f
             val path = Path().apply {
                 moveTo(center.x, center.y - d)
                 lineTo(center.x + d, center.y)
@@ -86,8 +86,6 @@ private fun DrawScope.bead(u: Urgency, color: Color, center: Offset, r: Float, b
                 close()
             }
             drawPath(path, color)
-            drawLine(onColor, Offset(center.x, center.y - d * 0.5f), Offset(center.x, center.y + d * 0.12f), r * 0.3f, StrokeCap.Round)
-            drawCircle(onColor, r * 0.17f, Offset(center.x, center.y + d * 0.46f))
         }
     }
 }

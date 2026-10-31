@@ -1,5 +1,8 @@
 package app.transfusionvs.ui.screens
 
+import app.transfusionvs.ui.components.largeFont
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.foundation.layout.isImeVisible
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -105,6 +108,8 @@ fun StartContent(
     onBack: () -> Unit,
     /** For screenshots: an MRN already typed. */
     initialBed: String = "",
+    /** For screenshots: options open from the start. */
+    initiallyExpanded: Boolean = false,
 ) {
     val context = LocalContext.current
     val c = Ward.c
@@ -114,6 +119,8 @@ fun StartContent(
     var mrn by rememberSaveable { mutableStateOf(initialBed) }
     val bed = if (changingPatient) mrn.takeIf { PatientInput.valid(it) } ?: "" else editing?.bedLabel.orEmpty()
 
+    // Defaults, not questions: the summary above the button says what they are, and Change opens them.
+    var options by rememberSaveable { mutableStateOf(initiallyExpanded || editing != null) }
     var startAt by rememberSaveable { mutableLongStateOf(editing?.startAt ?: ScheduleCalculator.truncateToMinute(openedAt)) }
     var agoChoice by rememberSaveable { mutableIntStateOf(if (editing == null) 0 else -1) } // -1 = picked time
     val initialDuration = editing?.plannedDurationMin ?: defaultDurationMin
@@ -126,7 +133,7 @@ fun StartContent(
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
         WardHeader(
-            caps = if (editing == null) "New transfusion" else "Edit",
+            caps = if (WindowInsets.isImeVisible && largeFont()) "" else if (editing == null) "New transfusion" else "Edit",
             title = if (editing == null) "Start transfusion" else "Edit ${editing.bedLabel}",
             onBack = onBack,
             icon = R.drawable.ic_drop,
@@ -149,64 +156,66 @@ fun StartContent(
                 }
             }
 
-            // Start time (T0): now by default, or earlier
-            Panel {
-                CapsLabel("Started at")
-                Text(Labels.clock(startAt), style = WardType.Hero, color = c.ink)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    AGO_CHIPS.forEach { ago ->
-                        ChoiceChip(
-                            text = if (ago == 0) "Now" else "$ago min ago",
-                            selected = agoChoice == ago,
-                            onClick = {
-                                agoChoice = ago
-                                startAt = ScheduleCalculator.truncateToMinute(System.currentTimeMillis()) - ago * MINUTE_MS
-                            },
+            if (options) {
+                // Start time (T0): now by default, or earlier
+                Panel {
+                    CapsLabel("Started at")
+                    Text(Labels.clock(startAt), style = WardType.Hero, color = c.ink)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                        AGO_CHIPS.forEach { ago ->
+                            ChoiceChip(
+                                text = if (ago == 0) "Now" else "$ago min ago",
+                                selected = agoChoice == ago,
+                                onClick = {
+                                    agoChoice = ago
+                                    startAt = ScheduleCalculator.truncateToMinute(System.currentTimeMillis()) - ago * MINUTE_MS
+                                },
+                            )
+                        }
+                        ChoiceChip("Pick time…", selected = agoChoice == -1, onClick = { showPicker = true })
+                    }
+                }
+
+                // Planned duration
+                Panel {
+                    CapsLabel("Planned duration")
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                        DURATION_CHIPS.forEach { m ->
+                            ChoiceChip(Labels.duration(m), selected = durationChoice == m, onClick = { durationChoice = m })
+                        }
+                        ChoiceChip("Custom", selected = durationChoice == -1, onClick = { durationChoice = -1 })
+                    }
+                    if (durationChoice == -1) {
+                        OutlinedTextField(
+                            value = customMinutes,
+                            onValueChange = { v -> customMinutes = v.filter { it.isDigit() }.take(3) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            textStyle = WardType.Lead.copy(color = c.ink),
+                            label = { Text("Minutes (10–600)", style = WardType.Body) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            isError = customMinutes.isNotEmpty() && duration == null,
+                            colors = wardFieldColors(),
                         )
                     }
-                    ChoiceChip("Pick time…", selected = agoChoice == -1, onClick = { showPicker = true })
                 }
-            }
 
-            // Planned duration
-            Panel {
-                CapsLabel("Planned duration")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    DURATION_CHIPS.forEach { m ->
-                        ChoiceChip(Labels.duration(m), selected = durationChoice == m, onClick = { durationChoice = m })
-                    }
-                    ChoiceChip("Custom", selected = durationChoice == -1, onClick = { durationChoice = -1 })
-                }
-                if (durationChoice == -1) {
-                    OutlinedTextField(
-                        value = customMinutes,
-                        onValueChange = { v -> customMinutes = v.filter { it.isDigit() }.take(3) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        textStyle = WardType.Lead.copy(color = c.ink),
-                        label = { Text("Minutes (10–600)", style = WardType.Body) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        isError = customMinutes.isNotEmpty() && duration == null,
-                        colors = wardFieldColors(),
-                    )
-                }
-            }
-
-            // Preview with real clock times
-            if (duration != null) {
-                val config = ScheduleConfig(duration, limitMin, warnBeforeMin)
-                Panel {
-                    CapsLabel("Time from start")
-                    Text("Baseline first · hourly = same minute as start", color = c.muted, style = WardType.Body)
-                    CardTimeline(TimelineBuilder.preview(startAt, config))
-                    val warnAt = startAt + (config.limitMin - config.warnBeforeMin) * MINUTE_MS
-                    Text(
-                        "Then hourly until you tap End. Time-limit warning at ${Labels.clock(warnAt)} " +
-                            "(${Labels.duration(config.limitMin)} limit).",
-                        color = c.muted, style = WardType.Body,
-                    )
-                    if (startAt < openedAt - 15 * MINUTE_MS) {
-                        Text("Checks that are already past will ring once, together, right after you start.", color = c.ink, style = WardType.BodyBold)
+                // Preview with real clock times
+                if (duration != null) {
+                    val config = ScheduleConfig(duration, limitMin, warnBeforeMin)
+                    Panel {
+                        CapsLabel("Time from start")
+                        Text("Baseline first · hourly = same minute as start", color = c.muted, style = WardType.Body)
+                        CardTimeline(TimelineBuilder.preview(startAt, config))
+                        val warnAt = startAt + (config.limitMin - config.warnBeforeMin) * MINUTE_MS
+                        Text(
+                            "Then hourly until you tap End. Time-limit warning at ${Labels.clock(warnAt)} " +
+                                "(${Labels.duration(config.limitMin)} limit).",
+                            color = c.muted, style = WardType.Body,
+                        )
+                        if (startAt < openedAt - 15 * MINUTE_MS) {
+                            Text("Checks that are already past will ring once, together, right after you start.", color = c.ink, style = WardType.BodyBold)
+                        }
                     }
                 }
             }
@@ -216,9 +225,13 @@ fun StartContent(
             Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)).padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         ) {
-            if (duration != null) {
+            if (duration != null && !WindowInsets.isImeVisible) {
                 ChangeRow("Started ${Labels.clock(startAt)} · planned ${Labels.duration(duration)} · ends ${Labels.clock(startAt + duration * MINUTE_MS)}") {
-                    scope.launch { scroll.animateScrollTo(scroll.maxValue) }
+                    options = true
+                    scope.launch {
+                        withFrameNanos { }
+                        scroll.animateScrollTo(scroll.maxValue)
+                    }
                 }
             }
             PrimaryButton(

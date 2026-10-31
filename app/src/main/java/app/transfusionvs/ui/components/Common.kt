@@ -177,7 +177,7 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
 @Composable
 fun AckButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier.fillMaxWidth(), minHeight: Dp = TvsSize.Touch) {
     val c = Ward.c
-    WardButton(text, onClick, modifier, fill = c.alarmAction, content = c.alarmOnAction, minHeight = minHeight, style = WardType.ButtonSmall)
+    WardButton(text, onClick, modifier, fill = c.primary, content = c.onPrimary, minHeight = minHeight, style = WardType.ButtonSmall)
 }
 
 /** An action for one patient: who it is for, big enough to check before pressing, then what it records. */
@@ -187,19 +187,28 @@ fun PatientButton(
     action: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier.fillMaxWidth(),
-    fill: Color = Ward.c.alarmAction,
-    content: Color = Ward.c.alarmOnAction,
+    fill: Color = Ward.c.primary,
+    content: Color = Ward.c.onPrimary,
     key: TextStyle = WardType.CardBed,
     minHeight: Dp = TvsSize.TouchLarge,
+    edge: Color? = null,
+    icon: Int? = null,
 ) {
-    Column(
-        modifier.heightIn(min = minHeight).background(fill, TvsShape.Card).wardClick(onClick = onClick)
-            .padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s4),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+    Row(
+        modifier.heightIn(min = minHeight).background(fill, TvsShape.Card)
+            .let { if (edge != null) it.border(TvsSize.Edge, edge, TvsShape.Card) else it }
+            .wardClick(onClick = onClick).padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s4),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
     ) {
-        LabelText(patient, content, key)
-        Text(action, color = content, style = WardType.ButtonSmall, textAlign = TextAlign.Center)
+        if (icon != null) {
+            Icon(painterResource(icon), contentDescription = null, tint = content, modifier = Modifier.size(TvsSize.IconMedium))
+            Spacer(Modifier.width(TvsSpace.s10))
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            LabelText(patient, content, key)
+            Text(action, color = content, style = WardType.ButtonSmall, textAlign = TextAlign.Center)
+        }
     }
 }
 
@@ -225,8 +234,11 @@ fun WardHeader(
     background: Color = Ward.c.header,
     content: Color = Ward.c.onHeader,
     capsColor: Color = Ward.c.headerCaps,
+    /** The title is the patient: a key number, on one line. */
+    titleIsKey: Boolean = false,
     trailing: @Composable (() -> Unit)? = null,
 ) {
+    val large = largeFont()
     Column(
         Modifier.fillMaxWidth().background(background)
             .windowInsetsPadding(WindowInsets.statusBars)
@@ -234,7 +246,8 @@ fun WardHeader(
     ) {
         if (onBack != null) {
             Row(
-                Modifier.heightIn(min = TvsSize.Touch).widthIn(min = TvsSize.Stepper).wardClick(onClick = onBack).padding(horizontal = TvsSpace.s8),
+                Modifier.padding(start = TvsSpace.s4, top = TvsSpace.s4).heightIn(min = TvsSize.Touch).widthIn(min = TvsSize.Stepper)
+                    .background(Ward.c.headerTint, TvsShape.Control).wardClick(onClick = onBack).padding(horizontal = TvsSpace.s8),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(painterResource(R.drawable.ic_back), contentDescription = null, tint = content, modifier = Modifier.size(TvsSize.IconMedium))
@@ -242,17 +255,25 @@ fun WardHeader(
                 Text("Back", color = content, style = WardType.Lead)
             }
         }
+        // At large font sizes the clock gets a row of its own, so the words don't break around it.
+        if (large && trailing != null) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) { trailing() }
+        }
         Row(Modifier.padding(start = TvsSpace.s12, top = if (onBack == null) TvsSpace.s6 else TvsSpace.s2), verticalAlignment = Alignment.CenterVertically) {
             if (icon != null) {
                 Icon(painterResource(icon), contentDescription = null, tint = capsColor, modifier = Modifier.size(TvsSize.IconLarge))
                 Spacer(Modifier.width(TvsSpace.s10))
             }
             Column(Modifier.weight(1f)) {
-                Text(caps.uppercase(), color = capsColor, style = WardType.Caps)
-                Text(title, color = content, style = WardType.Title)
+                if (caps.isNotBlank()) Text(caps.uppercase(), color = capsColor, style = WardType.Caps)
+                if (titleIsKey) {
+                    LabelText(title, content, WardType.Hero, min = WardType.Title.fontSize)
+                } else {
+                    Text(title, color = content, style = WardType.Title)
+                }
                 if (subtitle != null) Text(subtitle, color = content, style = WardType.Body)
             }
-            trailing?.invoke()
+            if (!large) trailing?.invoke()
         }
     }
 }
@@ -262,23 +283,24 @@ fun WardHeader(
  * On transfusion screens only.
  */
 @Composable
-fun ReactionBar(onClick: () -> Unit, modifier: Modifier = Modifier, minHeight: Dp = TvsSize.TouchLarge, quiet: Boolean = false) {
+fun ReactionBar(onClick: () -> Unit, modifier: Modifier = Modifier, minHeight: Dp = TvsSize.TouchLarge, quiet: Boolean = false, short: Boolean = false) {
     val c = Ward.c
-    // Quiet when nothing is wrong (Home, Detail): always there, with its red kept for when it matters.
-    val ink = if (quiet) c.ink else c.onDangerFill
+    // Always there, with its red kept for when it matters: a mark and an edge, never a slab on a routine screen.
+    val ink = if (quiet) c.ink else c.alarmInk
+    val mark = if (quiet) c.danger else c.alarmDanger
     Row(
         modifier.fillMaxWidth().heightIn(min = minHeight)
-            .background(if (quiet) c.card else c.dangerFill, TvsShape.Card)
-            .border(TvsSize.Edge, if (quiet) c.muted else c.dangerEdge, TvsShape.Card)
+            .background(if (quiet) c.card else c.alarmBg, TvsShape.Card)
+            .border(TvsSize.Edge, if (quiet) c.muted else c.alarmDanger, TvsShape.Card)
             .wardClick(onClick = onClick)
             .padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s6),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = if (quiet) c.danger else ink, modifier = Modifier.size(TvsSize.IconMedium))
+        Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = mark, modifier = Modifier.size(TvsSize.IconMedium))
         Spacer(Modifier.width(TvsSpace.s12))
         Column {
             Text("SUSPECTED REACTION?", color = ink, style = WardType.Tag)
-            Text("STOP the transfusion & call", color = ink, style = WardType.Body)
+            if (!short) Text("STOP the transfusion & call", color = ink, style = WardType.Body)
         }
     }
 }
@@ -293,7 +315,7 @@ fun ChoiceChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: M
             .background(if (selected) c.primary else c.card, shape)
             .border(TvsSize.Edge, if (selected) c.primaryEdge else c.muted, shape)
             .wardClick(role = Role.RadioButton, onClick = onClick)
-            .padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s6),
+            .padding(horizontal = TvsSpace.s8, vertical = TvsSpace.s6),
         contentAlignment = Alignment.Center,
     ) {
         Text(if (selected) "✓ $text" else text, color = if (selected) c.onPrimary else c.ink, style = WardType.BodyBold, textAlign = TextAlign.Center)
@@ -328,7 +350,10 @@ fun ChangeRow(text: String, onClick: () -> Unit) {
     ) {
         Text(text, color = c.ink, style = WardType.BodyBold, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(TvsSpace.s8))
-        Box(Modifier.border(TvsSize.Edge, c.muted, TvsShape.Control).padding(horizontal = TvsSpace.s10, vertical = TvsSpace.s6)) {
+        Box(
+            Modifier.heightIn(min = TvsSize.Touch).widthIn(min = TvsSize.Stepper).border(TvsSize.Edge, c.muted, TvsShape.Control),
+            contentAlignment = Alignment.Center,
+        ) {
             Text("Change", color = c.ink, style = WardType.BodyBold)
         }
     }
@@ -356,23 +381,32 @@ fun StatusPill(status: StatusView) {
     when (status.kind) {
         StatusKind.ON_TIME -> PlainStatus("✓ ${status.text}", c.ink)
         StatusKind.LATE, StatusKind.SNOOZED -> OutlinedStatus(status.text, c.soon)
-        StatusKind.MISSED -> FilledStatus(status.text, c.overdue, c.onOverdue)
+        // Still actionable or gone for good: the two read differently, in shape as well as in the word.
+        StatusKind.MISSED -> if ("overdue" in status.text) {
+            FilledStatus("◆ ${status.text}", c.overdue, c.onOverdue, solid = true)
+        } else {
+            OutlinedStatus("✕ ${status.text}", c.overdue)
+        }
         StatusKind.RINGING, StatusKind.DUE -> FilledStatus(status.text, c.now, c.onNow)
         StatusKind.UPCOMING, StatusKind.SKIPPED, StatusKind.CANCELLED -> PlainStatus(status.text, c.muted)
     }
 }
 
 @Composable
-fun FilledStatus(text: String, bg: Color, fg: Color, solid: Boolean = false) {
-    if (Ward.c.isNight && !solid) {
-        // A bright pill would be the brightest thing in a dark room: a tint and an edge say the same.
-        Box(Modifier.background(bg.copy(alpha = 0.18f), TvsShape.Pill).border(TvsSize.Edge, bg, TvsShape.Pill).padding(horizontal = TvsSpace.s8)) {
-            Text(text, color = bg, style = WardType.BodyBold)
+fun FilledStatus(text: String, bg: Color, fg: Color, solid: Boolean = false, icon: Int? = null) {
+    // A bright pill would be the brightest thing in a dark room: a tint and an edge say the same.
+    val tinted = Ward.c.isNight && !solid
+    val ink = if (tinted) bg else fg
+    Row(
+        (if (tinted) Modifier.background(bg.copy(alpha = 0.18f), TvsShape.Pill).border(TvsSize.Edge, bg, TvsShape.Pill) else Modifier.background(bg, TvsShape.Pill))
+            .padding(horizontal = TvsSpace.s8),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) {
+            Icon(painterResource(icon), contentDescription = null, tint = ink, modifier = Modifier.size(TvsSize.IconTiny))
+            Spacer(Modifier.width(TvsSpace.s4))
         }
-    } else {
-        Box(Modifier.background(bg, TvsShape.Pill).padding(horizontal = TvsSpace.s8)) {
-            Text(text, color = fg, style = WardType.BodyBold)
-        }
+        Text(text, color = ink, style = WardType.BodyBold)
     }
 }
 

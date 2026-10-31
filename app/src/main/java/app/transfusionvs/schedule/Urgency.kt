@@ -41,6 +41,8 @@ data class BedView(
     /** Still going, as opposed to ended and waiting on something. */
     val running: Boolean = false,
     val ackLabel: String = Labels.ACK,
+    /** The card's corner shows [time]: the next clock time, the one thing that corner ever means. */
+    val cornerTime: Boolean = true,
 )
 
 object BedViews {
@@ -107,7 +109,8 @@ object BedViews {
             // Ended: the End VS is what the card is about, and a missed check doesn't vanish behind it.
             endPrompt != null -> base.copy(
                 time = endPrompt.scheduledAt,
-                what = "Measure, then document in Cerner" + if (missed.isNotEmpty()) " · ${titles(missed)} overdue" else "",
+                what = "Ended ${Labels.clock(endPrompt.scheduledAt)}. Measure, then document in Cerner" + if (missed.isNotEmpty()) " · ${titles(missed)} overdue" else "",
+                cornerTime = false,
                 urgency = if (missed.isNotEmpty()) Urgency.OVERDUE else Urgency.NOW,
                 stateText = "ENDED · END VS", ackIds = listOf(endPrompt.id), ackLabel = "End VS measured & documented\u00A0✓",
             )

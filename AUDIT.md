@@ -243,3 +243,17 @@ Design 5/10, 1 Critical, 12 Major, 34 Minor. Personas 9, 8 and 5 findings.
 - TapBudget: its stated precondition is "setup done", so the lab gives the battery exemption Setup asks for. With the Setup warning showing, six patients at 360 dp take one scroll.
 
 Later on 2026-10-31 the maintainer removed the list of patients altogether: the nurse types the MRN. That closes S1 and the persona findings about the list. A15 to A23 don't depend on it.
+
+## The final design review (docs/audit/reviewers-round4.md)
+7/10 on commit cd1e9c4: 8 Major, 46 Minor, none Critical. The maintainer asked for all of it to be fixed, and every Major was. It was not re-scored after the fixes.
+
+Where the review conflicted with what an earlier one asked, or with a rule:
+- **D-17:** Undo goes in the thumb's reach, as this review asks, but in the Snooze slot, since round 3 showed that the acknowledge button's own place lets a second press take it back.
+- **D-34** asked for 32 sp in the reaction button, round 3's R2 for 40 sp. The newer one stands: it isn't an alarm screen.
+- **D-39:** with the setup link out of the pinned place, Settings has no primary action, since it saves as it goes. `UiChecks.settings` says so.
+
+Done only in part, or left, and why:
+- **D-27:** the Detail screen still shows times on the timeline and in the list. The chips are in the maintainer's chosen design; the list gained a ✓ for what's logged.
+- **D-35:** the round's rows are one line each now; "More below" still carries no count.
+- **D-19's** order: Reaction stays above Snooze, with more room between them, rather than swapping, since the bottom two slots are what a thumb learns.
+- **D-28 and D-50:** ending or stopping has no confirm step: Undo is the app's rule instead of dialogs.

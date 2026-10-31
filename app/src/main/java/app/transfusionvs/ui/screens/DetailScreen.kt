@@ -1,5 +1,7 @@
 package app.transfusionvs.ui.screens
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,7 +38,7 @@ import app.transfusionvs.schedule.TimelineBuilder
 import app.transfusionvs.schedule.Timeliness
 import app.transfusionvs.ui.MainViewModel
 import app.transfusionvs.ui.PRIMARY_TAG
-import app.transfusionvs.ui.components.AckButton
+import app.transfusionvs.ui.components.PatientButton
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.CardTimeline
 import app.transfusionvs.ui.components.MeasureDocumentBlocks
@@ -112,7 +114,7 @@ fun DetailContent(
                 null -> ""
             },
             title = t?.bedLabel ?: "",
-            subtitle = t?.let { subtitle(it) },
+            titleIsKey = true,
             onBack = onBack,
             icon = R.drawable.ic_drop,
             background = if (stopped) c.dangerFill else c.header,
@@ -144,7 +146,7 @@ fun DetailContent(
                 Panel {
                     CapsLabel("End VS — ${t.bedLabel}")
                     Text("Transfusion ended at ${Labels.clock(endVs.scheduledAt)}.", color = c.ink, style = WardType.Body)
-                    MeasureDocumentBlocks(c.ink, c.muted, c.ink, c.card)
+                    MeasureDocumentBlocks(c.ink, c.muted)
                     if (dueRow != null) Text("A check that was already overdue can still be documented below.", color = c.muted, style = WardType.Body)
                 }
             }
@@ -165,6 +167,7 @@ fun DetailContent(
 
             Panel {
                 CapsLabel("Time from start")
+                Text(subtitle(t), color = c.ink, style = WardType.Body)
                 Text("Baseline first · hourly = same minute as start", color = c.muted, style = WardType.Body)
                 CardTimeline(TimelineBuilder.live(t, rows, now, toleranceMin))
             }
@@ -175,7 +178,7 @@ fun DetailContent(
                     CheckpointRow(row, now, toleranceMin)
                     // Stopped or waiting on End VS: the late documentation stays possible, but quietly.
                     if ((stopped || endVs != null) && row.status == CheckpointStatus.MISSED && row.ackAt == null) {
-                        SecondaryButton("${Labels.title(row.type, row.offsetMin)} · ${Labels.ACK}", { onAcknowledge(listOf(row.id)) })
+                        PatientButton(Labels.title(row.type, row.offsetMin), Labels.ACK, { onAcknowledge(listOf(row.id)) })
                     }
                 }
             }
@@ -183,7 +186,13 @@ fun DetailContent(
             if (t.status == TransfusionStatus.RUNNING) {
                 SecondaryButton("Edit start time or duration", onEdit)
             }
+            // With a check due, that is the action in the thumb's place; ending waits down here.
+            if (t.status == TransfusionStatus.RUNNING && dueRow != null) {
+                Spacer(Modifier.height(TvsSpace.s4))
+                SecondaryButton("End transfusion", { onEnd(t.id) })
+            }
             if (stopped) {
+                Spacer(Modifier.height(TvsSpace.s4))
                 SecondaryButton("Remove from Home", { onForget(t.id) })
             }
         }
@@ -200,18 +209,12 @@ fun DetailContent(
                     fill = c.danger, content = c.onDanger, icon = R.drawable.ic_warning,
                 )
             } else {
-                ReactionBar(onClick = onReaction, minHeight = TvsSize.Touch, quiet = true)
+                ReactionBar(onClick = onReaction, minHeight = TvsSize.TouchLarge, quiet = true)
                 when {
-                    endVs != null -> AckButton("End VS · ${Labels.ACK}", { onAcknowledge(listOf(endVs.id)) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
-                    dueRow != null -> AckButton("${Labels.title(dueRow.type, dueRow.offsetMin)} · ${Labels.ACK}", { onAcknowledge(listOf(dueRow.id)) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
-                }
-                if (t.status == TransfusionStatus.RUNNING) {
-                    if (dueRow != null) {
-                        SecondaryButton("End transfusion", { onEnd(t.id) })
-                    } else {
-                        // Quiet on purpose: it cancels the alarms, and nothing else on this screen is asking to be pressed.
-                        SecondaryButton("End transfusion", { onEnd(t.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
-                    }
+                    endVs != null -> PatientButton("End VS", Labels.ACK, { onAcknowledge(listOf(endVs.id)) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
+                    dueRow != null -> PatientButton(Labels.title(dueRow.type, dueRow.offsetMin), Labels.ACK, { onAcknowledge(listOf(dueRow.id)) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
+                    // Quiet on purpose: it cancels the alarms, and nothing else on this screen is asking to be pressed.
+                    t.status == TransfusionStatus.RUNNING -> SecondaryButton("End transfusion", { onEnd(t.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
                 }
             }
         }
@@ -238,7 +241,7 @@ private fun CheckpointRow(row: Checkpoint, now: Long, toleranceMin: Int) {
     val c = Ward.c
     val status = Timeliness.status(row, now, toleranceMin)
     val pill: @Composable () -> Unit = {
-        if (row.type != CheckpointType.START) StatusPill(status) else Text("logged", color = c.muted, style = WardType.BodyBold)
+        if (row.type != CheckpointType.START) StatusPill(status) else Text("✓ logged", color = c.ink, style = WardType.BodyBold)
     }
     val words: @Composable () -> Unit = {
         Text(Labels.title(row.type, row.offsetMin), color = c.ink, style = WardType.BodyBold)

@@ -1,5 +1,6 @@
 package app.transfusionvs.ui.screens
 
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -75,10 +76,7 @@ fun TurnDetailContent(
                 null -> ""
             },
             title = p?.bedLabel ?: "",
-            subtitle = p?.let {
-                "Every ${Labels.duration(it.intervalMin)} · first turn ${Labels.clock(it.firstSlotAt)}" +
-                    (it.stopAt?.let { s -> " · until ${Labels.clock(s)}" } ?: "")
-            },
+            titleIsKey = true,
             onBack = onBack,
             icon = R.drawable.ic_turn,
         )
@@ -115,7 +113,11 @@ fun TurnDetailContent(
 
             Panel {
                 CapsLabel("Turn times")
-                Text("Every ${Labels.duration(p.intervalMin)} · a late turn doesn't move them", color = c.muted, style = WardType.Body)
+                Text(
+                    "Every ${Labels.duration(p.intervalMin)} · first turn ${Labels.clock(p.firstSlotAt)}" + (p.stopAt?.let { s -> " · until ${Labels.clock(s)}" } ?: ""),
+                    color = c.ink, style = WardType.Body,
+                )
+                Text("A late turn doesn't move them", color = c.muted, style = WardType.Body)
                 CardTimeline(TurnTimeline.live(p, slots, now, windowMin = windowMin))
                 val turnTimes = slots.filter { it.status == TurnSlotStatus.ACKED }.mapNotNull { it.ackAt }
                 val gap = TurnGrid.longestGapMs(turnTimes, maxOf(p.startAt, now - 24 * 60 * MINUTE_MS), now)
@@ -132,6 +134,11 @@ fun TurnDetailContent(
             if (p.status == TurnPlanStatus.RUNNING) {
                 SecondaryButton("Edit positions, interval or stop time", onEdit)
             }
+            // With a round open, that is the action in the thumb's place; stopping waits down here.
+            if (slots.any { it.status == TurnSlotStatus.RINGING }) {
+                Spacer(Modifier.height(TvsSpace.s4))
+                SecondaryButton("Stop plan", { onStop(p.id) })
+            }
         }
 
         Column(
@@ -141,10 +148,9 @@ fun TurnDetailContent(
             UndoSlot()
             if (slots.any { it.status == TurnSlotStatus.RINGING }) {
                 AckButton("Open round", onOpenRound, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
-                SecondaryButton("Stop plan", { onStop(p.id) })
             } else if (p.status == TurnPlanStatus.RUNNING) {
                 // Quiet on purpose: it cancels the alarms, and nothing else on this screen is asking to be pressed.
-                SecondaryButton("Stop plan", { onStop(p.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
+                SecondaryButton("Stop plan", { onStop(p.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
             } else {
                 PrimaryButton("Restart plan", { onRestart(p.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
             }
