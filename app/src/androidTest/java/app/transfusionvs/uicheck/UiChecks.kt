@@ -98,7 +98,7 @@ class UiChecks {
             // Measured from the laid-out lines: hasVisualOverflow also reports text that fits.
             val w = n.size.width + 1f
             val h = n.size.height + 1f
-            val cut = r.multiParagraph.height > h || (0 until r.lineCount).any { r.getLineRight(it) > w || r.isLineEllipsized(it) }
+            val cut = r.multiParagraph.height > h || (0 until r.lineCount).any { r.getLineRight(it) - r.getLineLeft(it) > w || r.isLineEllipsized(it) }
             if (cut) out += "TRUNCATED $name '${text.take(60)}'"
             for (line in 0 until r.lineCount - 1) {
                 val end = r.getLineEnd(line)

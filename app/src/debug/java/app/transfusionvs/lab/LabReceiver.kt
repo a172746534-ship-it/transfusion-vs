@@ -6,9 +6,11 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.database.Cursor
+import android.app.NotificationManager
 import android.media.AudioManager
 import android.net.Uri
 import android.os.StrictMode
+import android.os.Vibrator
 import app.transfusionvs.App
 import app.transfusionvs.alarm.AlarmService
 import app.transfusionvs.app
@@ -69,6 +71,10 @@ class LabReceiver : BroadcastReceiver() {
                         "VIBRATE" -> AudioManager.RINGER_MODE_VIBRATE
                         else -> AudioManager.RINGER_MODE_NORMAL
                     }
+                    "lab.DND" -> context.getSystemService(NotificationManager::class.java).setInterruptionFilter(
+                        if (intent.getStringExtra("mode") == "off") NotificationManager.INTERRUPTION_FILTER_ALL else NotificationManager.INTERRUPTION_FILTER_PRIORITY,
+                    )
+                    "lab.DUMP_HEAP" -> leakcanary.LeakCanary.dumpHeap()
                     "lab.SET_MISSED_TIMEOUT" -> app.settings.missedTimeoutMin = intent.getIntExtra("min", 10)
                 }
                 pending.setResultData(dump(app, now, zone).toString())
@@ -84,6 +90,7 @@ class LabReceiver : BroadcastReceiver() {
         .put("now", now)
         .put("zone", zone.id)
         .put("service", AlarmService.isRunning)
+        .put("hasVibrator", app.getSystemService(Vibrator::class.java).hasVibrator())
         .put("checkpoints", JSONArray(rows(app, "SELECT c.id,c.type,c.status,c.scheduledAt,c.firedAt,c.ackAt,c.snoozeCount,t.bedLabel FROM checkpoint c JOIN transfusion t ON t.id=c.transfusionId WHERE c.status!='CANCELLED' AND c.type!='START' ORDER BY c.scheduledAt LIMIT 12")))
         .put("slots", JSONArray(rows(app, "SELECT s.id,s.status,s.slotAt,s.firedAt,s.ackAt,s.silenced,s.skipReason,p.bedLabel FROM turn_slot s JOIN turn_plan p ON p.id=s.planId WHERE s.status!='CANCELLED' ORDER BY s.slotAt LIMIT 12")))
 

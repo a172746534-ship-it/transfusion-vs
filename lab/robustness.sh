@@ -81,7 +81,16 @@ echo "anrs: $(grep -c 'ANR in app.transfusionvs' "$OUT/monkey.logcat.txt")" | te
 echo "strictmode: $(grep -c 'StrictMode policy violation' "$OUT/monkey.logcat.txt")" | tee -a "$OUT/monkey.summary.txt"
 grep -c 'Monkey finished' "$OUT/monkey.txt" | sed 's/^/monkey finished: /' | tee -a "$OUT/monkey.summary.txt"
 grep 'Events injected' "$OUT/monkey.txt" | tee -a "$OUT/monkey.summary.txt"
-grep -E 'HEAP ANALYSIS|APPLICATION LEAKS|LeakCanary' "$OUT/monkey.logcat.txt" | head -20 > "$OUT/leaks.txt"
+# Force the heap analysis: LeakCanary alone waits for 5 retained objects, so silence would prove nothing.
+adb logcat -c
+adb shell am broadcast -n $PKG/.lab.LabReceiver -a lab.DUMP_HEAP -f 0x20 > /dev/null
+: > "$OUT/leaks.txt"
+for i in $(seq 1 40); do
+  sleep 6
+  if adb logcat -d -s LeakCanary:D | grep -q 'APPLICATION LEAKS'; then break; fi
+done
+adb logcat -d -s LeakCanary:D > "$OUT/leaks.full.txt"
+grep -E 'HEAP ANALYSIS RESULT|[0-9]+ APPLICATION LEAKS|[0-9]+ LIBRARY LEAKS|Analysis failed|Heap dump' "$OUT/leaks.full.txt" | sed -E 's/^.*LeakCanary: //' | head -8 | tee "$OUT/leaks.txt"
 adb shell am force-stop $PKG
 
 # --- Cold start: non-debuggable build, median of 10 am start -W ----------------------------------

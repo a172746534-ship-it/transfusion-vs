@@ -117,6 +117,9 @@ def grant():
     if api >= 31 and api < 33:
         sh(f"appops set {PKG} SCHEDULE_EXACT_ALARM allow")
     sh(f"cmd notification allow_dnd {PKG}")
+    if api < 28:
+        sh(f"settings put secure enabled_notification_policy_access_packages {PKG}")
+        time.sleep(1)
 
 
 def reset():
@@ -137,7 +140,7 @@ def set_dnd(mode):
     if api >= 28:
         sh(f"cmd notification set_dnd {mode}")
     else:
-        sh(f"settings put global zen_mode {1 if mode != 'off' else 0}")
+        hook("DND", mode=mode)
 
 
 def set_stream_volume(stream, value):
@@ -173,7 +176,8 @@ def diagnose(name):
         "services": sh(f"dumpsys activity services {PKG} | head -40"),
         "audio": "\n".join(l.strip() for l in sh("dumpsys audio").splitlines() if "usage=" in l and "state:" in l)[:1500],
         "users": sh("dumpsys user | grep -iE 'state:|running' | head -6"),
-        "logcat": run(f"adb logcat -d -b all | grep -E '{PKG}|FullScreen|NotifInterrupt|BubbleMetadata|AndroidRuntime' | tail -150", 60),
+        "permissions": sh(f"dumpsys package {PKG} | grep -E 'POST_NOTIFICATIONS|USE_FULL_SCREEN_INTENT' | head -6") + sh(f"appops get {PKG} USE_FULL_SCREEN_INTENT"),
+        "logcat": run(f"adb logcat -d -b all | grep -E '{PKG}|FullScreen|NotifInterrupt|BubbleMetadata|Suppressing notification|AndroidRuntime' | grep -v StrictMode | tail -150", 60),
     }
     (out / f"{name}.diagnosis.txt").write_text("\n\n".join(f"=== {k}\n{v}" for k, v in parts.items()), errors="replace")
 
@@ -210,7 +214,7 @@ def keyguard_up():
 
 def audio_alarm_playing():
     a = sh("dumpsys audio")
-    hit = [l.strip() for l in a.splitlines() if "state:started" in l and re.search(r"usage=(USAGE_)?ALARM", l)]
+    hit = [l.strip() for l in a.splitlines() if "state:started" in l and re.search(r"usage=(USAGE_)?ALARM|usage=4\b", l)]
     return bool(hit), "\n".join(hit) or a[:0]
 
 
@@ -353,9 +357,10 @@ def ringer_test(name, mode):
     ok, msg, _ = assert_fired(due, name)
     playing, lines = audio_alarm_playing()
     vib, raw = vibrating()
-    save(name, f"{ringer}\n{msg}\nAUDIO\n{lines}\nVIBRATOR\n{raw}")
-    if vib is None:
-        vib_msg = "vibrator hardware absent on this image: N/A"
+    has_vibrator = hook("NOOP").get("hasVibrator", True)
+    save(name, f"{ringer}\n{msg}\nAUDIO\n{lines}\nALL PLAYERS\n" + "\n".join(l.strip() for l in sh("dumpsys audio").splitlines() if "usage=" in l)[:1500] + f"\nVIBRATOR hasVibrator={has_vibrator}\n{raw}")
+    if vib is None or not has_vibrator:
+        vib_msg = "no vibrator on this emulator image: vibration N/A here"
         vib = True
     else:
         vib_msg = f"vibrating={vib}"
@@ -403,6 +408,14 @@ def t_recents(name):
     sh("input keyevent KEYCODE_HOME")
     time.sleep(1)
     recents = sh("dumpsys activity recents")
+    found = re.search(rf"\* Recent #\d+: Task\{{\w+ #(\d+)[^\n]*{re.escape(PKG)}", recents)
+    how = "swipe"
+    if found:
+        # Same system call the launcher makes when a card is swiped away.
+        sh(f"am stack remove {found.group(1)}")
+        how = "am stack remove"
+        time.sleep(2)
+        recents = sh("dumpsys activity recents")
     still = re.search(rf"\* Recent #\d+:[^\n]*{re.escape(PKG)}", recents) is not None
     screenshot(name + "_after_swipe")
     sleep_screen()
@@ -410,7 +423,7 @@ def t_recents(name):
     save(name, recents[:3000] + "\n" + msg)
     if still:
         return False, f"task still in recents, so the swipe proved nothing; {msg}"
-    return ok, msg + "; task removed from recents"
+    return ok, msg + f"; task removed from recents ({how})"
 
 
 @test("A09_force_stop_restored_on_open")
@@ -454,6 +467,7 @@ def t_reboot(name):
     try:
         # Long enough for the emulator to boot: the 15-min check rings about 5 min from now.
         due = arrange_transfusion(ago=10)
+        time.sleep(30)  # let the permission grants reach the disk
         run("adb reboot", 60)
         time.sleep(5)
         wait_boot()
@@ -481,6 +495,7 @@ def t_reboot(name):
 @test("A11b_real_reboot_after_unlock")
 def t_reboot_unlocked(name):
     due = arrange_transfusion(ago=9)
+    time.sleep(30)  # let the permission grants reach the disk
     run("adb reboot", 60)
     time.sleep(5)
     wait_boot()

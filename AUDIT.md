@@ -15,15 +15,15 @@ Touches counted by `app/src/androidTest/.../TapBudget.kt` on the real activities
 
 | # | Task | Current touches | Budget | Result |
 |---|------|----------------|--------|--------|
-| 1 | See all my beds (6 beds) | TAPS_1 | 1 | RESULT_1 |
-| 2 | Acknowledge a check from the alarm | TAPS_2 | 1 | RESULT_2 |
-| 3 | Whole round as suggested (3 beds) | TAPS_3 | 2 | RESULT_3 |
-| 4 | Start a transfusion | TAPS_4, plus typing | 4 | RESULT_4 |
-| 5 | Start a repositioning plan | TAPS_5, plus typing | 4 | RESULT_5 |
-| 6 | End a transfusion | TAPS_6 | 3 | RESULT_6 |
-| 7 | Suspected reaction → steps (Home / alarm) | TAPS_7 | 2 | RESULT_7 |
-| 8 | Mark "Transfusion stopped" for a bed | TAPS_8 | 3 | RESULT_8 |
-| 9 | Round: one bed "can't turn" + reason | TAPS_9 | 3 | RESULT_9 |
+| 1 | See all my beds (6 beds) | 3 | 1 | FAIL |
+| 2 | Acknowledge a check from the alarm | 1 | 1 | pass |
+| 3 | Whole round as suggested (3 beds) | 4 (one more per bed) | 2 | FAIL |
+| 4 | Start a transfusion | 8, plus typing | 4 | FAIL |
+| 5 | Start a repositioning plan | 5, plus typing | 4 | FAIL |
+| 6 | End a transfusion | 4 | 3 | FAIL |
+| 7 | Suspected reaction → steps (Home / alarm) | 2 / 1; impossible from a round alarm (F41) | 2 | FAIL |
+| 8 | Mark "Transfusion stopped" for a bed | 5 | 3 | FAIL |
+| 9 | Round: one bed "can't turn" + reason | 3 | 3 | pass |
 
 ## 2. Findings
 
@@ -157,9 +157,11 @@ panel, labels split mid-word ("Transfusi\non", "Miss\ned"), the "MEASURE"/"DOCUM
 *Why:* nurses with large system text cannot read the clinical schedule. *Fix:* layouts built for scale: wrap, stack
 and fixed-format times that never split.
 
-**F33 · Major · home_both_features__w360_f10_ar.** System language Arabic: the manifest has `supportsRtl="true"`, so an
-English UI mirrors. See the `*_ar` shots. *Fix:* force LTR on the root (the UI language stays English); Latin digits
-are already correct (`ClinicalContentTest.timesKeepLatinDigitsOnAnArabicPhone`).
+**F33 · Critical · docs/audit/arabic_and_night.png.** On a phone set to Arabic the whole app mirrors, because the
+manifest has `supportsRtl="true"`, and the mixed text scrambles: the alarm title reads "min check —-15", the Home line
+reads "h check at 11:20-1 :Next", and the timeline runs backwards. This is live in v0.4.0 for any colleague whose phone
+is in Arabic. *Why:* a garbled clinical instruction on the alarm screen. *Fix:* force LTR at the root (the UI language
+stays English). Latin digits are already correct (`ClinicalContentTest.timesKeepLatinDigitsOnAnArabicPhone`).
 
 ### Missing features the brief expects
 
@@ -167,6 +169,12 @@ are already correct (`ClinicalContentTest.timesKeepLatinDigitsOnAnArabicPhone`).
 none for a round. **F36 · Major.** No undo anywhere: acknowledge, End and Stop are final or guarded by dialogs.
 **F37 · Major.** No ward bed list: every flow types a label. **F38 · Major.** No "due soon" or "overdue" haptics, and
 no confirmation haptic.
+
+### Reaching the reaction guide
+
+**F41 · Critical · round_alarm, round_checklist.** A round alarm has no way to reach the reaction guide: the banner only
+appears when a transfusion is also ringing. The brief says 2 touches from anywhere, including the alarm screen. Found by
+all three persona reviewers. *Fix:* the reaction bar on every alarm screen.
 
 ### TalkBack
 
@@ -186,4 +194,9 @@ LAB_FINDINGS
 
 ## 4. Findings from independent reviewers
 
-REVIEWER_FINDINGS
+Recorded word for word, unedited, in [docs/audit/reviewers-baseline.md](docs/audit/reviewers-baseline.md).
+Design reviewer: **3/10, FAIL**, 68 findings (9 Critical, 35 Major, 24 Minor). Personas: 22, 23 and 20 concrete findings.
+They enter the loop like any other failure. Beyond what is listed above they add, among others: the static header reads
+"on time" while a bed is overdue; two identical "Measured & documented" buttons on one card; a stopped-for-reaction bed
+looks like an ordinary overdue bed; Snooze disappears without a word and the reaction banner moves into its slot, so
+muscle memory lands on the wrong control; the amber DOCUMENT block looks like the amber action button.
