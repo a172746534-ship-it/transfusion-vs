@@ -50,14 +50,14 @@ import app.transfusionvs.setup.OemGuides
 import app.transfusionvs.setup.OemStep
 import app.transfusionvs.setup.SetupChecks
 import app.transfusionvs.ui.PRIMARY_TAG
+import app.transfusionvs.ui.components.AckButton
 import app.transfusionvs.ui.components.Alert
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.Panel
 import app.transfusionvs.ui.components.PrimaryButton
 import app.transfusionvs.ui.components.SecondaryButton
-import app.transfusionvs.ui.components.WardButton
 import app.transfusionvs.ui.components.WardHeader
-import app.transfusionvs.ui.theme.TvsShape
+import app.transfusionvs.ui.components.moreBelow
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
@@ -152,8 +152,9 @@ fun SetupContent(
             onBack = onBack,
         )
 
+        val scroll = rememberScrollState()
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(TvsSpace.s12),
+            Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
             if (ringing) Alert("Alarm ringing. Open it", R.drawable.ic_bell, c.alarmAction, c.alarmOnAction, null, onOpenAlarm)
@@ -242,10 +243,7 @@ private fun CheckRow(item: CheckItem, onFix: () -> Unit) {
             }
         }
         if (!item.ok) {
-            WardButton(
-                "Fix: ${item.title}", onFix, Modifier.fillMaxWidth(),
-                fill = c.danger, content = c.onDanger, minHeight = TvsSize.Touch, style = WardType.ButtonSmall, shape = TvsShape.Control,
-            )
+            AckButton("Fix: ${item.title}", onFix)
         }
     }
 }

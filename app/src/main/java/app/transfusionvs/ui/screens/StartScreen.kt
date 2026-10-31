@@ -54,6 +54,7 @@ import app.transfusionvs.ui.components.OTHER_BED
 import app.transfusionvs.ui.components.Panel
 import app.transfusionvs.ui.components.PrimaryButton
 import app.transfusionvs.ui.components.WardHeader
+import app.transfusionvs.ui.components.moreBelow
 import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
 import app.transfusionvs.ui.theme.WardType
@@ -138,7 +139,7 @@ fun StartContent(
         val scroll = rememberScrollState()
         val scope = rememberCoroutineScope()
         Column(
-            Modifier.weight(1f).verticalScroll(scroll).imePadding().padding(TvsSpace.s12),
+            Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).imePadding().padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
             Panel {

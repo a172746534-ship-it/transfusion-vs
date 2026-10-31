@@ -64,6 +64,7 @@ import app.transfusionvs.ui.components.PrimaryButton
 import app.transfusionvs.ui.components.SecondaryButton
 import app.transfusionvs.ui.components.WardButton
 import app.transfusionvs.ui.components.WardHeader
+import app.transfusionvs.ui.components.moreBelow
 import app.transfusionvs.ui.components.largeFont
 import app.transfusionvs.ui.components.wardClick
 import app.transfusionvs.ui.theme.TvsShape
@@ -172,7 +173,7 @@ fun TurnStartContent(
         val scroll = rememberScrollState()
         val scope = rememberCoroutineScope()
         Column(
-            Modifier.weight(1f).verticalScroll(scroll).imePadding().padding(TvsSpace.s12),
+            Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).imePadding().padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
             Panel {
@@ -183,16 +184,14 @@ fun TurnStartContent(
                 )
             }
 
-            Panel {
-                if (defaultFirst != choices.first() && firstSlot == defaultFirst) {
-                    Text(
-                        "${Labels.clock(choices.first())} is less than ${TurnGrid.MIN_LEAD_MIN} min away, so the first turn is ${Labels.clock(defaultFirst)}.",
-                        color = c.muted, style = WardType.Body,
-                    )
-                }
-                if (editing == null) {
-                    SecondaryButton(if (options) "Fewer options" else "More options", { options = !options })
-                }
+            if (defaultFirst != choices.first() && firstSlot == defaultFirst) {
+                Text(
+                    "${Labels.clock(choices.first())} is less than ${TurnGrid.MIN_LEAD_MIN} min away, so the first turn is ${Labels.clock(defaultFirst)}.",
+                    color = c.muted, style = WardType.Body,
+                )
+            }
+            if (editing == null) {
+                SecondaryButton(if (options) "Fewer options" else "More options", { options = !options })
             }
 
             if (options) {
@@ -293,7 +292,7 @@ fun TurnStartContent(
                         scroll.animateScrollTo(scroll.maxValue)
                     }
                 }
-                CapsLabel(if (bed.isBlank()) "Pick a bed first" else "$bed: lying now? Tap to start")
+                Text(if (bed.isBlank()) "Pick a bed first" else "$bed: lying now? Tap to start", color = c.ink, style = WardType.Lead)
                 PositionButtons(rotation, enabled = validPlan) { p ->
                     onSubmit(TurnPlanDraft(bed, interval, rotation, p, firstSlot, stopAt))
                 }

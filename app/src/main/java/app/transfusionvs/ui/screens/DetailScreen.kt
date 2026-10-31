@@ -50,6 +50,7 @@ import app.transfusionvs.ui.components.UndoSlot
 import app.transfusionvs.ui.components.WardButton
 import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.components.largeFont
+import app.transfusionvs.ui.components.moreBelow
 import app.transfusionvs.ui.components.rememberNow
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
@@ -124,8 +125,9 @@ fun DetailContent(
         // The one action this bed needs now: pinned where the thumb is, not somewhere in the list.
         val dueRow = rows.filter { it.status == CheckpointStatus.RINGING || (it.status == CheckpointStatus.MISSED && it.ackAt == null) }.minByOrNull { it.scheduledAt }
 
+        val scroll = rememberScrollState()
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(TvsSpace.s12),
+            Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
             if (stopped) {
@@ -163,7 +165,7 @@ fun DetailContent(
             Panel {
                 CapsLabel("Time from start")
                 Text("Baseline first · hourly = same minute as start", color = c.muted, style = WardType.Body)
-                CardTimeline(TimelineBuilder.live(t, rows, now))
+                CardTimeline(TimelineBuilder.live(t, rows, now, toleranceMin))
             }
 
             Panel {

@@ -55,6 +55,7 @@ import app.transfusionvs.ui.components.PrimaryButton
 import app.transfusionvs.ui.components.SecondaryButton
 import app.transfusionvs.ui.components.WardButton
 import app.transfusionvs.ui.components.WardHeader
+import app.transfusionvs.ui.components.moreBelow
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
@@ -196,8 +197,9 @@ fun SettingsContent(
     val c = Ward.c
     Column(Modifier.fillMaxSize().background(c.bg)) {
         WardHeader(caps = "Settings", title = "Ward & alarm settings", onBack = onBack)
+        val scroll = rememberScrollState()
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(TvsSpace.s12),
+            Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
             WardBedsPanel(beds, onAddBeds, onRemoveBed)

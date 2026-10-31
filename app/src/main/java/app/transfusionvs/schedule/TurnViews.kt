@@ -43,7 +43,7 @@ object TurnTimeline {
      * A running plan: the last two finished slots, anything open, and the next upcoming ones.
      * Dots: filled = done, dash = skipped, due = ringing, overdue = missed, hollow = upcoming.
      */
-    fun live(plan: TurnPlan, slots: List<TurnSlot>, now: Long, ahead: Int = 3): List<TimelinePoint> {
+    fun live(plan: TurnPlan, slots: List<TurnSlot>, now: Long, ahead: Int = 3, windowMin: Int = 15): List<TimelinePoint> {
         val sorted = slots.filter { it.status != TurnSlotStatus.CANCELLED }.sortedBy { it.slotAt }
         val done = sorted.filter { it.status in FINISHED }.takeLast(2)
         val open = sorted.filter { it.status == TurnSlotStatus.RINGING || (it.status == TurnSlotStatus.PENDING && it.slotAt <= now) }
@@ -58,7 +58,7 @@ object TurnTimeline {
                 else -> TurnGrid.nextPosition(predicted, rotation).also { predicted = it }
             }
             val dot = when {
-                s.status == TurnSlotStatus.ACKED -> DotStyle.FILLED
+                s.status == TurnSlotStatus.ACKED -> if (Math.floorDiv((s.ackAt ?: s.slotAt) - s.slotAt, MINUTE_MS) > windowMin) DotStyle.LATE else DotStyle.FILLED
                 s.status == TurnSlotStatus.SKIPPED -> DotStyle.SKIPPED
                 s.status == TurnSlotStatus.MISSED -> DotStyle.OVERDUE
                 s.status == TurnSlotStatus.RINGING || s.slotAt <= now -> DotStyle.DUE

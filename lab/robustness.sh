@@ -85,12 +85,12 @@ adb shell am broadcast -n $PKG/.lab.LabReceiver -a lab.ADD_BEDS --es beds "75-78
 tap_text "Start transfusion"; tap_text "Bed 77"
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 1; sleep 3
-if dump | grep -q '✓ Bed 77'; then echo "PASS rotation keeps the picked bed"; else echo "FAIL rotation lost the picked bed"; fi | tee "$OUT/rotation.txt"
+if dump | grep -qE 'text="Bed 77"[^>]*selected="true"'; then echo "PASS rotation keeps the picked bed"; else echo "FAIL rotation lost the picked bed"; fi | tee "$OUT/rotation.txt"
 adb shell settings put system user_rotation 0; sleep 2
 adb shell input keyevent KEYCODE_HOME; sleep 2
 adb shell am kill $PKG; sleep 2
 adb shell am start -W -n $HOME_ACT >/dev/null; sleep 3
-if dump | grep -q '✓ Bed 77'; then echo "PASS process death keeps the picked bed"; else echo "FAIL process death lost the picked bed"; fi | tee "$OUT/process_death.txt"
+if dump | grep -qE 'text="Bed 77"[^>]*selected="true"'; then echo "PASS process death keeps the picked bed"; else echo "FAIL process death lost the picked bed"; fi | tee "$OUT/process_death.txt"
 
 # --- Monkey (debug build: LeakCanary and StrictMode are on) --------------------------------------
 adb shell pm clear $PKG; grant

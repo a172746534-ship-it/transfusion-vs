@@ -6,4 +6,5 @@
     <dimen name="widget_row">56dp</dimen>
     <dimen name="widget_gap">8dp</dimen>
     <dimen name="widget_icon">20dp</dimen>
+    <dimen name="widget_time_column">96dp</dimen>
 </resources>

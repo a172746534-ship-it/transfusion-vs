@@ -122,9 +122,9 @@ object BedsWidget {
     }
 
     private fun stateWord(bed: BedView) = when {
-        bed.stoppedForReaction -> "STOPPED · "
-        bed.urgency == Urgency.OVERDUE -> "OVERDUE · "
-        bed.urgency == Urgency.NOW -> "DUE NOW · "
+        bed.stoppedForReaction -> "STOPPED\n"
+        bed.urgency == Urgency.OVERDUE -> "OVERDUE\n"
+        bed.urgency == Urgency.NOW -> "DUE NOW\n"
         else -> ""
     }
 }

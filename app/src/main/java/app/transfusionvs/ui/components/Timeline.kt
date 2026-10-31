@@ -96,6 +96,10 @@ private fun Dot(style: DotStyle) {
     val base = Modifier.size(TvsSize.TimelineDot)
     when (style) {
         DotStyle.FILLED -> Box(base.background(c.ink, CircleShape))
+        DotStyle.LATE -> Canvas(base.semantics { contentDescription = "Done late" }) {
+            drawCircle(c.soon)
+            drawCircle(c.ink, size.minDimension / 2 - TvsSize.EdgeStrong.toPx() / 2, style = Stroke(TvsSize.EdgeStrong.toPx()))
+        }
         DotStyle.HOLLOW -> Canvas(base) {
             drawCircle(c.card)
             drawCircle(c.ink, size.minDimension / 2 - TvsSize.EdgeStrong.toPx() / 2, style = Stroke(TvsSize.EdgeStrong.toPx()))

@@ -81,6 +81,7 @@ import app.transfusionvs.ui.components.ReactionBar
 import app.transfusionvs.ui.components.UNDO_BAR_MS
 import app.transfusionvs.ui.components.WardButton
 import app.transfusionvs.ui.components.largeFont
+import app.transfusionvs.ui.components.moreBelow
 import app.transfusionvs.ui.components.nightNow
 import app.transfusionvs.ui.components.rememberNight
 import app.transfusionvs.ui.screens.BedChoice
@@ -416,8 +417,9 @@ private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
     now: Long,
 ) {
     val c = Ward.c
+    val scroll = rememberScrollState()
     Column(
-        Modifier.weight(1f).verticalScroll(rememberScrollState()),
+        Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll),
         verticalArrangement = if (beds.size > 1) Arrangement.spacedBy(TvsSpace.s12, Alignment.Bottom) else Arrangement.spacedBy(TvsSpace.s12),
     ) {
         AlarmCaps(R.drawable.ic_drop, if (isTest) "Test alarm" else "Blood transfusion running")
@@ -490,14 +492,15 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
     val c = Ward.c
     val open = remember { mutableStateMapOf<Long, RoundChoice>().apply { putAll(initiallyOpen) } }
     val count = "${round.beds.size} bed${if (round.beds.size > 1) "s" else ""}"
+    val scroll = rememberScrollState()
     Column(
-        Modifier.weight(1f).verticalScroll(rememberScrollState()),
+        Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll),
         verticalArrangement = Arrangement.spacedBy(TvsSpace.s10),
     ) {
         AlarmCaps(R.drawable.ic_turn, "Repositioning round")
         if (stillRinging != null) AlarmSecondary("Still due: $stillRinging", onBackToTransfusion, style = WardType.BodyBold)
         if (!round.started) Text("Turning round", color = c.alarmInk, style = WardType.AlarmTitle)
-        KeyNumbers(Labels.clock(round.slotAt), count, WardType.AlarmKey, WardType.AlarmTitle)
+        KeyNumbers(Labels.clock(round.slotAt), count, WardType.AlarmKey, WardType.Title)
         Text("Check pressure points: occiput · ears · sacrum · heels", color = c.alarmMuted, style = WardType.Body)
         round.beds.forEach { bed ->
             if (round.started) {
@@ -513,13 +516,16 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
                     Modifier.fillMaxWidth().background(c.alarmTint, TvsShape.Control).padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s8),
                     verticalArrangement = Arrangement.spacedBy(TvsSpace.s2),
                 ) {
-                    Text(bed.bedLabel, color = c.alarmInk, style = WardType.CardBed)
-                    PositionChange(bed.from, bed.suggested, c.alarmInk)
+                    Text(bed.bedLabel, color = c.alarmInk, style = WardType.AlarmKeySmall)
+                    PositionChange(bed.from, bed.suggested, c.alarmInk, TvsSize.IconLarge)
                 }
             }
         }
         // Down here, away from the primary action: a slip must not push the round out by 30 minutes.
         if (round.started && round.canRemind) AlarmSecondary("Remind me in 30 min", onRemind)
+    }
+    if (scroll.canScrollForward) {
+        Text("More below ↓", color = c.alarmInk, style = WardType.Lead, modifier = Modifier.padding(top = TvsSpace.s4))
     }
     Spacer(Modifier.size(TvsSpace.s8))
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
@@ -551,8 +557,8 @@ private fun RoundBedRow(
         Modifier.fillMaxWidth().background(c.alarmTint, TvsShape.Card).padding(TvsSpace.s12),
         verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
     ) {
-        Text(bed.bedLabel, color = c.alarmInk, style = WardType.CardBed)
-        PositionChange(bed.from, bed.suggested, c.alarmInk)
+        Text(bed.bedLabel, color = c.alarmInk, style = WardType.AlarmKeySmall)
+        PositionChange(bed.from, bed.suggested, c.alarmInk, TvsSize.IconLarge)
         AlarmSecondary("Turned to ${bed.suggested.label}", { onTurned(bed.suggested) }, style = WardType.ButtonSmall)
         val stacked = largeFont()
         @Composable

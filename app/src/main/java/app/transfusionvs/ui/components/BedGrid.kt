@@ -23,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.text.KeyboardOptions
@@ -65,29 +67,27 @@ fun BedGrid(
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
                 row.forEach { bed ->
                     val on = bed == selected
-                    Row(
+                    Box(
                         Modifier.weight(1f).fillMaxHeight().heightIn(min = TvsSize.TouchLarge)
                             .background(if (on) c.primary else c.card, TvsShape.Control)
                             .border(TvsSize.Edge, if (on) c.primaryEdge else c.muted, TvsShape.Control)
+                            .semantics { selected = on }
                             .wardClick(role = Role.RadioButton) { onPick(bed) }
                             .padding(horizontal = TvsSpace.s4, vertical = TvsSpace.s4),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
                     ) {
                         val ink = if (on) c.onPrimary else c.ink
-                        val icon = busy[bed]
-                        if (icon != null) {
-                            Icon(painterResource(icon), contentDescription = "Running", tint = ink, modifier = Modifier.size(TvsSize.IconSmall))
-                            Spacer(Modifier.width(TvsSpace.s2))
+                        Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
+                            val icon = busy[bed]
+                            if (icon != null) {
+                                Icon(painterResource(icon), contentDescription = "Running", tint = ink, modifier = Modifier.size(TvsSize.IconSmall))
+                                Spacer(Modifier.width(TvsSpace.s2))
+                            }
+                            Text(if (bed == OTHER_BED) "+ Other bed" else bed, color = ink, style = WardType.BodyBold, textAlign = TextAlign.Center)
                         }
-                        Text(
-                            when {
-                                bed == OTHER_BED -> "+ Other bed"
-                                on -> "✓ $bed"
-                                else -> bed
-                            },
-                            color = ink, style = WardType.BodyBold, textAlign = TextAlign.Center,
-                        )
+                        // Selected also carries a mark, so it never rests on colour alone, and the cell keeps its size.
+                        if (on) {
+                            Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = ink, modifier = Modifier.align(Alignment.TopEnd).size(TvsSize.IconSmall))
+                        }
                     }
                 }
                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
@@ -101,7 +101,7 @@ fun BedGrid(
                 singleLine = true,
                 textStyle = WardType.Lead.copy(color = c.ink),
                 placeholder = { Text("e.g. Bed 12", color = c.muted, style = WardType.Lead) },
-                supportingText = { Text("Bed only — no names or MRN", color = c.ink, style = WardType.BodyBold) },
+                supportingText = { Text("Bed only — no names or MRN", color = c.ink, style = WardType.Body) },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             )
         }

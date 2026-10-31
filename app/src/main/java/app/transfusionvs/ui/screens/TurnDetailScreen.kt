@@ -43,7 +43,7 @@ import app.transfusionvs.ui.components.StatusPill
 import app.transfusionvs.ui.components.UndoSlot
 import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.components.largeFont
-import app.transfusionvs.ui.theme.TvsShape
+import app.transfusionvs.ui.components.moreBelow
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
@@ -84,8 +84,9 @@ fun TurnDetailContent(
         )
         if (p == null) return@Column
 
+        val scroll = rememberScrollState()
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(TvsSpace.s12),
+            Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
             // Handover summary: position now, next turn, and the longest gap without a turn.
@@ -110,22 +111,15 @@ fun TurnDetailContent(
                         }
                     }
                 }
-                val turnTimes = slots.filter { it.status == TurnSlotStatus.ACKED }.mapNotNull { it.ackAt }
-                val gap = TurnGrid.longestGapMs(turnTimes, maxOf(p.startAt, now - 24 * 60 * MINUTE_MS), now)
-                Row(
-                    Modifier.fillMaxWidth().background(c.bg, TvsShape.Control).padding(TvsSpace.s12),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Longest gap without a turn (24\u00A0h)", color = c.muted, style = WardType.BodyBold, modifier = Modifier.weight(1f))
-                    Spacer(Modifier.width(TvsSpace.s8))
-                    Text(TurnStatus.gap(gap), style = WardType.Time, color = c.ink)
-                }
             }
 
             Panel {
                 CapsLabel("Turn times")
                 Text("Every ${Labels.duration(p.intervalMin)} · a late turn doesn't move them", color = c.muted, style = WardType.Body)
-                CardTimeline(TurnTimeline.live(p, slots, now))
+                CardTimeline(TurnTimeline.live(p, slots, now, windowMin = windowMin))
+                val turnTimes = slots.filter { it.status == TurnSlotStatus.ACKED }.mapNotNull { it.ackAt }
+                val gap = TurnGrid.longestGapMs(turnTimes, maxOf(p.startAt, now - 24 * 60 * MINUTE_MS), now)
+                Text("Longest gap without a turn (24\u00A0h): ${TurnStatus.gap(gap)}", color = c.muted, style = WardType.Body)
             }
 
             Panel {

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,6 +58,7 @@ import app.transfusionvs.ui.components.SecondaryButton
 import app.transfusionvs.ui.components.UndoSlot
 import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.components.largeFont
+import app.transfusionvs.ui.components.moreBelow
 import app.transfusionvs.ui.components.rememberNow
 import app.transfusionvs.ui.components.wardClick
 import app.transfusionvs.ui.theme.TvsShape
@@ -161,8 +163,10 @@ fun HomeContent(
             },
         )
 
+        val list = rememberLazyListState()
         LazyColumn(
-            Modifier.weight(1f),
+            Modifier.weight(1f).moreBelow(list.canScrollForward),
+            state = list,
             contentPadding = PaddingValues(horizontal = TvsSpace.s12, vertical = TvsSpace.s4),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         ) {

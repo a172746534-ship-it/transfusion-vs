@@ -47,7 +47,7 @@ fun WardBedsPanel(beds: List<String>, onAdd: (List<String>) -> Unit, onRemove: (
                 singleLine = true,
                 textStyle = WardType.Lead.copy(color = c.ink),
                 label = { Text("Beds, e.g. 1-20, 25, ICU 3", style = WardType.Body) },
-                supportingText = { Text("Bed only — no names or MRN", color = c.ink, style = WardType.BodyBold) },
+                supportingText = { Text("Bed only — no names or MRN", color = c.ink, style = WardType.Body) },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             )
             val parsed = BedInput.parse(text)

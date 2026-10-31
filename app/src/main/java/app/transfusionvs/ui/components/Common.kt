@@ -29,7 +29,14 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -47,6 +54,26 @@ import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
 import app.transfusionvs.ui.theme.WardType
 import kotlinx.coroutines.delay
+
+/**
+ * While more content waits below, the region's bottom edge fades out. A hard cut under a pinned action
+ * reads as the end of the list, and a bed could be missed that way.
+ */
+fun Modifier.moreBelow(active: Boolean): Modifier =
+    if (!active) {
+        this
+    } else {
+        graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
+            drawContent()
+            val h = TvsSize.Fade.toPx()
+            drawRect(
+                brush = Brush.verticalGradient(listOf(Color.Transparent, Color.Black), startY = size.height - h, endY = size.height),
+                topLeft = Offset(0f, size.height - h),
+                size = Size(size.width, h),
+                blendMode = BlendMode.DstOut,
+            )
+        }
+    }
 
 /** At large font sizes layouts stack instead of squeezing a word until it breaks. */
 @Composable

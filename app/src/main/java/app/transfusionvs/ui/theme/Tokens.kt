@@ -44,6 +44,9 @@ object TvsSize {
     val TimeColumn = 68.dp
     val TimelineDot = 20.dp
 
+    /** The fade at the bottom of a scroll region with more below. */
+    val Fade = 24.dp
+
     val Edge = 2.dp
     val EdgeStrong = 3.dp
 }

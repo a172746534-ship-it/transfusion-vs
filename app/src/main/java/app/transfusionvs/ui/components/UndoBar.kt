@@ -2,12 +2,15 @@ package app.transfusionvs.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,20 +53,29 @@ fun UndoSlot() {
     }
     if (!visible) return
     val c = Ward.c
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge)
-            .background(c.card, TvsShape.Card)
-            .border(TvsSize.Edge, c.ink, TvsShape.Card)
-            .padding(start = TvsSpace.s12, end = TvsSpace.s4, top = TvsSpace.s4, bottom = TvsSpace.s4),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(action.label, color = c.ink, style = WardType.BodyBold, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(TvsSpace.s8))
+    val shell = Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge)
+        .background(c.card, TvsShape.Card)
+        .border(TvsSize.Edge, c.ink, TvsShape.Card)
+    val button: @Composable (Modifier) -> Unit = { modifier ->
         WardButton(
-            "Undo", { undo.onUndo(action.id) },
-            modifier = Modifier.width(TvsSize.Stepper),
+            "Undo", { undo.onUndo(action.id) }, modifier,
             fill = c.primary, content = c.onPrimary, edge = c.primaryEdge,
             minHeight = TvsSize.Touch, style = WardType.ButtonSmall, shape = TvsShape.Control,
         )
+    }
+    if (largeFont()) {
+        Column(shell.padding(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+            Text(action.label, color = c.ink, style = WardType.BodyBold)
+            button(Modifier.fillMaxWidth())
+        }
+    } else {
+        Row(
+            shell.padding(start = TvsSpace.s12, end = TvsSpace.s4, top = TvsSpace.s4, bottom = TvsSpace.s4),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(action.label, color = c.ink, style = WardType.BodyBold, modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(TvsSpace.s8))
+            button(Modifier.widthIn(min = TvsSize.Stepper))
+        }
     }
 }

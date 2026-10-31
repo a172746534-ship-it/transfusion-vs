@@ -16,6 +16,7 @@
     <TextView
         android:id="@+id/row_time"
         android:layout_width="wrap_content"
+        android:minWidth="@dimen/widget_time_column"
         android:layout_height="wrap_content"
         android:fontFamily="@font/rh_display_black"
         android:textColor="@color/widget_ink"
