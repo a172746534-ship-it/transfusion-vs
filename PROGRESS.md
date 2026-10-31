@@ -79,3 +79,6 @@ Read this first after any restart, then docs/DESIGN_OVERHAUL.md and docs/TEST_LO
 
 ## MRN instead of the bed number (maintainer, 2026-10-31)
 SPEC.md has the rules. Code still says `bedLabel`, `BedView`, `BedGrid`; what they hold is the MRN. The reviewers' rubric must state this decision, and that typing a new patient's MRN once is the maintainer's choice.
+
+## Stopped on 2026-10-31 (maintainer)
+The maintainer ended the emulator testing: the MRN change was the last thing wanted. So the full matrix did not run and 100/100 was not reached. SCORECARD.md lists what is and isn't proven. Merging and releasing without that stop condition is the maintainer's call, asked for separately. Screenshots are back to MODE=verify, with references from run 41204703448.
