@@ -53,3 +53,9 @@ Read this first after any restart, then docs/DESIGN_OVERHAUL.md and docs/TEST_LO
 - The reaction guide belongs to transfusions only: it does not appear on repositioning screens or on a
   round-only alarm. This overrides "2 touches from anywhere" for those screens, and F41 is withdrawn.
   A reviewer finding that asks for it there is out of scope, and the rubric says so.
+
+## MRN add-on (docs/MRN_ADDON.md), added to this plan on 2026-10-31
+- Part of this plan, not a separate task. The app still has no MRN field and none was added.
+- A run of 5+ digits in a bed label counts as an MRN typed by mistake: masked in notifications, on the alarm over
+  the lock screen and on the widget (`schedule/BedMask.kt`). Evidence: `BedMaskTest`, lab `M01`, `widget_mrn_masked`.
+- No CSV exists, so that item holds by having none. M01 is a gate for the merge and carries no points.

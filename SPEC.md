@@ -438,3 +438,5 @@ The maintainer chose direction 1, Ward Card. Colours in `ui/theme/Theme.kt`, ver
 **Alarm safety:** touches are ignored for the first second and while the proximity sensor is covered. The alarm stays 5 seconds after the last acknowledge, to offer Undo. Haptics: long buzz = due, three pulses = overdue, two quick taps = confirmed. At night the alarm window is dimmed.
 
 **Language:** the layout is left-to-right on every phone (`supportsRtl="false"` and forced in the theme), the UI language stays English, digits stay Latin.
+
+**MRN (add-on, docs/MRN_ADDON.md):** the rule stays: bed only, no MRN field. A run of 5 or more digits in a bed label counts as an MRN typed by mistake, and outside the app (notifications, the alarm over the lock screen, the widget) it shows as "•••4821": the shortest suffix, at least 4 digits, unique among active labels. The full value shows only inside the app on an unlocked phone. Nothing logs bed labels.

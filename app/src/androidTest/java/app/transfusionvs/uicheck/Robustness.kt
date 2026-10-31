@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.TextView
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -144,6 +145,19 @@ class Robustness {
         rule.waitUntil(10_000) { row(id).status == CheckpointStatus.RINGING }
         assertEquals(before, row(id))
         pass("undo_last_exact")
+    }
+
+    /** An MRN typed as a bed label by mistake: the widget's own views show only the masked value. */
+    @Test fun widgetMasksAnMrn() {
+        val id = ringing("7654821")
+        assertNotNull(id)
+        val beds = runBlocking { BedsWidget.masked(app.db.dao().homeOnce().map { BedViews.of(it, now) }, app.db.dao().bedLabels()) }
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        lateinit var view: View
+        instrumentation.runOnMainSync { view = BedsWidget.build(target, beds, now).apply(target, FrameLayout(target)) }
+        val text = view.findViewById<TextView>(R.id.row_bed).text.toString()
+        assertEquals("•••4821", text)
+        pass("widget_mrn_masked")
     }
 
     /** Renders the real RemoteViews, saves the image, and taps the real pending intent. */

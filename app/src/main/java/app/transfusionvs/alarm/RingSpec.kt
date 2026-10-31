@@ -39,6 +39,12 @@ data class RingSpec(
     /** Turning sound (null = the bundled chime). */
     val turnSoundUri: String? = null,
 ) {
+    /** For what shows outside the app: every bed label through [mask]. */
+    fun masked(mask: (String) -> String) = copy(
+        beds = beds.map { it.copy(bedLabel = mask(it.bedLabel)) },
+        round = round?.masked(mask),
+    )
+
     /** Only turns are sounding: play the turning sound and vibration, not the transfusion alarm. */
     val turnOnly: Boolean get() = beds.isEmpty() && round != null
 
@@ -114,7 +120,9 @@ data class RoundUi(
     val snoozedUntil: Long?,
     /** "Remind me in 30 min" — only if it lands before the next slot. */
     val canRemind: Boolean,
-)
+) {
+    fun masked(mask: (String) -> String) = copy(beds = beds.map { it.copy(bedLabel = mask(it.bedLabel)) })
+}
 
 /** Which secondary action is open on a round row. */
 enum class RoundChoice { OTHER_POSITION, CANT_TURN }

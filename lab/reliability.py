@@ -788,6 +788,43 @@ def t_undo(name):
     return bar_exact and card_exact and playing, f"snackbar restored exactly={bar_exact}, alarm rings again={playing}; Undo last restored exactly={card_exact}"
 
 
+# ---------------------------------------------------------------- MRN add-on (docs/MRN_ADDON.md)
+
+@test("M01_mrn_masked_outside_the_app")
+def t_mrn(name):
+    mrn, shown = "7654821", "•••4821"
+    run("adb logcat -c")
+    set_pin()
+    try:
+        due = arrange_transfusion(bed=mrn)
+        sleep_screen()
+        ok, msg, _ = assert_fired(due, name)
+        if not ok:
+            return False, msg
+        notif = sh("dumpsys notification --noredact")
+        over_lock = dump_xml()
+        screenshot(name + "_over_lock")
+        n_ok = shown in notif and mrn not in notif
+        a_ok = shown in over_lock and mrn not in over_lock
+        hook("ACK_ALL")
+        time.sleep(7)
+        unlock()
+        sh(f"am start -W -n {HOME}")
+        time.sleep(3)
+        sh("input keyevent KEYCODE_BACK")  # first-run Setup
+        time.sleep(2)
+        sh(f"am start -W -n {HOME}")
+        time.sleep(2)
+        inside = dump_xml()
+        screenshot(name + "_inside")
+        i_ok = mrn in inside
+        log_hits = [l for l in run("adb logcat -d", 60).splitlines() if mrn in l]
+        save(name, f"NOTIFICATION\n{notif[:6000]}\n\nOVER LOCK\n{over_lock}\n\nINSIDE\n{inside}\n\nLOG HITS\n" + "\n".join(log_hits))
+        return n_ok and a_ok and i_ok and not log_hits, f"notification masked={n_ok}; alarm over keyguard masked={a_ok}; full value inside the unlocked app={i_ok}; logcat hits={len(log_hits)}"
+    finally:
+        clear_pin()
+
+
 # ---------------------------------------------------------------- collisions and follow-ups
 
 @test("A20_collision_same_minute_one_screen")

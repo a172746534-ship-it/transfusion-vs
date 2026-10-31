@@ -22,6 +22,8 @@ POINTS = {
     "A18_pocket_guard_proximity": 1, "A19_undo_snackbar_and_undo_last": 1, "A20_collision_same_minute_one_screen": 1,
     "A21_missed_timeout_overdue_notification": 1, "A22_notification_action_ack_syncs": 1, "A23_round_alarm_locked_own_sound": 1,
 }
+# Must pass to merge; worth no points, the 100 stay as the spec split them (docs/MRN_ADDON.md).
+GATES = ["M01_mrn_masked_outside_the_app"]
 results = {}
 for path in root.rglob("reliability/results.json"):
     for r in json.loads(path.read_text(encoding="utf-8")):
@@ -42,6 +44,10 @@ for cid in POINTS:
     for a, r in sorted(results.get(cid, {}).items()):
         if r["status"] != "PASS":
             print(f"- {cid} API {a} {r['status']}: {r['detail'][:230]}")
+
+print("Gates:")
+for cid in GATES:
+    print(" ", cid, {a: r["status"] for a, r in sorted(results.get(cid, {}).items())}, next((r["detail"][:200] for r in results.get(cid, {}).values() if r["status"] != "PASS"), ""))
 
 print("\n--- robustness per API ---")
 for rob in sorted(root.rglob("robustness")):

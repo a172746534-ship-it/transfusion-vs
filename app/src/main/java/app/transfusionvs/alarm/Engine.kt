@@ -21,6 +21,7 @@ import app.transfusionvs.data.TvsDao
 import app.transfusionvs.data.UndoAction
 import app.transfusionvs.data.WardDao
 import app.transfusionvs.schedule.ArmPlanner
+import app.transfusionvs.schedule.BedMask
 import app.transfusionvs.schedule.Grouping
 import app.transfusionvs.schedule.MINUTE_MS
 import app.transfusionvs.schedule.Reconciler
@@ -72,7 +73,8 @@ class Engine(
     suspend fun onPreAlert(checkpointId: Long) {
         val row = dao.withBed(listOf(checkpointId)).firstOrNull() ?: return
         if (row.status == PENDING && row.scheduledAt > now()) {
-            Notifications.preAlert(context, row, settings.preAlertMin)
+            val mask = masker()
+            Notifications.preAlert(context, row.copy(bedLabel = mask(row.bedLabel)), settings.preAlertMin)
         }
     }
 
@@ -574,7 +576,7 @@ class Engine(
             missedTimeoutMin = settings.missedTimeoutMin,
             round = round,
             turnSoundUri = settings.turnSoundUri,
-        )
+        ).masked(masker())
         when {
             AlarmService.isRunning -> AlarmService.update(spec)
             canStartService -> AlarmService.start(context, spec)
@@ -584,14 +586,18 @@ class Engine(
 
     private suspend fun syncOverdue() {
         val missed = dao.missedUnacknowledged()
-        val rows = if (missed.isEmpty()) emptyList() else dao.withBed(missed.map { it.id })
+        val mask = masker()
+        val rows = if (missed.isEmpty()) emptyList() else dao.withBed(missed.map { it.id }).map { it.copy(bedLabel = mask(it.bedLabel)) }
         Notifications.syncOverdue(context, rows)
 
         val now = now()
         val round = RoundBuilder.build(turnDao.round(), now, ZoneId.systemDefault())
-        Notifications.syncTurnOverdue(context, turns.overdueBeds(now), canRemind = round?.canRemind == true)
+        Notifications.syncTurnOverdue(context, turns.overdueBeds(now).map(mask), canRemind = round?.canRemind == true)
         BedsWidget.refresh(context, dao, turnDao, settings)
     }
+
+    /** Whatever leaves the app shows bed labels through this (see BedMask). */
+    private suspend fun masker() = BedMask.masker(dao.bedLabels() + turnDao.bedLabels())
 
     private fun canSnoozeCounts(snoozeCounts: List<Int>) =
         snoozeCounts.isNotEmpty() && snoozeCounts.all { it < Settings.MAX_SNOOZES }

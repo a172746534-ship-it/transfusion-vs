@@ -54,6 +54,12 @@ interface TurnDao {
     @Query("SELECT * FROM turn_plan ORDER BY status, bedLabel")
     fun observeHome(): Flow<List<TurnPlanWithSlots>>
 
+    @Query("SELECT bedLabel FROM turn_plan")
+    suspend fun bedLabels(): List<String>
+
+    @Query("SELECT bedLabel FROM turn_plan")
+    fun observeBedLabels(): Flow<List<String>>
+
     /** Once, for the home-screen widget. */
     @Transaction
     @Query("SELECT * FROM turn_plan ORDER BY status, bedLabel")

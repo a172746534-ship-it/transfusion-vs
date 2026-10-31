@@ -1,5 +1,6 @@
 package app.transfusionvs.alarm
 
+import android.app.KeyguardManager
 import android.graphics.Color as AndroidColor
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -63,6 +64,7 @@ import app.transfusionvs.data.Settings
 import app.transfusionvs.data.SkipReason
 import app.transfusionvs.data.UndoAction
 import app.transfusionvs.schedule.Labels
+import app.transfusionvs.schedule.BedMask
 import app.transfusionvs.schedule.BedViews
 import app.transfusionvs.schedule.Urgency
 import app.transfusionvs.ui.PRIMARY_TAG
@@ -175,6 +177,8 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
     val rows by app.db.dao().observeRinging().collectAsStateWithLifecycle(initialValue = null)
     val plans by app.db.turnDao().observeRound().collectAsStateWithLifecycle(initialValue = null)
     val undo by app.db.wardDao().observeUndo().collectAsStateWithLifecycle(initialValue = null)
+    val txLabels by app.db.dao().observeBedLabels().collectAsStateWithLifecycle(initialValue = emptyList())
+    val planLabels by app.db.turnDao().observeBedLabels().collectAsStateWithLifecycle(initialValue = emptyList())
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -183,6 +187,9 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
             now = System.currentTimeMillis()
         }
     }
+    // Over the lock screen a long number in a bed label is masked; the whole of it needs an unlocked phone.
+    val locked = remember(now) { context.getSystemService(KeyguardManager::class.java).isKeyguardLocked }
+    val mask: (String) -> String = if (locked) BedMask.masker(txLabels + planLabels) else { label -> label }
     val nothingOpen = rows?.isEmpty() == true && plans?.isEmpty() == true
     val justDone = undo?.firstOrNull()?.takeIf { System.currentTimeMillis() - it.at < UNDO_BAR_MS }
     // Closes itself once nothing is open, after giving the last action its moment for Undo.
@@ -193,17 +200,17 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
         }
     }
     if (nothingOpen) {
-        DoneContent(justDone, onUndo = { id -> app.scope.launch { app.engine.undo(id) } })
+        DoneContent(justDone?.let { it.copy(label = mask(it.label)) }, onUndo = { id -> app.scope.launch { app.engine.undo(id) } })
         return
     }
     AlarmContent(
-        rows = rows ?: emptyList(),
+        rows = rows.orEmpty().map { it.copy(bedLabel = mask(it.bedLabel)) },
         now = now,
         snoozeMin = app.settings.snoozeMin,
         onAcknowledge = { ids -> app.scope.launch { app.engine.acknowledge(ids) } },
         onSnooze = { app.scope.launch { app.engine.snooze() } },
         onStopForReaction = { id -> app.scope.launch { app.engine.stopForReaction(id) } },
-        round = RoundBuilder.build(plans.orEmpty(), now, ZoneId.systemDefault()),
+        round = RoundBuilder.build(plans.orEmpty(), now, ZoneId.systemDefault())?.masked(mask),
         onStartRound = { app.scope.launch { app.engine.startRound() } },
         onAllTurned = { app.scope.launch { app.engine.allTurned() } },
         onTurned = { slotId, position -> app.scope.launch { app.engine.turned(slotId, position) } },

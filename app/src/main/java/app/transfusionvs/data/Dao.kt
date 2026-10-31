@@ -69,6 +69,12 @@ interface TvsDao {
     )
     suspend fun homeOnce(): List<TransfusionWithCheckpoints>
 
+    @Query("SELECT bedLabel FROM transfusion")
+    suspend fun bedLabels(): List<String>
+
+    @Query("SELECT bedLabel FROM transfusion")
+    fun observeBedLabels(): Flow<List<String>>
+
     /** True while any transfusion is on the phone: running, or finished within the last day. */
     @Query("SELECT EXISTS(SELECT 1 FROM transfusion WHERE isTest = 0)")
     fun observeAnyTransfusion(): Flow<Boolean>

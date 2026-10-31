@@ -12,6 +12,7 @@ import app.transfusionvs.app
 import app.transfusionvs.data.Settings
 import app.transfusionvs.data.TurnDao
 import app.transfusionvs.data.TvsDao
+import app.transfusionvs.schedule.BedMask
 import app.transfusionvs.schedule.BedType
 import app.transfusionvs.schedule.BedView
 import app.transfusionvs.schedule.BedViews
@@ -53,9 +54,18 @@ object BedsWidget {
 
     private suspend fun beds(dao: TvsDao, turnDao: TurnDao, settings: Settings): List<BedView> {
         val now = System.currentTimeMillis()
-        return BedViews.sorted(
-            dao.homeOnce().map { BedViews.of(it, now) } + turnDao.homeOnce().map { BedViews.of(it, now, settings.missedTimeoutMin) },
-        ).filter { !it.idle }
+        return masked(
+            BedViews.sorted(
+                dao.homeOnce().map { BedViews.of(it, now) } + turnDao.homeOnce().map { BedViews.of(it, now, settings.missedTimeoutMin) },
+            ).filter { !it.idle },
+            dao.bedLabels() + turnDao.bedLabels(),
+        )
+    }
+
+    /** The widget is outside the app and shows on the home screen: bed labels go through the mask. */
+    fun masked(beds: List<BedView>, active: Collection<String>): List<BedView> {
+        val mask = BedMask.masker(active)
+        return beds.map { it.copy(bed = mask(it.bed)) }
     }
 
     /** Also used by the emulator test that renders the widget to an image. */
