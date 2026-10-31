@@ -3,7 +3,10 @@ package app.transfusionvs.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 
 /** Colours sampled from the card images in /design. */
 object Tvs {
@@ -55,8 +58,13 @@ private val colors = lightColorScheme(
     outline = Tvs.Outline,
 )
 
-/** Light theme only (the alarm screen draws its own navy background). */
+/**
+ * Light theme only (the alarm screen draws its own navy background). The UI language is English on
+ * every phone, so the layout never mirrors, whatever the phone's language.
+ */
 @Composable
 fun TvsTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = colors, typography = TvsTypography, content = content)
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        MaterialTheme(colorScheme = colors, typography = TvsTypography, content = content)
+    }
 }
