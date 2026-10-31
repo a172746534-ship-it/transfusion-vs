@@ -1,10 +1,12 @@
 package app.transfusionvs.ui.screens
 
+import androidx.compose.ui.res.painterResource
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.layout.isImeVisible
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -14,23 +16,19 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -39,36 +37,49 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import app.transfusionvs.R
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.TurnPlan
 import app.transfusionvs.schedule.Labels
+import app.transfusionvs.schedule.PatientInput
 import app.transfusionvs.schedule.TurnGrid
 import app.transfusionvs.schedule.TurnTimeline
+import app.transfusionvs.ui.MainViewModel
+import app.transfusionvs.ui.PRIMARY_TAG
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.CardTimeline
+import app.transfusionvs.ui.components.ChangeRow
 import app.transfusionvs.ui.components.ChoiceChip
-import app.transfusionvs.ui.components.HourlyPill
+import app.transfusionvs.ui.components.ChoiceRow
 import app.transfusionvs.ui.components.Panel
+import app.transfusionvs.ui.components.PatientField
 import app.transfusionvs.ui.components.PositionIcon
-import app.transfusionvs.ui.components.TopBar
-import app.transfusionvs.ui.theme.Tvs
-import app.transfusionvs.ui.theme.TvsFont
+import app.transfusionvs.ui.components.PrimaryButton
+import app.transfusionvs.ui.components.SecondaryButton
+import app.transfusionvs.ui.components.WardButton
+import app.transfusionvs.ui.components.WardHeader
+import app.transfusionvs.ui.components.moreBelow
+import app.transfusionvs.ui.components.largeFont
+import app.transfusionvs.ui.components.wardClick
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
+import app.transfusionvs.ui.theme.Ward
+import app.transfusionvs.ui.theme.WardType
+import androidx.compose.foundation.border
 import java.time.Instant
 import java.time.ZoneId
-
-private const val MAX_BED_LABEL = 16
+import kotlinx.coroutines.launch
 
 /** What the Start screen hands over to the engine. */
 data class TurnPlanDraft(
@@ -80,9 +91,21 @@ data class TurnPlanDraft(
     val stopAt: Long?,
 )
 
+@Composable
+fun TurnStartScreen(vm: MainViewModel, editing: TurnPlan?, onSubmit: (TurnPlanDraft) -> Unit, onBack: () -> Unit) {
+    val openedAt = rememberSaveable { System.currentTimeMillis() }
+    TurnStartContent(
+        editing = editing,
+        defaultIntervalMin = editing?.intervalMin ?: vm.turnIntervalMin, openedAt = openedAt,
+        onSubmit = onSubmit,
+        onBack = onBack,
+    )
+}
+
 /**
- * Start repositioning, or Edit when [editing] is given. Mirrors the transfusion Start screen:
- * the same panels, chips and timeline preview, with ward-clock slots instead of minutes from start.
+ * Start repositioning, or Edit when [editing] is given. Type the MRN, then tap the position the patient
+ * lies in now: that tap IS what starts the plan. Everything else has a default and sits behind
+ * "More options", so changing it is possible and never required.
  */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -92,11 +115,21 @@ fun TurnStartContent(
     openedAt: Long,
     onSubmit: (TurnPlanDraft) -> Unit,
     onBack: () -> Unit,
+    /** For screenshots: options open from the start. */
+    initiallyExpanded: Boolean = false,
+    /** For screenshots: an MRN already typed. */
+    initialBed: String = "",
 ) {
     val context = LocalContext.current
+    val c = Ward.c
     val zone = ZoneId.systemDefault()
 
-    var bed by rememberSaveable { mutableStateOf(editing?.bedLabel ?: "") }
+    // Editing keeps the patient unless asked: the title says who, and a slip here would move their alarms.
+    var changingPatient by rememberSaveable { mutableStateOf(editing == null) }
+    var mrn by rememberSaveable { mutableStateOf(initialBed) }
+    val bed = if (changingPatient) mrn.takeIf { PatientInput.valid(it) } ?: "" else editing?.bedLabel.orEmpty()
+
+    var options by rememberSaveable { mutableStateOf(initiallyExpanded || editing != null) }
     var interval by rememberSaveable { mutableIntStateOf(editing?.intervalMin ?: defaultIntervalMin) }
     // Positions in rotation order; [included] marks the allowed ones (excluded = never suggested).
     var order by rememberSaveable {
@@ -107,9 +140,7 @@ fun TurnStartContent(
             ),
         )
     }
-    var included by rememberSaveable {
-        mutableStateOf(editing?.rotation ?: Position.toCsv(Position.DEFAULT_ROTATION))
-    }
+    var included by rememberSaveable { mutableStateOf(editing?.rotation ?: Position.toCsv(Position.DEFAULT_ROTATION)) }
     val orderList = Position.parseList(order)
     val rotation = orderList.filter { it in Position.parseList(included) }
     var current by rememberSaveable { mutableStateOf(editing?.currentPosition ?: Position.BACK) }
@@ -117,7 +148,7 @@ fun TurnStartContent(
 
     val choices = TurnGrid.firstSlotChoices(openedAt, interval, zone)
     val defaultFirst = TurnGrid.firstSlot(openedAt, interval, zone)
-    var firstSlotPick by rememberSaveable { mutableStateOf<Long?>(editing?.firstSlotAt) }
+    var firstSlotPick by rememberSaveable { mutableStateOf(editing?.firstSlotAt) }
     val firstSlot = firstSlotPick?.takeIf { it in choices } ?: defaultFirst
     val shiftEnd = TurnGrid.endOfShift(openedAt, zone)
     var stopChoice by rememberSaveable { mutableIntStateOf(if (editing?.stopAt != null) 2 else 0) } // 0 none, 1 shift, 2 picked
@@ -128,138 +159,158 @@ fun TurnStartContent(
         2 -> pickedStop
         else -> null
     }
+    val validPlan = bed.isNotBlank() && rotation.isNotEmpty() && (stopAt == null || stopAt > firstSlot)
 
-    val canSubmit = bed.isNotBlank() && rotation.isNotEmpty() && (stopAt == null || stopAt > firstSlot)
-
-    Column(Modifier.fillMaxSize().background(Tvs.Panel)) {
-        TopBar(
-            caps = if (editing == null) "New repositioning plan" else "Edit",
-            title = if (editing == null) "Start repositioning" else "Edit ${editing.bedLabel}",
+    Column(Modifier.fillMaxSize().background(c.bg)) {
+        WardHeader(
+            caps = if (WindowInsets.isImeVisible && largeFont()) "" else if (editing == null) "New turning plan" else "Edit",
+            title = if (editing == null) "Start turning" else "Edit ${editing.bedLabel}",
             onBack = onBack,
+            icon = R.drawable.ic_turn,
         )
+        val scroll = rememberScrollState()
+        val scope = rememberCoroutineScope()
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(TvsSpace.s16),
-            verticalArrangement = Arrangement.spacedBy(TvsSpace.s16),
+            Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).padding(TvsSpace.s12),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
-            // Bed — no patient identifiers
             Panel {
-                CapsLabel("Bed", Tvs.Navy)
-                OutlinedTextField(
-                    value = bed,
-                    onValueChange = { bed = it.take(MAX_BED_LABEL) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    textStyle = TextStyle(fontSize = TvsFont.Number, fontWeight = FontWeight.Bold, color = Tvs.Navy),
-                    placeholder = { Text("e.g. Bed 12", fontSize = TvsFont.Number) },
-                    supportingText = { Text("Bed only — no names or MRN", color = Tvs.Red, fontWeight = FontWeight.Bold) },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                )
-            }
-
-            // Interval on the ward clock
-            Panel {
-                CapsLabel("Turn every", Tvs.Navy)
-                Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    TurnGrid.INTERVALS.forEach { m ->
-                        ChoiceChip(Labels.duration(m), interval == m, { interval = m; firstSlotPick = null }, Modifier.weight(1f))
+                CapsLabel("Which patient?")
+                if (changingPatient) {
+                    PatientField(mrn) { mrn = it }
+                } else {
+                    ChangeRow(editing?.bedLabel.orEmpty()) {
+                        mrn = PatientInput.clean(editing?.bedLabel.orEmpty())
+                        changingPatient = true
                     }
                 }
-                Text("Slots stay on the ward clock (08:00 and 20:00 are always slots).", color = Tvs.Muted, fontSize = TvsFont.Caption)
             }
 
-            // Positions: include / exclude and the rotation order
-            Panel {
-                CapsLabel("Positions", Tvs.Navy)
-                Text("Untick a position this bed must not use. Arrows change the rotation order.", color = Tvs.Muted, fontSize = TvsFont.Caption)
-                orderList.forEachIndexed { i, p ->
-                    val on = p in rotation
+            if (defaultFirst != choices.first() && firstSlot == defaultFirst) {
+                Panel {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = on,
-                            onCheckedChange = { checked ->
-                                val now = Position.parseList(included)
-                                included = Position.toCsv(if (checked) now + p else now - p)
-                            },
-                            colors = CheckboxDefaults.colors(checkedColor = Tvs.Navy),
+                        Icon(painterResource(R.drawable.ic_clock), contentDescription = null, tint = c.muted, modifier = Modifier.size(TvsSize.IconSmall))
+                        Spacer(Modifier.width(TvsSpace.s8))
+                        Text(
+                            "${Labels.clock(choices.first())} is less than ${TurnGrid.MIN_LEAD_MIN} min away, so the first turn is ${Labels.clock(defaultFirst)}.",
+                            color = c.ink, style = WardType.Body,
                         )
-                        PositionIcon(p, if (on) Tvs.Navy else Tvs.Outline, TvsSize.IconMedium)
-                        Spacer(Modifier.width(TvsSpace.s10))
-                        Column(Modifier.weight(1f)) {
-                            Text(p.label, color = if (on) Tvs.Navy else Tvs.Muted, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
-                            if (!on) Text("not for this bed", color = Tvs.Muted, fontSize = TvsFont.Label)
+                    }
+                }
+            }
+            if (editing == null) {
+                SecondaryButton(if (options) "Fewer options" else "More options", { options = !options })
+            }
+
+            if (options) {
+                // Interval on the ward clock
+                Panel {
+                    CapsLabel("Turn every")
+                    ChoiceRow(
+                        TurnGrid.INTERVALS.map { Labels.duration(it) },
+                        TurnGrid.INTERVALS.indexOf(interval),
+                        {
+                            interval = TurnGrid.INTERVALS[it]
+                            firstSlotPick = null
+                        },
+                    )
+                    Text("08:00 and 20:00 are always turn times.", color = c.muted, style = WardType.Body)
+                }
+
+                // Positions: include / exclude and the rotation order
+                Panel {
+                    CapsLabel("Positions")
+                    Text("Untick a position this patient must not use. Arrows change the rotation order.", color = c.muted, style = WardType.Body)
+                    orderList.forEachIndexed { i, p ->
+                        val on = p in rotation
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = on,
+                                onCheckedChange = { checked ->
+                                    val now = Position.parseList(included)
+                                    included = Position.toCsv(if (checked) now + p else now - p)
+                                },
+                                modifier = Modifier.size(TvsSize.Touch).scale(CHECKBOX_SCALE).semantics { contentDescription = p.label },
+                                colors = CheckboxDefaults.colors(checkedColor = c.primary, checkmarkColor = c.onPrimary, uncheckedColor = c.muted),
+                            )
+                            PositionIcon(p, if (on) c.ink else c.muted, TvsSize.IconMedium)
+                            Spacer(Modifier.width(TvsSpace.s6))
+                            Column(Modifier.weight(1f)) {
+                                Text(p.label, color = if (on) c.ink else c.muted, style = WardType.BodyBold)
+                                if (!on) Text("not for this patient", color = c.muted, style = WardType.Body)
+                            }
+                            OrderButton("↑", enabled = on && i > 0, description = "Move ${p.label} up") { order = Position.toCsv(orderList.swap(i, i - 1)) }
+                            Spacer(Modifier.width(TvsSpace.s8))
+                            OrderButton("↓", enabled = on && i < orderList.lastIndex, description = "Move ${p.label} down") { order = Position.toCsv(orderList.swap(i, i + 1)) }
                         }
-                        OrderButton("↑", enabled = i > 0) { order = Position.toCsv(orderList.swap(i, i - 1)) }
-                        Spacer(Modifier.width(TvsSpace.s6))
-                        OrderButton("↓", enabled = i < orderList.lastIndex) { order = Position.toCsv(orderList.swap(i, i + 1)) }
                     }
-                }
-                Text(
-                    "Rotation: " + (rotation.joinToString(" → ") { it.label }.ifEmpty { "choose at least one" }) + if (rotation.size > 1) " → …" else "",
-                    color = Tvs.Navy, fontSize = TvsFont.Caption, fontWeight = FontWeight.Bold,
-                )
-            }
-
-            // Where the patient lies now
-            Panel {
-                CapsLabel("Lying now", Tvs.Navy)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    rotation.forEach { p -> ChoiceChip(p.label, currentOk == p, { current = p }) }
-                }
-            }
-
-            // First turn: the next slot, or the one after if it is under 30 min away
-            Panel {
-                CapsLabel("First turn", Tvs.Navy)
-                Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    choices.forEach { slot ->
-                        ChoiceChip(Labels.clock(slot), firstSlot == slot, { firstSlotPick = slot }, Modifier.weight(1f))
-                    }
-                }
-                if (defaultFirst != choices.first()) {
                     Text(
-                        "${Labels.clock(choices.first())} is less than ${TurnGrid.MIN_LEAD_MIN} min away, so the first turn is ${Labels.clock(defaultFirst)}.",
-                        color = Tvs.Muted, fontSize = TvsFont.Caption,
+                        "Rotation: " + (rotation.joinToString(" → ") { it.label }.ifEmpty { "choose at least one" }) + if (rotation.size > 1) " → …" else "",
+                        color = c.ink, style = WardType.BodyBold,
                     )
                 }
-            }
 
-            // Optional stop time
-            Panel {
-                CapsLabel("Stop", Tvs.Navy)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    ChoiceChip("No stop time", stopChoice == 0, { stopChoice = 0 })
-                    ChoiceChip("End of my shift (${Labels.clock(shiftEnd)})", stopChoice == 1, { stopChoice = 1 })
-                    ChoiceChip(
-                        if (stopChoice == 2 && pickedStop != null) "At ${Labels.clock(pickedStop!!)}" else "Pick time…",
-                        stopChoice == 2,
-                        { showPicker = true },
-                    )
+                // First turn: the next slot, or the one after if it is under 30 min away
+                Panel {
+                    CapsLabel("First turn")
+                    ChoiceRow(choices.map { Labels.clock(it) }, choices.indexOf(firstSlot), { firstSlotPick = choices[it] })
                 }
-                Text("No alarms at or after the stop time. You can restart the plan any time.", color = Tvs.Muted, fontSize = TvsFont.Caption)
-            }
 
-            // Preview with real clock times
-            Panel {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CapsLabel("Ward clock", Tvs.Navy)
-                    Text(" · late turns don't move it", color = Tvs.Muted, fontSize = TvsFont.Label)
+                // Optional stop time
+                Panel {
+                    CapsLabel("Stop")
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                        ChoiceChip("No stop time", stopChoice == 0, { stopChoice = 0 })
+                        ChoiceChip("End of my shift (${Labels.clock(shiftEnd)})", stopChoice == 1, { stopChoice = 1 })
+                        ChoiceChip(
+                            if (stopChoice == 2 && pickedStop != null) "At ${Labels.clock(pickedStop!!)}" else "Pick time…",
+                            stopChoice == 2,
+                            { showPicker = true },
+                        )
+                    }
+                    Text("No alarms at or after the stop time. You can restart the plan any time.", color = c.muted, style = WardType.Body)
                 }
-                HourlyPill("Every ${Labels.duration(interval)} on the ward clock")
-                CardTimeline(TurnTimeline.preview(openedAt, currentOk, rotation, firstSlot, interval, stopAt, zone))
+
+                // Preview with real clock times
+                Panel {
+                    CapsLabel("Turn times")
+                    Text("A late turn doesn't move them", color = c.muted, style = WardType.Body)
+                    CardTimeline(TurnTimeline.preview(openedAt, currentOk, rotation, firstSlot, interval, stopAt, zone))
+                }
             }
         }
 
-        Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(TvsSpace.s16)) {
-            Button(
-                onClick = {
-                    onSubmit(TurnPlanDraft(bed, interval, rotation, currentOk, firstSlot, stopAt))
-                },
-                enabled = canSubmit,
-                modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge),
-                shape = TvsShape.Card,
-                colors = ButtonDefaults.buttonColors(containerColor = Tvs.Navy, contentColor = Tvs.White),
-            ) {
-                Text(if (editing == null) "Start repositioning" else "Save changes", fontSize = TvsFont.Button, fontWeight = FontWeight.Black)
+        Column(
+            Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)).padding(TvsSpace.s12),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
+        ) {
+            if (editing != null) {
+                CapsLabel("Lying now")
+                ChoiceRow(rotation.map { it.label }, rotation.indexOf(currentOk), { current = rotation[it] }, TvsSize.TouchLarge)
+                PrimaryButton(
+                    "Save changes",
+                    onClick = { onSubmit(TurnPlanDraft(bed, interval, rotation, currentOk, firstSlot, stopAt)) },
+                    enabled = validPlan,
+                )
+            } else {
+                // With the number pad up the MRN comes first; what's only a summary steps aside. At large font sizes the
+                // buttons do too, until Done closes the pad.
+                val typing = WindowInsets.isImeVisible
+                if (!typing) {
+                    ChangeRow("First turn ${Labels.clock(firstSlot)}, then every ${Labels.duration(interval)}" + (stopAt?.let { " until ${Labels.clock(it)}" } ?: "")) {
+                        options = true
+                        scope.launch {
+                            withFrameNanos { }
+                            scroll.animateScrollTo(scroll.maxValue)
+                        }
+                    }
+                }
+                if (!(typing && largeFont())) {
+                    Text(if (bed.isBlank()) "Enter the MRN first" else "$bed: lying now? Tap to start", color = c.ink, style = WardType.Lead)
+                    PositionButtons(rotation, enabled = validPlan) { p ->
+                        onSubmit(TurnPlanDraft(bed, interval, rotation, p, firstSlot, stopAt))
+                    }
+                }
             }
         }
     }
@@ -269,29 +320,64 @@ fun TurnStartContent(
         val state = rememberTimePickerState(initial.hour, initial.minute, DateFormat.is24HourFormat(context))
         AlertDialog(
             onDismissRequest = { showPicker = false },
-            title = { Text("Stop turning at") },
+            title = { Text("Stop turning at", style = WardType.Heading) },
             text = { TimePicker(state = state) },
             confirmButton = {
                 TextButton(onClick = {
                     pickedStop = Labels.nextOccurrence(state.hour, state.minute, System.currentTimeMillis(), zone)
                     stopChoice = 2
                     showPicker = false
-                }) { Text("OK", fontWeight = FontWeight.Bold) }
+                }) { Text("OK", style = WardType.Lead) }
             },
-            dismissButton = { TextButton(onClick = { showPicker = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { showPicker = false }) { Text("Cancel", style = WardType.Lead) } },
         )
     }
 }
 
+/** A checkbox large enough to see in a glove's shadow. */
+private const val CHECKBOX_SCALE = 1.3f
+
+/** Big position buttons: icon + name. Tapping one is the action. */
 @Composable
-private fun OrderButton(label: String, enabled: Boolean, onClick: () -> Unit) {
-    OutlinedButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.size(TvsSize.Touch),
-        shape = TvsShape.Control,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(),
-    ) { Text(label, fontSize = TvsFont.Lead, fontWeight = FontWeight.Black, color = if (enabled) Tvs.Navy else Tvs.Outline) }
+private fun PositionButtons(positions: List<Position>, enabled: Boolean, onPick: (Position) -> Unit) {
+    val c = Ward.c
+    val perRow = if (largeFont()) 1 else 3
+    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+        positions.chunked(perRow).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                row.forEach { p ->
+                    val fill = if (enabled) c.primary else c.bg
+                    val ink = if (enabled) c.onPrimary else c.muted
+                    Column(
+                        Modifier.weight(1f).heightIn(min = TvsSize.TouchLarge)
+                            .background(fill, TvsShape.Card)
+                            .border(TvsSize.Edge, if (enabled) c.primaryEdge else c.muted, TvsShape.Card)
+                            .wardClick(enabled = enabled) { onPick(p) }
+                            .padding(vertical = TvsSpace.s6, horizontal = TvsSpace.s4),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        PositionIcon(p, ink)
+                        Text(p.label, color = ink, style = WardType.BodyBold)
+                    }
+                }
+                repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
 }
 
-private fun <T> List<T>.swap(a: Int, b: Int): List<T> = toMutableList().also { val t = it[a]; it[a] = it[b]; it[b] = t }
+@Composable
+private fun OrderButton(label: String, enabled: Boolean, description: String, onClick: () -> Unit) {
+    val c = Ward.c
+    WardButton(
+        label, onClick, Modifier.semantics { contentDescription = description },
+        fill = c.card, content = if (enabled) c.ink else c.muted, edge = c.muted,
+        minHeight = TvsSize.Touch, shape = TvsShape.Control, enabled = enabled,
+    )
+}
+
+private fun <T> List<T>.swap(a: Int, b: Int): List<T> = toMutableList().also {
+    val t = it[a]
+    it[a] = it[b]
+    it[b] = t
+}

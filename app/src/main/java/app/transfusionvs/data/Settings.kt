@@ -72,7 +72,30 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("setupSeen", false)
         set(value) = prefs.edit { putBoolean("setupSeen", value) }
 
+    // ---- Defaults instead of questions ----
+
+    /** The duration preselected on Start: the last one used. */
+    var lastDurationMin: Int
+        get() = prefs.getInt("lastDurationMin", 120)
+        set(v) = prefs.edit { putInt("lastDurationMin", v) }
+
+    // ---- Night theme ----
+
+    /** See NightRule. By default night follows the clock. */
+    var themeMode: Int
+        get() = prefs.getInt("themeMode", 0)
+        set(v) = prefs.edit { putInt("themeMode", v) }
+
+    var nightStartHour: Int
+        get() = int("nightStartHour", 20, HOUR_RANGE)
+        set(v) = prefs.edit { putInt("nightStartHour", v.coerceIn(HOUR_RANGE)) }
+
+    var nightEndHour: Int
+        get() = int("nightEndHour", 8, HOUR_RANGE)
+        set(v) = prefs.edit { putInt("nightEndHour", v.coerceIn(HOUR_RANGE)) }
+
     companion object {
+        val HOUR_RANGE = 0..23
         const val MAX_SNOOZES = 3
         val TOLERANCE_RANGE = 1..15
         val SNOOZE_RANGE = 1..2

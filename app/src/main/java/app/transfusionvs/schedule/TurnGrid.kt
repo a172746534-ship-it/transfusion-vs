@@ -78,12 +78,19 @@ object TurnGrid {
      */
     fun slots(firstSlot: Long, intervalMin: Int, stopAt: Long?, until: Long, zone: ZoneId): List<Long> {
         val out = mutableListOf<Long>()
-        var slot = firstSlot
+        // After a timezone change the stored first slot may be off the new local grid: the ward clock wins.
+        var slot = if (isOnGrid(firstSlot, intervalMin, zone)) firstSlot else nextSlotAfter(firstSlot, intervalMin, zone)
         while (slot <= until && (stopAt == null || slot < stopAt)) {
             out += slot
             slot = nextSlotAfter(slot, intervalMin, zone)
         }
         return out
+    }
+
+    /** True when [at] is a whole multiple of the interval on the local clock in [zone]. */
+    fun isOnGrid(at: Long, intervalMin: Int, zone: ZoneId): Boolean {
+        val local = Instant.ofEpochMilli(at).atZone(zone).toLocalTime()
+        return local.second == 0 && local.nano == 0 && (local.hour * 60 + local.minute) % intervalMin == 0
     }
 
     /** A slot can be acknowledged late until the next slot fires; then it closes as MISSED. */

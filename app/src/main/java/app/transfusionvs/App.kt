@@ -20,7 +20,10 @@ class App : Application() {
     val db by lazy { AppDatabase.open(this) }
     val settings by lazy { Settings(this) }
     val scheduler by lazy { AlarmScheduler(this) }
-    val engine by lazy { Engine(this, db.dao(), db.turnDao(), settings, scheduler) }
+    /** Bumped when the night-theme settings change, so open screens follow at once. */
+    val themeVersion = androidx.compose.runtime.mutableIntStateOf(0)
+
+    val engine by lazy { Engine(this, db.dao(), db.turnDao(), db.wardDao(), settings, scheduler) }
 
     override fun onCreate() {
         super.onCreate()

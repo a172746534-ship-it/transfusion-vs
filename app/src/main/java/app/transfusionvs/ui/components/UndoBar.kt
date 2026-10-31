@@ -1,0 +1,81 @@
+package app.transfusionvs.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import app.transfusionvs.data.UndoAction
+import app.transfusionvs.ui.theme.TvsShape
+import app.transfusionvs.ui.theme.TvsSize
+import app.transfusionvs.ui.theme.TvsSpace
+import app.transfusionvs.ui.theme.Ward
+import app.transfusionvs.ui.theme.WardType
+import kotlinx.coroutines.delay
+
+/** How long the "Undo" bar stays up. */
+const val UNDO_BAR_MS = 5_000L
+
+/** The newest action that can be undone, for whichever screen is showing. */
+data class UndoState(val action: UndoAction?, val onUndo: (Long) -> Unit)
+
+val LocalUndo = staticCompositionLocalOf { UndoState(null) {} }
+
+/**
+ * Undo instead of "Are you sure?": shows the newest action for 5 seconds, then goes away. It takes its
+ * own place above a screen's pinned actions, so it never covers them.
+ */
+@Composable
+fun UndoSlot() {
+    val undo = LocalUndo.current
+    val action = undo.action ?: return
+    val clockNow = System.currentTimeMillis()
+    var visible by remember(action.id) { mutableStateOf(clockNow - action.at < UNDO_BAR_MS) }
+    LaunchedEffect(action.id) {
+        delay(UNDO_BAR_MS - (clockNow - action.at))
+        visible = false
+    }
+    if (!visible) return
+    val c = Ward.c
+    val shell = Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge)
+        .background(c.card, TvsShape.Card)
+        .border(TvsSize.Edge, c.ink, TvsShape.Card)
+    val button: @Composable (Modifier) -> Unit = { modifier ->
+        WardButton(
+            "Undo", { undo.onUndo(action.id) }, modifier,
+            fill = c.primary, content = c.onPrimary, edge = c.primaryEdge,
+            minHeight = TvsSize.Touch, style = WardType.ButtonSmall, shape = TvsShape.Control,
+        )
+    }
+    if (largeFont()) {
+        Column(shell.padding(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+            Text(action.label, color = c.ink, style = WardType.BodyBold)
+            button(Modifier.fillMaxWidth())
+        }
+    } else {
+        Row(
+            shell.padding(start = TvsSpace.s12, end = TvsSpace.s4, top = TvsSpace.s4, bottom = TvsSpace.s4),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(action.label, color = c.ink, style = WardType.BodyBold, modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(TvsSpace.s8))
+            button(Modifier.widthIn(min = TvsSize.Stepper))
+        }
+    }
+}

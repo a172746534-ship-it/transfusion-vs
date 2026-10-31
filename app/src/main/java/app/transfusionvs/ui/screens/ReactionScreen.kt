@@ -1,7 +1,7 @@
 package app.transfusionvs.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,44 +14,41 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.transfusionvs.R
+import app.transfusionvs.ui.PRIMARY_TAG
 import app.transfusionvs.ui.components.CapsLabel
-import app.transfusionvs.ui.theme.Tvs
+import app.transfusionvs.ui.components.PatientButton
+import app.transfusionvs.ui.components.WardButton
+import app.transfusionvs.ui.components.patientColumns
+import app.transfusionvs.ui.components.WardHeader
+import app.transfusionvs.ui.components.largeFont
+import app.transfusionvs.ui.components.moreBelow
+import app.transfusionvs.ui.components.wardClick
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
-import app.transfusionvs.ui.theme.TvsFont
+import app.transfusionvs.ui.theme.Ward
+import app.transfusionvs.ui.theme.WardType
 
-/** A running bed the nurse can mark as stopped. */
+/** A running transfusion the nurse can mark as stopped. */
 data class BedChoice(val transfusionId: Long, val bedLabel: String, val colorIndex: Int)
 
 private val WARNING_SIGNS = listOf(
@@ -73,122 +70,124 @@ private val DO_NOW = listOf(
 )
 
 /**
- * The back of the card, exactly. DO NOW is a tappable checklist (kept only on screen —
- * no clinical details are stored). "Transfusion stopped" cancels that bed's remaining alarms.
+ * The back of the card, word for word. DO NOW comes first and each step can be ticked (kept only on
+ * screen, no clinical details are stored). "Transfusion stopped" stays in view at the bottom and
+ * cancels that bed's remaining alarms, with Undo instead of a dialog.
  */
 @Composable
 fun ReactionScreen(
     beds: List<BedChoice>,
     onStopped: (Long) -> Unit,
     onBack: () -> Unit,
-    backLabel: String = "‹  Back",
 ) {
+    val c = Ward.c
     val done = remember { mutableStateListOf(false, false, false, false, false) }
-    var confirm by rememberSaveable { mutableStateOf<Long?>(null) }
 
-    Column(Modifier.fillMaxSize().background(Tvs.White)) {
-        // Red header with the warning triangle
+    Column(Modifier.fillMaxSize().background(c.bg)) {
+        WardHeader(
+            caps = "Blood transfusion",
+            title = "Suspected transfusion reaction",
+            onBack = onBack,
+            icon = R.drawable.ic_warning,
+            background = c.dangerFill,
+            content = c.onDangerFill,
+            capsColor = c.onDangerFill,
+        )
+
+        val scroll = rememberScrollState()
         Column(
-            Modifier.fillMaxWidth().background(Tvs.Red)
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(start = TvsSpace.s8, end = TvsSpace.s16, top = TvsSpace.s6, bottom = TvsSpace.s16),
+            Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).padding(TvsSpace.s12),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
-            Box(
-                Modifier.heightIn(min = TvsSize.Touch).clickable(onClick = onBack).padding(horizontal = TvsSpace.s8),
-                contentAlignment = Alignment.CenterStart,
-            ) { Text(backLabel, color = Tvs.White, fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Bold) }
-            Row(Modifier.padding(start = TvsSpace.s8), verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = Tvs.White, modifier = Modifier.size(TvsSize.IconLarge))
-                Spacer(Modifier.width(TvsSpace.s12))
-                Text("Suspected transfusion reaction", color = Tvs.White, fontSize = TvsFont.Title, lineHeight = TvsFont.TitleLine, fontWeight = FontWeight.Black)
-            }
-        }
-
-        Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(TvsSpace.s16),
-            verticalArrangement = Arrangement.spacedBy(TvsSpace.s18),
-        ) {
-            // STOP & CALL IF YOU SEE
-            Column(
-                Modifier.fillMaxWidth().background(Tvs.Pink, TvsShape.Card).padding(TvsSpace.s18),
-                verticalArrangement = Arrangement.spacedBy(TvsSpace.s14),
-            ) {
-                CapsLabel("Stop & call if you see", Tvs.Red)
-                WARNING_SIGNS.forEach { sign ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(TvsSize.Bullet).background(Tvs.Red, CircleShape))
-                        Spacer(Modifier.width(TvsSpace.s14))
-                        Text(sign, color = Tvs.Navy, fontSize = TvsFont.Lead)
-                    }
-                }
-            }
-
             // DO NOW — tap each step as it's done
             Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
-                CapsLabel("Do now", Tvs.Navy)
+                CapsLabel("Do now")
                 DO_NOW.forEachIndexed { i, (title, body) ->
                     Row(
-                        Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge)
-                            .background(if (done[i]) Tvs.Panel else Tvs.White, TvsShape.Control)
-                            .clickable { done[i] = !done[i] }
-                            .padding(vertical = TvsSpace.s8, horizontal = TvsSpace.s4),
+                        Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch)
+                            .background(c.card, TvsShape.Control)
+                            .border(TvsSize.Edge, if (done[i]) c.ink else c.card, TvsShape.Control)
+                            .wardClick(role = Role.Checkbox) { done[i] = !done[i] }
+                            .padding(vertical = TvsSpace.s4, horizontal = TvsSpace.s10),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        val circle = if (i == DO_NOW.lastIndex) Tvs.Navy else Tvs.Red
                         Box(
-                            Modifier.size(TvsSize.BadgeLarge).background(if (done[i]) Tvs.Green else circle, CircleShape),
+                            Modifier.sizeIn(minWidth = TvsSize.Badge, minHeight = TvsSize.Badge).background(if (done[i]) c.ink else c.danger, CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(if (done[i]) "✓" else "${i + 1}", color = Tvs.White, fontSize = TvsFont.BodyLarge, fontWeight = FontWeight.Black)
+                            Text(if (done[i]) "✓" else "${i + 1}", color = if (done[i]) c.card else c.onDanger, style = WardType.Lead)
                         }
-                        Spacer(Modifier.width(TvsSpace.s14))
+                        Spacer(Modifier.width(TvsSpace.s12))
                         Text(
                             buildAnnotatedString {
-                                withStyle(SpanStyle(fontWeight = FontWeight.Black)) { append(title) }
+                                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(title) }
                                 append("\n")
                                 append(body)
                             },
-                            color = Tvs.Navy, fontSize = TvsFont.Lead, lineHeight = TvsFont.StepLine,
+                            color = c.ink, style = WardType.Body,
                         )
                     }
                 }
             }
 
-            // Transfusion stopped → cancels that bed's remaining alarms
-            if (beds.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s10)) {
-                    if (beds.size > 1) Text("Which bed was stopped?", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
-                    beds.forEach { bed ->
-                        Button(
-                            onClick = { confirm = bed.transfusionId },
-                            modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge),
-                            shape = TvsShape.Card,
-                            colors = ButtonDefaults.buttonColors(containerColor = Tvs.Red, contentColor = Tvs.White),
-                        ) {
-                            BedDot(bed.colorIndex, TvsSize.DotCompact)
-                            Spacer(Modifier.width(TvsSpace.s10))
-                            Text("Transfusion stopped — ${bed.bedLabel}", fontSize = TvsFont.Lead, fontWeight = FontWeight.Black)
+            // STOP & CALL IF YOU SEE
+            Column(
+                Modifier.fillMaxWidth().background(c.card, TvsShape.Card).padding(TvsSpace.s12),
+                verticalArrangement = Arrangement.spacedBy(TvsSpace.s6),
+            ) {
+                CapsLabel("Stop & call if you see", c.danger)
+                // In two columns, so the whole list is in view above the button.
+                val columns = if (largeFont()) 1 else 2
+                WARNING_SIGNS.chunked(columns).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                        row.forEach { sign ->
+                            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(TvsSpace.s10).background(c.danger, CircleShape))
+                                Spacer(Modifier.width(TvsSpace.s6))
+                                Text(sign, color = c.ink, style = WardType.Body)
+                            }
                         }
+                        repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
-            Spacer(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
+        }
+
+        // Always in view: which bed was stopped. Many beds scroll inside the panel, in two columns.
+        if (beds.isNotEmpty()) {
+            Column(
+                Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(horizontal = TvsSpace.s12).padding(top = TvsSpace.s8, bottom = TvsSpace.s8),
+                verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
+            ) {
+                if (beds.size > 2) {
+                    CapsLabel("Transfusion stopped for:")
+                    val columns = patientColumns(beds.map { it.bedLabel })
+                    val list = rememberScrollState()
+                    Column(
+                        Modifier.heightIn(max = TvsSize.TouchLarge + TvsSpace.s8 + TvsSize.IconMedium).moreBelow(list.canScrollForward).verticalScroll(list),
+                        verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
+                    ) {
+                        beds.chunked(columns).forEach { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                                // Outlined: twenty solid reds would be a wall, with no way to tell one from the next.
+                                row.forEach { bed ->
+                                    WardButton(bed.bedLabel, { onStopped(bed.transfusionId) }, Modifier.weight(1f), fill = c.card, content = c.ink, edge = c.danger, style = WardType.Lead)
+                                }
+                                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                            }
+                        }
+                    }
+                } else {
+                    beds.forEach { bed ->
+                        PatientButton(
+                            bed.bedLabel, "Transfusion stopped", { onStopped(bed.transfusionId) },
+                            fill = c.dangerFill, content = c.onDangerFill, edge = c.onDangerFill, key = WardType.KeyMedium, icon = R.drawable.ic_stop,
+                        )
+                    }
+                }
+            }
         }
     }
-
-    val confirmBed = beds.firstOrNull { it.transfusionId == confirm }
-    if (confirmBed != null) {
-        AlertDialog(
-            onDismissRequest = { confirm = null },
-            title = { Text("Stop ${confirmBed.bedLabel}?") },
-            text = { Text("Its remaining alarms are cancelled and it is marked \"Stopped — reaction\". No clinical details are stored.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirm = null
-                    onStopped(confirmBed.transfusionId)
-                }) { Text("Transfusion stopped", color = Tvs.Red, fontWeight = FontWeight.Black) }
-            },
-            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancel") } },
-        )
-    }
 }
+

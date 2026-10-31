@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Test lab only. This source set is never part of the release APK. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+
+    <application>
+        <receiver
+            android:name=".lab.LabReceiver"
+            android:directBootAware="true"
+            android:exported="true" />
+
+        <!-- Turns StrictMode on before anything else runs, so lab runs can count violations. -->
+        <provider
+            android:name=".lab.LabStrictMode"
+            android:authorities="app.transfusionvs.lab.strictmode"
+            android:directBootAware="true"
+            android:exported="false"
+            android:initOrder="1000" />
+    </application>
+</manifest>

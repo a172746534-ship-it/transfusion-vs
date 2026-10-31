@@ -113,7 +113,7 @@ target SDK before using it. Do not rely on memory.
    - A persistent red "Suspected reaction?" banner.
 
 3. **Start transfusion**
-   - Bed label: short free text such as "Bed 12". The hint text says: no names or MRN.
+   - Bed label: short free text such as "Bed 12". The hint text says: no names or MRN. *(Replaced on 2026-10-31: see "MRN instead of the bed number".)*
    - Color: auto-assigned.
    - Start-time picker, duration chips, and the required "Baseline VS taken" checkbox.
    - A full timeline preview with real clock times, like the card's example row.
@@ -313,6 +313,17 @@ alarm behaviour as transfusions.
 
 ---
 
+# Design overhaul — added 2026-10-31
+
+The full brief is docs/DESIGN_OVERHAUL.md and the test loop is docs/TEST_LOOP.md; both are the source
+of truth for this work. It **supersedes** the rule "no new colours / indistinguishable from the
+existing design" in Feature 2 and the "light theme only" line under Visual design:
+both features now look like ONE product inside ONE new design system, with day and night themes.
+Clinical content stays frozen, word for word: the VS list, the warning signs, DO NOW 1–5 and both
+schedules. The alarm engine, schedules, data meaning and privacy rules do not change.
+
+---
+
 ## Decisions log
 
 ### 2026-10-28 — plan approved
@@ -414,3 +425,24 @@ alarm behaviour as transfusions.
 - **"Other position"** offers allowed positions except the suggestion and the current one.
 - **Phones set to Arabic (v0.4.1):** the layout is left-to-right on every phone (`supportsRtl="false"`, and forced in
   `TvsTheme`). The UI language is English; mirroring it scrambled the alarm's text. Digits were already Latin.
+
+## Ward Card (chosen 2026-10-31)
+The maintainer chose direction 1, Ward Card. Colours in `ui/theme/Theme.kt`, verified from `lab/palettes.json`. Red Hat Display and Red Hat Text (OFL). The rail is the signature: the paper card's dots on a line, alive. Overdue is a red diamond with "!".
+
+**The reaction guide belongs to transfusions.** It is on transfusion alarms, transfusion Detail, and Home while there is blood on the ward: running, or finished within the last day, since a reaction can come late. It is not on a round-only alarm, on repositioning screens, or on Home when only turning plans exist. This overrides "2 touches from anywhere" for those places.
+
+**Flows** (docs/FLOWS.md): the Start chooser is gone. Home has Start transfusion and Start turning side by side. Beds are picked from the ward's list, entered once in Settings or Setup, and typing stays as "+ Other bed", which also adds that bed to the list. Start time = now, duration = the last one used. "Baseline done · Start" is one button. Tapping the patient's current position starts a turning plan. "All turned as suggested ✓" finishes a round. No "Are you sure?" dialogs: every acknowledge, start, end and stop can be undone for 5 seconds, and "Undo last" stays on the bed's card for 5 minutes.
+
+**Data:** Room v3 adds `ward_bed` and `undo_action` by automatic migration. Nothing existing changes meaning. Stopped-for-reaction beds stay on Home until removed or until the daily cleanup.
+
+**Alarm safety:** touches are ignored for the first second and while the proximity sensor is covered. The alarm stays 5 seconds after the last acknowledge, to offer Undo. Haptics: long buzz = due, three pulses = overdue, two quick taps = confirmed. At night the alarm window is dimmed.
+
+**Language:** the layout is left-to-right on every phone (`supportsRtl="false"` and forced in the theme), the UI language stays English, digits stay Latin.
+
+**MRN (add-on, docs/MRN_ADDON.md):** the bed number is gone (see "MRN instead of the bed number" below), so every patient is an MRN. Outside the app (notifications, the alarm over the lock screen, the widget) it shows as "•••4821": the shortest suffix, at least 4 digits, unique among active labels. The full value shows only inside the app on an unlocked phone. Nothing logs an MRN.
+
+## MRN instead of the bed number (2026-10-31)
+The maintainer's decisions: some places in the hospital have no beds, so a patient is identified by MRN, and the nurse simply types it. There is no list to pick from: it was clutter and would not be used. This replaces "bed only, no MRN" and the ward bed list, and it is the one exception to "no typing in a core task".
+- The MRN is typed on the number pad when Start opens, digits only (5 to 16), so a name can't be typed. Names are still never stored.
+- The phone keeps an MRN only as part of its plan, and it goes with the plan, a day after that plan finishes. `bedLabel` in the database now holds the MRN; a plan from an older version keeps its bed label, unmasked.
+- The database is in device-protected storage, so alarms can ring after a reboot before the first unlock. That keeps working, and it means MRNs live there too, encrypted by the device but readable before the first unlock by the app. Backup is off.

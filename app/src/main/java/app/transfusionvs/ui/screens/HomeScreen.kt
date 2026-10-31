@@ -1,8 +1,12 @@
 package app.transfusionvs.ui.screens
 
+import app.transfusionvs.schedule.Urgency
+import androidx.compose.foundation.shape.CircleShape
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,16 +14,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,47 +34,46 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.transfusionvs.R
 import app.transfusionvs.alarm.AlarmActivity
-import app.transfusionvs.data.CheckpointStatus
-import app.transfusionvs.data.CheckpointType
-import app.transfusionvs.data.Position
-import app.transfusionvs.data.TransfusionStatus
 import app.transfusionvs.data.TransfusionWithCheckpoints
-import app.transfusionvs.data.TurnPlanStatus
 import app.transfusionvs.data.TurnPlanWithSlots
-import app.transfusionvs.data.TurnSlotStatus
+import app.transfusionvs.data.UndoAction
+import app.transfusionvs.schedule.BedType
+import app.transfusionvs.schedule.BedView
+import app.transfusionvs.schedule.BedViews
 import app.transfusionvs.schedule.Labels
-import app.transfusionvs.schedule.TimelineBuilder
-import app.transfusionvs.schedule.Timeliness
-import app.transfusionvs.schedule.TurnGrid
-import app.transfusionvs.schedule.TurnTimeline
 import app.transfusionvs.setup.SetupChecks
 import app.transfusionvs.ui.MainViewModel
-import app.transfusionvs.ui.components.ActionBlock
+import app.transfusionvs.ui.PRIMARY_TAG
+import app.transfusionvs.ui.components.PatientButton
 import app.transfusionvs.ui.components.Alert
 import app.transfusionvs.ui.components.BedCard
-import app.transfusionvs.ui.components.CardTimeline
 import app.transfusionvs.ui.components.EmptyCard
-import app.transfusionvs.ui.components.NextLine
-import app.transfusionvs.ui.components.PositionIcon
-import app.transfusionvs.ui.components.ReactionBanner
-import app.transfusionvs.ui.components.SectionLabel
-import app.transfusionvs.ui.components.TopBar
+import app.transfusionvs.ui.components.ReactionBar
+import app.transfusionvs.ui.components.SecondaryButton
+import app.transfusionvs.ui.components.UndoSlot
+import app.transfusionvs.ui.components.WardHeader
+import app.transfusionvs.ui.components.largeFont
+import app.transfusionvs.ui.components.moreBelow
 import app.transfusionvs.ui.components.rememberNow
-import app.transfusionvs.ui.theme.Tvs
-import app.transfusionvs.ui.theme.TvsFont
+import app.transfusionvs.ui.components.wardClick
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
+import app.transfusionvs.ui.theme.Ward
+import app.transfusionvs.ui.theme.WardType
 
 @Composable
 fun HomeScreen(
     vm: MainViewModel,
-    onStart: () -> Unit,
+    onStartTransfusion: () -> Unit,
+    onStartTurning: () -> Unit,
     onOpen: (Long) -> Unit,
     onOpenTurnPlan: (Long) -> Unit,
     onReaction: () -> Unit,
@@ -80,6 +84,8 @@ fun HomeScreen(
     val home by vm.home.collectAsStateWithLifecycle()
     val turns by vm.turns.collectAsStateWithLifecycle()
     val ringing by vm.ringing.collectAsStateWithLifecycle()
+    val undo by vm.undo.collectAsStateWithLifecycle()
+    val anyTransfusion by vm.anyTransfusion.collectAsStateWithLifecycle()
     val now by rememberNow(15_000)
     var setupProblems by remember { mutableIntStateOf(0) }
     LifecycleResumeEffect(Unit) {
@@ -92,10 +98,14 @@ fun HomeScreen(
     HomeContent(
         home = home,
         turns = turns,
+        anyTransfusion = anyTransfusion,
+        undo = undo,
+        missedTimeoutMin = vm.missedTimeoutMin,
         ringing = ringing.isNotEmpty(),
         setupProblems = setupProblems,
         now = now,
-        onStart = onStart,
+        onStartTransfusion = onStartTransfusion,
+        onStartTurning = onStartTurning,
         onOpen = onOpen,
         onOpenTurnPlan = onOpenTurnPlan,
         onReaction = onReaction,
@@ -103,18 +113,29 @@ fun HomeScreen(
         onSettings = onSettings,
         onOpenAlarm = openAlarm,
         onAcknowledge = vm::acknowledge,
+        onUndo = vm::undo,
     )
 }
 
-/** Stateless Home (rendered by the screenshot tests with fake data). */
+/**
+ * Stateless Home (rendered by the screenshot tests with fake data). Open = done: every bed, most
+ * urgent first, each with its next clock time. Quiet when all is well; when a bed needs something, its
+ * action takes the one primary place, in the thumb zone.
+ * [anyTransfusion]: the reaction row shows only when there is blood on the ward, running or finished
+ * within the last day (a reaction can come late).
+ */
 @Composable
 fun HomeContent(
     home: List<TransfusionWithCheckpoints>?,
     turns: List<TurnPlanWithSlots>?,
+    anyTransfusion: Boolean = home.orEmpty().isNotEmpty(),
+    undo: List<UndoAction> = emptyList(),
+    missedTimeoutMin: Int = 10,
     ringing: Boolean,
     setupProblems: Int,
     now: Long,
-    onStart: () -> Unit,
+    onStartTransfusion: () -> Unit,
+    onStartTurning: () -> Unit,
     onOpen: (Long) -> Unit,
     onOpenTurnPlan: (Long) -> Unit,
     onReaction: () -> Unit,
@@ -122,188 +143,139 @@ fun HomeContent(
     onSettings: () -> Unit,
     onOpenAlarm: () -> Unit,
     onAcknowledge: (List<Long>) -> Unit,
+    onUndo: (Long) -> Unit = {},
 ) {
-    val transfusions = home.orEmpty()
-    val plans = turns.orEmpty()
-    val transfusionRunning = transfusions.any { it.transfusion.status == TransfusionStatus.RUNNING }
-    val turningRunning = plans.any { it.plan.status == TurnPlanStatus.RUNNING }
+    val c = Ward.c
+    val beds = BedViews.sorted(
+        home.orEmpty().map { BedViews.of(it, now) } + turns.orEmpty().map { BedViews.of(it, now, missedTimeoutMin) },
+    )
+    val live = undo.filter { it.expiresAt > now }
+    val large = largeFont()
+    val urgent = beds.firstOrNull { (it.ackIds.isNotEmpty() && !it.stoppedForReaction) || it.roundOpen }
+    val worstIsLate = beds.any { !it.idle && (it.stoppedForReaction || it.urgency == Urgency.OVERDUE) }
+    val worstIsDue = beds.any { !it.idle && it.urgency == Urgency.NOW }
 
-    Column(Modifier.fillMaxSize().background(Tvs.Panel)) {
-        // Same header as always; it shows what is running (transfusion first).
-        if (!transfusionRunning && turningRunning) {
-            TopBar(caps = "Repositioning running", title = "Turns on the ward clock", icon = R.drawable.ic_turn)
-        } else {
-            TopBar(
-                caps = if (transfusionRunning) "Blood transfusion running" else "Transfusion VS",
-                title = "Vital signs → Cerner, on time",
-                showDrop = true,
-            )
+    Column(Modifier.fillMaxSize().background(c.bg)) {
+        WardHeader(
+            caps = BedViews.running(beds),
+            title = BedViews.summary(beds),
+            trailing = {
+                Spacer(Modifier.width(TvsSpace.s8))
+                Text(Labels.clock(now), color = c.onHeader, style = WardType.CardTime, softWrap = false)
+                Spacer(Modifier.width(TvsSpace.s8))
+                Box(Modifier.size(TvsSize.Touch).background(c.headerTint, CircleShape).wardClick(onClick = onSettings), contentAlignment = Alignment.Center) {
+                    Icon(painterResource(R.drawable.ic_settings), contentDescription = "Settings", tint = c.onHeader, modifier = Modifier.size(TvsSize.IconMedium))
+                }
+            },
+        )
+
+        // The first thing the eye lands on changes with the state, not only the cards below it.
+        val strip = when {
+            worstIsLate -> c.overdue
+            worstIsDue -> c.alarmAction
+            else -> null
         }
+        if (strip != null) Box(Modifier.fillMaxWidth().height(TvsSpace.s6).background(strip))
 
+        val list = rememberLazyListState()
         LazyColumn(
-            Modifier.weight(1f),
-            contentPadding = PaddingValues(TvsSpace.s16),
-            verticalArrangement = Arrangement.spacedBy(TvsSpace.s14),
+            Modifier.weight(1f).moreBelow(list.canScrollForward),
+            state = list,
+            contentPadding = PaddingValues(horizontal = TvsSpace.s12, vertical = TvsSpace.s4),
+            // With nothing to list, the words sit just above the buttons they talk about.
+            verticalArrangement = if (beds.isEmpty()) Arrangement.spacedBy(TvsSpace.s8, Alignment.Bottom) else Arrangement.spacedBy(TvsSpace.s8),
         ) {
-            if (ringing) {
-                item { Alert("Alarm ringing — tap to open", Tvs.Red, onClick = onOpenAlarm) }
-            }
             if (setupProblems > 0) {
                 item {
                     Alert(
-                        "Setup check: $setupProblems item${if (setupProblems > 1) "s" else ""} to fix — alarms may not ring",
-                        Tvs.Amber, textColor = Tvs.Navy, onClick = onSetup,
+                        "Setup: $setupProblems to fix\nAlarms may not ring",
+                        R.drawable.ic_warning, c.alertFill, c.onAlert, c.alertEdge, onSetup,
                     )
                 }
             }
-
-            item { SectionLabel("Transfusions") }
-            items(transfusions, key = { "t${it.transfusion.id}" }) { t ->
-                TransfusionCard(t, now, onOpen = { onOpen(t.transfusion.id) }, onAcknowledge = onAcknowledge)
+            items(beds, key = { "${it.type}${it.id}" }) { bed ->
+                HomeBed(
+                    bed = bed,
+                    undo = live.firstOrNull { it.ownerKey == bed.ownerKey() },
+                    onOpen = { if (bed.type == BedType.TRANSFUSION) onOpen(bed.id) else onOpenTurnPlan(bed.id) },
+                    onUndo = onUndo,
+                )
             }
-            if (home != null && transfusions.isEmpty()) {
-                item { EmptyCard("No transfusion running", "Take the baseline vital signs first, then tap Start.") }
-            }
-
-            item { SectionLabel("Repositioning") }
-            items(plans, key = { "r${it.plan.id}" }) { p ->
-                TurnCard(p, now, onOpen = { onOpenTurnPlan(p.plan.id) }, onOpenRound = onOpenAlarm)
-            }
-            if (turns != null && plans.isEmpty()) {
-                item { EmptyCard("No repositioning plan", "Tap Start, then Repositioning, to turn beds on the ward clock.") }
-            }
-
-            item {
-                OutlinedButton(
-                    onClick = onSettings,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch),
-                    shape = TvsShape.Card,
-                ) { Text("Settings", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold) }
+            if (home != null && turns != null && beds.isEmpty()) {
+                item { EmptyCard("Take the baseline vital signs first, then start a transfusion below.") }
             }
         }
 
         Column(
-            Modifier.fillMaxWidth().background(Tvs.Panel)
+            Modifier.fillMaxWidth().background(c.bg)
                 .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(horizontal = TvsSpace.s16, vertical = TvsSpace.s12),
-            verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
+                .padding(horizontal = TvsSpace.s12)
+                .padding(top = TvsSpace.s8, bottom = TvsSpace.s8),
+            verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         ) {
-            ReactionBanner(onClick = onReaction)
-            Button(
-                onClick = onStart,
-                modifier = Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge),
-                shape = TvsShape.Card,
-                colors = ButtonDefaults.buttonColors(containerColor = Tvs.Navy, contentColor = Tvs.White),
-            ) { Text("Start", fontSize = TvsFont.Heading, fontWeight = FontWeight.Black) }
+            UndoSlot()
+            // Amber like the alarm itself; the patient's own action just below it is navy.
+            if (ringing) Alert("Alarm ringing. Open it", R.drawable.ic_bell, c.alarmAction, c.alarmOnAction, null, onOpenAlarm)
+            if (urgent != null) {
+                if (urgent.roundOpen) {
+                    PatientButton(urgent.bed, "Open round", onOpenAlarm, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
+                } else {
+                    PatientButton(urgent.bed, urgent.ackLabel, { onAcknowledge(urgent.ackIds) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
+                }
+            }
+            if (anyTransfusion) ReactionBar(onClick = onReaction, minHeight = TvsSize.Touch, quiet = true, short = large)
+            // Always here, whatever the font size: the same place for the thumb.
+            StartActions(onStartTransfusion, onStartTurning, stacked = large, quiet = urgent != null)
         }
     }
 }
 
-/** One card per transfusion: bed + colour, mini timeline, next checkpoint with countdown, overdue in red. */
-@Composable
-private fun TransfusionCard(
-    item: TransfusionWithCheckpoints,
-    now: Long,
-    onOpen: () -> Unit,
-    onAcknowledge: (List<Long>) -> Unit,
-) {
-    val t = item.transfusion
-    val rows = item.checkpoints
-    val ringing = rows.filter { it.status == CheckpointStatus.RINGING }
-    val missed = rows.filter { it.status == CheckpointStatus.MISSED && it.ackAt == null }
-    val endPrompt = rows.filter { it.type == CheckpointType.END && it.status == CheckpointStatus.PENDING }
-    val next = rows.filter { it.status == CheckpointStatus.PENDING && it.type.rings }.minByOrNull { it.scheduledAt }
-
-    BedCard(
-        colorIndex = t.colorIndex,
-        title = t.bedLabel,
-        subtitle = when (t.status) {
-            TransfusionStatus.RUNNING -> "Started ${Labels.clock(t.startAt)} · planned ${Labels.duration(t.plannedDurationMin)}"
-            TransfusionStatus.ENDED -> "Ended ${t.endAt?.let { Labels.clock(it) } ?: ""}"
-            TransfusionStatus.STOPPED_REACTION -> "Stopped — reaction"
-        },
-        overdue = ringing.isNotEmpty() || missed.isNotEmpty(),
-        onOpen = onOpen,
-    ) {
-        CardTimeline(TimelineBuilder.live(t, rows, now), compact = true)
-        if (next != null && t.status == TransfusionStatus.RUNNING) {
-            NextLine(
-                "${Labels.title(next.type, next.offsetMin)} at ${Labels.clock(next.scheduledAt)}",
-                Timeliness.countdown(next.scheduledAt - now),
-            )
-        }
-        if (ringing.isNotEmpty()) {
-            Text(
-                "Ringing now: " + ringing.joinToString { Labels.title(it.type, it.offsetMin) },
-                color = Tvs.Red, fontSize = TvsFont.Body, fontWeight = FontWeight.Black,
-            )
-        }
-        if (missed.isNotEmpty()) {
-            ActionBlock(
-                text = "Overdue: " + missed.joinToString { "${Labels.title(it.type, it.offsetMin)} (${Labels.clock(it.scheduledAt)})" },
-                background = Tvs.Red, textColor = Tvs.White,
-                onAck = { onAcknowledge(missed.map { it.id }) },
-            )
-        }
-        if (endPrompt.isNotEmpty()) {
-            ActionBlock(
-                text = "End VS — measure, then document in Cerner",
-                background = Tvs.Amber, textColor = Tvs.Navy,
-                onAck = { onAcknowledge(endPrompt.map { it.id }) },
-            )
-        }
-    }
-}
+private fun BedView.ownerKey() = if (type == BedType.TRANSFUSION) UndoAction.transfusion(id) else UndoAction.plan(id)
 
 /**
- * One card per repositioning plan — also the handover summary: current position, last turn,
- * next slot with countdown, overdue in red (same tokens as transfusions).
+ * Start is one action with two kinds, side by side so neither costs an extra screen. It steps back when
+ * a bed needs something: then that bed's action is the primary one.
  */
 @Composable
-private fun TurnCard(item: TurnPlanWithSlots, now: Long, onOpen: () -> Unit, onOpenRound: () -> Unit) {
-    val p = item.plan
-    val slots = item.slots
-    val rotation = Position.parseList(p.rotation)
-    val lastTurn = slots.filter { it.status == TurnSlotStatus.ACKED && it.ackAt != null }.maxByOrNull { it.ackAt!! }
-    val open = slots.filter { it.status == TurnSlotStatus.RINGING }
-    val next = slots.filter { it.status == TurnSlotStatus.PENDING && it.slotAt > now }.minByOrNull { it.slotAt }
+private fun StartActions(onStartTransfusion: () -> Unit, onStartTurning: () -> Unit, stacked: Boolean, quiet: Boolean) {
+    val tagged = if (quiet) Modifier else Modifier.testTag(PRIMARY_TAG)
+    if (stacked) {
+        Column(Modifier.fillMaxWidth().then(tagged), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+            StartTile("Start transfusion", R.drawable.ic_drop, onStartTransfusion, quiet, Modifier.fillMaxWidth())
+            StartTile("Start turning", R.drawable.ic_turn, onStartTurning, quiet, Modifier.fillMaxWidth())
+        }
+    } else {
+        Row(Modifier.fillMaxWidth().then(tagged), horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+            StartTile("Start transfusion", R.drawable.ic_drop, onStartTransfusion, quiet, Modifier.weight(1f))
+            StartTile("Start turning", R.drawable.ic_turn, onStartTurning, quiet, Modifier.weight(1f))
+        }
+    }
+}
 
-    BedCard(
-        colorIndex = p.colorIndex,
-        title = p.bedLabel,
-        subtitle = when (p.status) {
-            TurnPlanStatus.RUNNING ->
-                "Every ${Labels.duration(p.intervalMin)}" + (p.stopAt?.let { " · until ${Labels.clock(it)}" } ?: "")
-            TurnPlanStatus.STOPPED -> "Stopped"
-        },
-        overdue = open.isNotEmpty(),
-        onOpen = onOpen,
+@Composable
+private fun StartTile(text: String, icon: Int, onClick: () -> Unit, quiet: Boolean, modifier: Modifier) {
+    val c = Ward.c
+    val ink = if (quiet) c.ink else c.onPrimary
+    Column(
+        modifier.heightIn(min = TvsSize.Touch)
+            .background(if (quiet) c.card else c.primary, TvsShape.Card)
+            .border(TvsSize.Edge, if (quiet) c.muted else c.primaryEdge, TvsShape.Card)
+            .wardClick(onClick = onClick)
+            .padding(horizontal = TvsSpace.s4, vertical = TvsSpace.s4),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            PositionIcon(p.currentPosition, Tvs.Navy, TvsSize.IconMedium)
-            Spacer(Modifier.width(TvsSpace.s10))
-            Column {
-                Text("Now: ${p.currentPosition.label}", color = Tvs.Navy, fontSize = TvsFont.Body, fontWeight = FontWeight.Bold)
-                Text(
-                    lastTurn?.ackAt?.let { "Last turn ${Labels.clock(it)}" } ?: "No turn yet",
-                    color = Tvs.Muted, fontSize = TvsFont.Caption,
-                )
-            }
-        }
-        CardTimeline(TurnTimeline.live(p, slots, now), compact = true)
-        if (next != null && p.status == TurnPlanStatus.RUNNING && open.isEmpty()) {
-            NextLine(
-                "${TurnGrid.nextPosition(p.currentPosition, rotation).label} at ${Labels.clock(next.slotAt)}",
-                Timeliness.countdown(next.slotAt - now),
-            )
-        }
-        if (open.isNotEmpty()) {
-            ActionBlock(
-                text = "Overdue: " + open.joinToString { "${Labels.clock(it.slotAt)} turn" } + " — not done yet",
-                background = Tvs.Red, textColor = Tvs.White,
-                buttonText = "Open round",
-                onAck = onOpenRound,
-            )
+        Icon(painterResource(icon), contentDescription = null, tint = ink, modifier = Modifier.size(TvsSize.IconSmall))
+        Text(text, color = ink, style = WardType.Tag, textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+private fun HomeBed(bed: BedView, undo: UndoAction?, onOpen: () -> Unit, onUndo: (Long) -> Unit) {
+    BedCard(bed, onOpen) {
+        if (undo != null) {
+            Spacer(Modifier.height(TvsSpace.s6))
+            SecondaryButton("Undo last", { onUndo(undo.id) }, Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch))
         }
     }
 }

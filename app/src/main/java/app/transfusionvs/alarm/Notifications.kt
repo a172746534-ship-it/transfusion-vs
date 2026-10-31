@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import app.transfusionvs.R
 import app.transfusionvs.data.CheckpointWithBed
 import app.transfusionvs.schedule.Labels
@@ -15,7 +16,7 @@ import app.transfusionvs.ui.MainActivity
 
 object Notifications {
     const val CH_ALARM = "alarm"
-    const val CH_OVERDUE = "overdue"
+    const val CH_OVERDUE = "overdue_v2"
     const val CH_PREALERT = "prealert"
 
     const val ID_ALARM = 1
@@ -23,8 +24,11 @@ object Notifications {
     private const val TAG_PREALERT = "prealert"
     private const val TAG_TURN_OVERDUE = "overdue_turns"
 
-    private const val NAVY = 0xFF13233F.toInt()
-    private const val RED = 0xFFB3121F.toInt()
+    /** Three short pulses: overdue feels different from the alarm's long buzz and the ✓ double tap. */
+    private val OVERDUE_PATTERN = longArrayOf(0, 180, 120, 180, 120, 180)
+
+    private fun navy(context: Context) = ContextCompat.getColor(context, R.color.ward_navy)
+    private fun red(context: Context) = ContextCompat.getColor(context, R.color.ward_overdue)
 
     fun createChannels(context: Context) {
         val alarm = NotificationChannel(CH_ALARM, "Checkpoint alarms", NotificationManager.IMPORTANCE_HIGH).apply {
@@ -37,6 +41,7 @@ object Notifications {
         val overdue = NotificationChannel(CH_OVERDUE, "Overdue checkpoints", NotificationManager.IMPORTANCE_HIGH).apply {
             description = "Stays until the missed checkpoint is acknowledged"
             enableVibration(true)
+            vibrationPattern = OVERDUE_PATTERN
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
         val preAlert = NotificationChannel(CH_PREALERT, "Pre-alerts", NotificationManager.IMPORTANCE_DEFAULT).apply {
@@ -46,6 +51,7 @@ object Notifications {
             vibrationPattern = longArrayOf(0, 250)
         }
         manager(context).createNotificationChannels(listOf(alarm, overdue, preAlert))
+        manager(context).deleteNotificationChannel("overdue") // replaced by overdue_v2, with its own pattern
     }
 
     // ---- The ringing alarm ----
@@ -55,7 +61,7 @@ object Notifications {
         val fullScreen = alarmScreen(context)
         val builder = NotificationCompat.Builder(context, CH_ALARM)
             .setSmallIcon(if (spec?.turnOnly == true) R.drawable.ic_stat_turn else R.drawable.ic_stat_drop)
-            .setColor(NAVY)
+            .setColor(navy(context))
             .setContentTitle(spec?.title ?: "Transfusion VS")
             .setContentText(
                 when {
@@ -92,7 +98,7 @@ object Notifications {
             }
             // One ✓ per bed (the notification has room for two beds plus Snooze).
             if (spec.beds.size == 1) {
-                builder.addAction(0, "Measured & documented ✓", ackIntent(context, spec.beds[0].checkpointIds))
+                builder.addAction(0, Labels.ACK, ackIntent(context, spec.beds[0].checkpointIds))
             } else if (spec.beds.size == 2) {
                 spec.beds.forEach { builder.addAction(0, "✓ ${it.shortLabel}", ackIntent(context, it.checkpointIds)) }
             }
@@ -113,7 +119,7 @@ object Notifications {
 
     fun cancelAlarm(context: Context) = manager(context).cancel(ID_ALARM)
 
-    private fun alarmScreen(context: Context): PendingIntent = PendingIntent.getActivity(
+    fun alarmScreen(context: Context): PendingIntent = PendingIntent.getActivity(
         context, 0,
         Intent(context, AlarmActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION),
@@ -122,16 +128,16 @@ object Notifications {
 
     // ---- Turning round overdue (past the missed timer, still open until the next slot) ----
 
-    /** One persistent "Overdue — Bed 3, Bed 7" listing the beds not ticked; gone once none is left. */
+    /** One persistent "Overdue — •••4803, •••4807" listing the patients not ticked; gone once none is left. */
     fun syncTurnOverdue(context: Context, beds: List<String>, canRemind: Boolean) {
         if (beds.isEmpty()) {
             manager(context).cancel(TAG_TURN_OVERDUE, 0)
             return
         }
-        val text = "Turn not done. Open the round and tick each bed."
+        val text = "Turn not done. Open the round and tick each patient."
         val builder = NotificationCompat.Builder(context, CH_OVERDUE)
             .setSmallIcon(R.drawable.ic_stat_turn)
-            .setColor(RED)
+            .setColor(red(context))
             .setContentTitle("Overdue — ${beds.joinToString(", ")}")
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -152,7 +158,7 @@ object Notifications {
 
     // ---- Overdue (missed, not yet acknowledged) ----
 
-    /** One persistent "Overdue — Bed X" notification per bed, until it is acknowledged. */
+    /** One persistent "Overdue — •••4812" notification per patient, until it is acknowledged. */
     fun syncOverdue(context: Context, missed: List<CheckpointWithBed>) {
         val nm = manager(context)
         val byBed = missed.groupBy { it.transfusionId }
@@ -167,7 +173,7 @@ object Notifications {
             val what = rows.joinToString(", ") { "${Labels.title(it.type, it.offsetMin)} (${Labels.clock(it.scheduledAt)})" }
             val n = NotificationCompat.Builder(context, CH_OVERDUE)
                 .setSmallIcon(R.drawable.ic_stat_drop)
-                .setColor(RED)
+                .setColor(red(context))
                 .setContentTitle("Overdue — $bed")
                 .setContentText("$what not acknowledged. Tap ✓ once measured & documented.")
                 .setStyle(NotificationCompat.BigTextStyle().bigText("$what not acknowledged. Tap ✓ once measured & documented."))
@@ -179,7 +185,7 @@ object Notifications {
                 .setLocalOnly(false)
                 .setContentIntent(openApp(context))
                 .setDeleteIntent(receiverIntent(context, AlarmReceiver.ACTION_REPOST, "tvs://repost/overdue/$transfusionId"))
-                .addAction(0, "Measured & documented ✓", ackIntent(context, rows.map { it.id }))
+                .addAction(0, Labels.ACK, ackIntent(context, rows.map { it.id }))
                 .build()
             notifySafe(context, TAG_OVERDUE, transfusionId.toInt(), n)
         }
@@ -190,7 +196,7 @@ object Notifications {
     fun preAlert(context: Context, row: CheckpointWithBed, minutesBefore: Int) {
         val n = NotificationCompat.Builder(context, CH_PREALERT)
             .setSmallIcon(R.drawable.ic_stat_drop)
-            .setColor(NAVY)
+            .setColor(navy(context))
             .setContentTitle("In $minutesBefore min: ${Labels.title(row.type, row.offsetMin)} — ${row.bedLabel}")
             .setContentText("Due at ${Labels.clock(row.scheduledAt)}")
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -211,7 +217,7 @@ object Notifications {
         runCatching { manager(context).notify(tag, id, n) }
     }
 
-    private fun ackIntent(context: Context, ids: List<Long>): PendingIntent {
+    fun ackIntent(context: Context, ids: List<Long>): PendingIntent {
         val intent = Intent(context, AlarmReceiver::class.java)
             .setAction(AlarmReceiver.ACTION_ACK)
             .setData(Uri.parse("tvs://ack/${ids.joinToString(",")}"))
@@ -228,7 +234,7 @@ object Notifications {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
-    private fun openApp(context: Context): PendingIntent =
+    fun openApp(context: Context): PendingIntent =
         PendingIntent.getActivity(
             context, 0,
             Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),

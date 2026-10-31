@@ -22,6 +22,13 @@ android {
         targetSdk = 37
         versionCode = runNumber
         versionName = tagVersion ?: "dev-$runNumber"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // Sample data shared by the JVM screenshot tests and the emulator UI checks.
+    sourceSets {
+        getByName("test").kotlin.srcDir("src/sharedTest/java")
+        getByName("androidTest").kotlin.srcDir("src/sharedTest/java")
     }
 
     // One fixed release key, decoded from GitHub Secrets by the workflow.
@@ -42,6 +49,13 @@ android {
         release {
             isMinifyEnabled = false // reliability over size (see SPEC decisions log)
             signingConfig = signingConfigs.getByName("release")
+        }
+        // Same code as release, signed with the debug key: lets the lab measure cold start on a
+        // non-debuggable build without release secrets. Never published.
+        create("lab") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
         }
     }
 
@@ -98,4 +112,12 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("io.github.takahirom.roborazzi:roborazzi:1.77.0")
     testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.77.0")
+
+    // Emulator test lab (docs/TEST_LOOP.md). Debug and test only, never in the release APK.
+    androidTestImplementation(composeBom)
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4-accessibility")
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")
 }

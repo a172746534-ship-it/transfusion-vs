@@ -39,6 +39,12 @@ data class RingSpec(
     /** Turning sound (null = the bundled chime). */
     val turnSoundUri: String? = null,
 ) {
+    /** For what shows outside the app: every bed label through [mask]. */
+    fun masked(mask: (String) -> String) = copy(
+        beds = beds.map { it.copy(bedLabel = mask(it.bedLabel)) },
+        round = round?.masked(mask),
+    )
+
     /** Only turns are sounding: play the turning sound and vibration, not the transfusion alarm. */
     val turnOnly: Boolean get() = beds.isEmpty() && round != null
 
@@ -46,7 +52,7 @@ data class RingSpec(
         get() = when {
             beds.isEmpty() && round != null -> roundTitle(round)
             beds.size == 1 -> beds[0].title
-            else -> "${beds.size} beds due now"
+            else -> "${beds.size} patients due now"
         }
 
     companion object {
@@ -71,10 +77,10 @@ data class RingSpec(
         )
 
         fun roundTitle(r: RoundUi) =
-            "Turning round · ${Labels.clock(r.slotAt)} · ${r.beds.size} bed${if (r.beds.size > 1) "s" else ""}"
+            "Turning round · ${Labels.clock(r.slotAt)} · ${r.beds.size} patient${if (r.beds.size > 1) "s" else ""}"
 
         fun groupByBed(rows: List<CheckpointWithBed>): List<RingBed> =
-            rows.groupBy { it.transfusionId }.values.map { bedRows ->
+            rows.sortedBy { it.scheduledAt }.groupBy { it.transfusionId }.values.map { bedRows ->
                 val first = bedRows.first()
                 RingBed(
                     transfusionId = first.transfusionId,
@@ -114,7 +120,9 @@ data class RoundUi(
     val snoozedUntil: Long?,
     /** "Remind me in 30 min" — only if it lands before the next slot. */
     val canRemind: Boolean,
-)
+) {
+    fun masked(mask: (String) -> String) = copy(beds = beds.map { it.copy(bedLabel = mask(it.bedLabel)) })
+}
 
 /** Which secondary action is open on a round row. */
 enum class RoundChoice { OTHER_POSITION, CANT_TURN }

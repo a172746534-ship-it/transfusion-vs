@@ -1,0 +1,11 @@
+<resources>
+    <style name="Theme.TransfusionVS" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ward_first_frame</item>
+        <item name="android:windowSplashScreenBackground">@color/ward_first_frame</item>
+    </style>
+
+    <style name="Theme.TransfusionVS.Alarm" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ward_first_frame</item>
+        <item name="android:windowSplashScreenBackground">@color/ward_first_frame</item>
+    </style>
+</resources>
