@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.transfusionvs.BuildConfig
+import app.transfusionvs.R
 import app.transfusionvs.alarm.AlarmActivity
 import app.transfusionvs.app
 import app.transfusionvs.data.CheckpointStatus
@@ -155,7 +156,7 @@ fun SetupContent(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
-            if (ringing) Alert("Alarm ringing — tap to open", c.dangerFill, c.onDangerFill, onOpenAlarm)
+            if (ringing) Alert("Alarm ringing. Open it", R.drawable.ic_bell, c.alarmAction, c.alarmOnAction, null, onOpenAlarm)
 
             // 1. Live checklist
             Panel {

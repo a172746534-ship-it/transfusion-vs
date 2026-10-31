@@ -32,7 +32,7 @@ class TimelineTest {
         // Navy chips for start and hourly; outlined for 15, 30 and End — like the card.
         assertEquals(listOf(true, false, false, true, true, true, false), row.map { it.filledChip })
         assertEquals(DotStyle.FILLED, row.first().dot)
-        assertEquals(DotStyle.FILLED, row.last().dot)
+        assertEquals(DotStyle.HOLLOW, row.last().dot) // an End still to come must not look done
         assertEquals(DotStyle.HOLLOW, row[1].dot)
     }
 
@@ -51,7 +51,7 @@ class TimelineTest {
         val row = TimelineBuilder.live(t, rows, now = at("2026-01-15T11:05"))
         assertEquals(listOf("0", "15", "30", "1", "End"), row.map { it.number })
         assertEquals(
-            listOf(DotStyle.FILLED, DotStyle.FILLED, DotStyle.OVERDUE, DotStyle.HOLLOW, DotStyle.FILLED),
+            listOf(DotStyle.FILLED, DotStyle.FILLED, DotStyle.OVERDUE, DotStyle.HOLLOW, DotStyle.HOLLOW),
             row.map { it.dot },
         )
     }

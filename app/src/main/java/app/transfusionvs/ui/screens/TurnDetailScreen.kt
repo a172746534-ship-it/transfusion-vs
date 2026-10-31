@@ -100,12 +100,13 @@ fun TurnDetailContent(
                             "Lying: ${p.currentPosition.label}" + (since?.let { " · since ${Labels.clock(it)}" } ?: ""),
                             color = c.ink, style = WardType.Lead,
                         )
+                        val open = slots.filter { it.status == TurnSlotStatus.RINGING }.minByOrNull { it.slotAt }
                         val next = slots.filter { it.status == TurnSlotStatus.PENDING && it.slotAt > now }.minByOrNull { it.slotAt }
-                        if (next != null && p.status == TurnPlanStatus.RUNNING) {
-                            Text(
-                                "Next: ${TurnGrid.nextPosition(p.currentPosition, rotation).label} at ${Labels.clock(next.slotAt)}",
-                                color = c.muted, style = WardType.Body,
-                            )
+                        val turnTo = TurnGrid.nextPosition(p.currentPosition, rotation).label
+                        if (open != null) {
+                            Text("Turn to $turnTo: due since ${Labels.clock(open.slotAt)}", color = c.ink, style = WardType.BodyBold)
+                        } else if (next != null && p.status == TurnPlanStatus.RUNNING) {
+                            Text("Next: $turnTo at ${Labels.clock(next.slotAt)}", color = c.muted, style = WardType.Body)
                         }
                     }
                 }
@@ -131,7 +132,7 @@ fun TurnDetailContent(
                 CapsLabel("Turns")
                 slots.filter { it.status != TurnSlotStatus.CANCELLED && (it.status != TurnSlotStatus.PENDING || it.slotAt <= now + 4 * 60 * MINUTE_MS) }
                     .sortedBy { it.slotAt }
-                    .forEach { s -> TurnRow(s, now, windowMin, missedTimeoutMin, onOpenRound) }
+                    .forEach { s -> TurnRow(s, now, windowMin, missedTimeoutMin) }
             }
 
             if (p.status == TurnPlanStatus.RUNNING) {
@@ -144,7 +145,10 @@ fun TurnDetailContent(
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         ) {
             UndoSlot()
-            if (p.status == TurnPlanStatus.RUNNING) {
+            if (slots.any { it.status == TurnSlotStatus.RINGING }) {
+                AckButton("Open round", onOpenRound, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
+                SecondaryButton("Stop plan", { onStop(p.id) })
+            } else if (p.status == TurnPlanStatus.RUNNING) {
                 PrimaryButton("Stop plan", { onStop(p.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
             } else {
                 PrimaryButton("Restart plan", { onRestart(p.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
@@ -154,7 +158,7 @@ fun TurnDetailContent(
 }
 
 @Composable
-private fun TurnRow(s: TurnSlot, now: Long, windowMin: Int, missedTimeoutMin: Int, onOpenRound: () -> Unit) {
+private fun TurnRow(s: TurnSlot, now: Long, windowMin: Int, missedTimeoutMin: Int) {
     val c = Ward.c
     val status = TurnStatus.of(s, now, windowMin, missedTimeoutMin)
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
@@ -179,9 +183,6 @@ private fun TurnRow(s: TurnSlot, now: Long, windowMin: Int, missedTimeoutMin: In
                 Column(Modifier.weight(1f)) { words() }
                 StatusPill(status)
             }
-        }
-        if (s.status == TurnSlotStatus.RINGING) {
-            AckButton("Open round", onOpenRound)
         }
     }
 }

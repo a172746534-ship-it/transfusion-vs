@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -47,6 +48,7 @@ import app.transfusionvs.ui.PRIMARY_TAG
 import app.transfusionvs.ui.components.BedGrid
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.CardTimeline
+import app.transfusionvs.ui.components.ChangeRow
 import app.transfusionvs.ui.components.ChoiceChip
 import app.transfusionvs.ui.components.OTHER_BED
 import app.transfusionvs.ui.components.Panel
@@ -57,6 +59,7 @@ import app.transfusionvs.ui.theme.Ward
 import app.transfusionvs.ui.theme.WardType
 import java.time.Instant
 import java.time.ZoneId
+import kotlinx.coroutines.launch
 
 private val DURATION_CHIPS = listOf(60, 120, 180, 240)
 private val AGO_CHIPS = listOf(0, 5, 10, 15)
@@ -132,8 +135,10 @@ fun StartContent(
             onBack = onBack,
             icon = R.drawable.ic_drop,
         )
+        val scroll = rememberScrollState()
+        val scope = rememberCoroutineScope()
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(TvsSpace.s12),
+            Modifier.weight(1f).verticalScroll(scroll).imePadding().padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
             Panel {
@@ -211,10 +216,9 @@ fun StartContent(
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s6),
         ) {
             if (duration != null) {
-                Text(
-                    "Started ${Labels.clock(startAt)} · planned ${Labels.duration(duration)} · ends ${Labels.clock(startAt + duration * MINUTE_MS)}",
-                    color = c.ink, style = WardType.BodyBold,
-                )
+                ChangeRow("Started ${Labels.clock(startAt)} · planned ${Labels.duration(duration)} · ends ${Labels.clock(startAt + duration * MINUTE_MS)}") {
+                    scope.launch { scroll.animateScrollTo(scroll.maxValue) }
+                }
             }
             PrimaryButton(
                 when {

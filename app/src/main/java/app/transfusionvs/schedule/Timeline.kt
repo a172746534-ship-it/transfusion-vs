@@ -8,7 +8,8 @@ import app.transfusionvs.data.Transfusion
 
 // Pure models behind the card-style timeline and the per-checkpoint status (unit tested).
 
-enum class DotStyle { FILLED, HOLLOW, OVERDUE }
+/** Done, still to come, due now, overdue, and a turn that was skipped. */
+enum class DotStyle { FILLED, HOLLOW, DUE, OVERDUE, SKIPPED }
 
 /** One column of the card's "TIME FROM START" row: "15 min" over a dot over a time chip. */
 data class TimelinePoint(
@@ -29,14 +30,14 @@ object TimelineBuilder {
         ScheduleCalculator.plan(config, config.plannedDurationMin)
             .filter { it.type != CheckpointType.LIMIT_WARNING }
             .map { p ->
-                val dot = if (p.type == CheckpointType.START || p.type == CheckpointType.PLANNED_END) DotStyle.FILLED else DotStyle.HOLLOW
+                val dot = if (p.type == CheckpointType.START) DotStyle.FILLED else DotStyle.HOLLOW
                 point(p.type, p.offsetMin, ScheduleCalculator.timeOf(t0, p.offsetMin), dot)
             }
 
     /**
      * A started transfusion. Shows the plan through the planned End; once it runs past the End,
-     * the next hourly checks appear too. Dots: filled = start / End / done, hollow = upcoming,
-     * red = overdue (ringing, missed, or due and not yet rung).
+     * the next hourly checks appear too. Dots: filled = start / done, hollow = upcoming,
+     * due = ringing or due and not yet rung, overdue = missed.
      */
     fun live(t: Transfusion, rows: List<Checkpoint>, now: Long): List<TimelinePoint> =
         rows.asSequence()
@@ -53,9 +54,9 @@ object TimelineBuilder {
     private fun dotFor(c: Checkpoint, now: Long): DotStyle = when {
         c.type == CheckpointType.START -> DotStyle.FILLED
         c.status == CheckpointStatus.ACKED -> DotStyle.FILLED
-        c.status == CheckpointStatus.MISSED || c.status == CheckpointStatus.RINGING -> DotStyle.OVERDUE
-        c.scheduledAt <= now -> DotStyle.OVERDUE
-        c.type == CheckpointType.PLANNED_END -> DotStyle.FILLED
+        c.status == CheckpointStatus.MISSED -> DotStyle.OVERDUE
+        c.status == CheckpointStatus.RINGING -> DotStyle.DUE
+        c.scheduledAt <= now -> DotStyle.DUE
         else -> DotStyle.HOLLOW
     }
 

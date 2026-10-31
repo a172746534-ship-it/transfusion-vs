@@ -2,6 +2,7 @@ package app.transfusionvs.ui.screens
 
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,10 +17,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -30,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.transfusionvs.R
@@ -48,7 +52,6 @@ import app.transfusionvs.ui.components.AckButton
 import app.transfusionvs.ui.components.Alert
 import app.transfusionvs.ui.components.BedCard
 import app.transfusionvs.ui.components.EmptyCard
-import app.transfusionvs.ui.components.PrimaryButton
 import app.transfusionvs.ui.components.ReactionBar
 import app.transfusionvs.ui.components.SecondaryButton
 import app.transfusionvs.ui.components.UndoSlot
@@ -56,6 +59,7 @@ import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.components.largeFont
 import app.transfusionvs.ui.components.rememberNow
 import app.transfusionvs.ui.components.wardClick
+import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
@@ -111,8 +115,9 @@ fun HomeScreen(
 
 /**
  * Stateless Home (rendered by the screenshot tests with fake data). Open = done: every bed, most
- * urgent first, each with its next clock time. Quiet when all is well.
- * [anyTransfusion]: the reaction bar shows only when there is blood on the ward, running or finished
+ * urgent first, each with its next clock time. Quiet when all is well; when a bed needs something, its
+ * action takes the one primary place, in the thumb zone.
+ * [anyTransfusion]: the reaction row shows only when there is blood on the ward, running or finished
  * within the last day (a reaction can come late).
  */
 @Composable
@@ -142,16 +147,15 @@ fun HomeContent(
     )
     val live = undo.filter { it.expiresAt > now }
     val large = largeFont()
+    val urgent = beds.firstOrNull { (it.ackIds.isNotEmpty() && !it.stoppedForReaction) || it.roundOpen }
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
         WardHeader(
-            caps = "${BedViews.running(beds)} · ${Labels.clock(now)}",
+            caps = BedViews.running(beds),
             title = BedViews.summary(beds),
             trailing = {
-                Box(
-                    Modifier.size(TvsSize.Touch).wardClick(onClick = onSettings),
-                    contentAlignment = Alignment.Center,
-                ) {
+                Text(Labels.clock(now), color = c.onHeader, style = WardType.CardTime, softWrap = false)
+                Box(Modifier.size(TvsSize.Touch).wardClick(onClick = onSettings), contentAlignment = Alignment.Center) {
                     Icon(painterResource(R.drawable.ic_settings), contentDescription = "Settings", tint = c.onHeader, modifier = Modifier.size(TvsSize.IconMedium))
                 }
             },
@@ -162,14 +166,11 @@ fun HomeContent(
             contentPadding = PaddingValues(horizontal = TvsSpace.s12, vertical = TvsSpace.s4),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         ) {
-            if (ringing) {
-                item { Alert("Alarm ringing — tap to open", c.dangerFill, c.onDangerFill, onOpenAlarm) }
-            }
             if (setupProblems > 0) {
                 item {
                     Alert(
-                        "Setup check: $setupProblems item${if (setupProblems > 1) "s" else ""} to fix — alarms may not ring",
-                        c.soon, c.onSoon, onSetup,
+                        "Setup: $setupProblems to fix. Alarms may not ring",
+                        R.drawable.ic_warning, c.alertFill, c.onAlert, c.alertEdge, onSetup,
                     )
                 }
             }
@@ -178,16 +179,14 @@ fun HomeContent(
                     bed = bed,
                     undo = live.firstOrNull { it.ownerKey == bed.ownerKey() },
                     onOpen = { if (bed.type == BedType.TRANSFUSION) onOpen(bed.id) else onOpenTurnPlan(bed.id) },
-                    onOpenRound = onOpenAlarm,
-                    onAcknowledge = onAcknowledge,
                     onUndo = onUndo,
                 )
             }
             if (home != null && turns != null && beds.isEmpty()) {
-                item { EmptyCard("No beds running", "Take the baseline vital signs first, then start a transfusion below.") }
+                item { EmptyCard("Take the baseline vital signs first, then start a transfusion below.") }
             }
             if (large) {
-                item { StartActions(onStartTransfusion, onStartTurning, stacked = true) }
+                item { StartActions(onStartTransfusion, onStartTurning, stacked = true, quiet = urgent != null) }
             }
         }
 
@@ -199,48 +198,63 @@ fun HomeContent(
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         ) {
             UndoSlot()
-            if (anyTransfusion) ReactionBar(onClick = onReaction, minHeight = TvsSize.Touch)
-            if (!large) StartActions(onStartTransfusion, onStartTurning, stacked = false)
+            if (ringing) Alert("Alarm ringing. Open it", R.drawable.ic_bell, c.alarmAction, c.alarmOnAction, null, onOpenAlarm)
+            if (urgent != null) {
+                if (urgent.roundOpen) {
+                    AckButton("${urgent.bed} · Open round", onOpenAlarm, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
+                } else {
+                    AckButton("${urgent.bed} · ${urgent.ackLabel}", { onAcknowledge(urgent.ackIds) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
+                }
+            }
+            if (anyTransfusion) ReactionBar(onClick = onReaction, minHeight = TvsSize.Touch, quiet = true)
+            if (!large) StartActions(onStartTransfusion, onStartTurning, stacked = false, quiet = urgent != null)
         }
     }
 }
 
 private fun BedView.ownerKey() = if (type == BedType.TRANSFUSION) UndoAction.transfusion(id) else UndoAction.plan(id)
 
-/** Start is one action with two kinds, side by side so neither costs an extra screen. */
+/**
+ * Start is one action with two kinds, side by side so neither costs an extra screen. It steps back when
+ * a bed needs something: then that bed's action is the primary one.
+ */
 @Composable
-private fun StartActions(onStartTransfusion: () -> Unit, onStartTurning: () -> Unit, stacked: Boolean) {
+private fun StartActions(onStartTransfusion: () -> Unit, onStartTurning: () -> Unit, stacked: Boolean, quiet: Boolean) {
+    val tagged = if (quiet) Modifier else Modifier.testTag(PRIMARY_TAG)
     if (stacked) {
-        Column(Modifier.fillMaxWidth().testTag(PRIMARY_TAG), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-            PrimaryButton("Start transfusion", onStartTransfusion, icon = R.drawable.ic_drop)
-            PrimaryButton("Start turning", onStartTurning, icon = R.drawable.ic_turn)
+        Column(Modifier.fillMaxWidth().then(tagged), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+            StartTile("Start transfusion", R.drawable.ic_drop, onStartTransfusion, quiet, Modifier.fillMaxWidth())
+            StartTile("Start turning", R.drawable.ic_turn, onStartTurning, quiet, Modifier.fillMaxWidth())
         }
     } else {
-        Row(Modifier.fillMaxWidth().testTag(PRIMARY_TAG), horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-            PrimaryButton("Start transfusion", onStartTransfusion, Modifier.weight(1f), icon = R.drawable.ic_drop, minHeight = TvsSize.Touch, style = WardType.ButtonSmall)
-            PrimaryButton("Start turning", onStartTurning, Modifier.weight(1f), icon = R.drawable.ic_turn, minHeight = TvsSize.Touch, style = WardType.ButtonSmall)
+        Row(Modifier.fillMaxWidth().then(tagged), horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+            StartTile("Start transfusion", R.drawable.ic_drop, onStartTransfusion, quiet, Modifier.weight(1f))
+            StartTile("Start turning", R.drawable.ic_turn, onStartTurning, quiet, Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun HomeBed(
-    bed: BedView,
-    undo: UndoAction?,
-    onOpen: () -> Unit,
-    onOpenRound: () -> Unit,
-    onAcknowledge: (List<Long>) -> Unit,
-    onUndo: (Long) -> Unit,
-) {
+private fun StartTile(text: String, icon: Int, onClick: () -> Unit, quiet: Boolean, modifier: Modifier) {
+    val c = Ward.c
+    val ink = if (quiet) c.ink else c.onPrimary
+    Column(
+        modifier.heightIn(min = TvsSize.Touch)
+            .background(if (quiet) c.card else c.primary, TvsShape.Card)
+            .border(TvsSize.Edge, if (quiet) c.muted else c.primaryEdge, TvsShape.Card)
+            .wardClick(onClick = onClick)
+            .padding(horizontal = TvsSpace.s4, vertical = TvsSpace.s4),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(painterResource(icon), contentDescription = null, tint = ink, modifier = Modifier.size(TvsSize.IconSmall))
+        Text(text, color = ink, style = WardType.Tag, textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+private fun HomeBed(bed: BedView, undo: UndoAction?, onOpen: () -> Unit, onUndo: (Long) -> Unit) {
     BedCard(bed, onOpen) {
-        if (bed.ackIds.isNotEmpty() && !bed.stoppedForReaction) {
-            Spacer(Modifier.height(TvsSpace.s6))
-            AckButton("${bed.bed} · ${bed.ackLabel}", { onAcknowledge(bed.ackIds) })
-        }
-        if (bed.roundOpen) {
-            Spacer(Modifier.height(TvsSpace.s6))
-            AckButton("Open round", onOpenRound)
-        }
         if (undo != null) {
             Spacer(Modifier.height(TvsSpace.s6))
             SecondaryButton("Undo last", { onUndo(undo.id) }, Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch))

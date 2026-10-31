@@ -91,7 +91,7 @@ object BedViews {
         val t = item.transfusion
         val rows = item.checkpoints
         val points = TimelineBuilder.live(t, rows, now)
-        val firstOpen = points.indexOfFirst { it.dot == DotStyle.OVERDUE }.takeIf { it >= 0 }
+        val firstOpen = points.indexOfFirst { it.dot == DotStyle.OVERDUE || it.dot == DotStyle.DUE }.takeIf { it >= 0 }
         val rail = rail(points.map { it.time }, firstOpen, now)
         val ringing = rows.filter { it.status == CheckpointStatus.RINGING }.sortedBy { it.scheduledAt }
         val missed = rows.filter { it.status == CheckpointStatus.MISSED && it.ackAt == null }.sortedBy { it.scheduledAt }
@@ -107,7 +107,7 @@ object BedViews {
             // Ended: the End VS is what the card is about, and a missed check doesn't vanish behind it.
             endPrompt != null -> base.copy(
                 time = endPrompt.scheduledAt,
-                what = "Measure, then document in Cerner" + if (missed.isNotEmpty()) " · ${titles(missed)} missed" else "",
+                what = "Measure, then document in Cerner" + if (missed.isNotEmpty()) " · ${titles(missed)} overdue" else "",
                 urgency = if (missed.isNotEmpty()) Urgency.OVERDUE else Urgency.NOW,
                 stateText = "ENDED · END VS", ackIds = listOf(endPrompt.id), ackLabel = "End VS measured & documented\u00A0✓",
             )
@@ -141,7 +141,7 @@ object BedViews {
         val slots = item.slots
         val rotation = Position.parseList(p.rotation)
         val points = TurnTimeline.live(p, slots, now)
-        val firstOpen = points.indexOfFirst { it.dot == DotStyle.OVERDUE && it.time >= (slots.filter { s -> s.status == TurnSlotStatus.RINGING }.minOfOrNull { s -> s.slotAt } ?: Long.MAX_VALUE) }.takeIf { it >= 0 }
+        val firstOpen = points.indexOfFirst { it.dot == DotStyle.DUE }.takeIf { it >= 0 }
         val rail = rail(points.map { it.time }, firstOpen, now)
         val open = slots.filter { it.status == TurnSlotStatus.RINGING }.sortedBy { it.slotAt }
         val next = slots.filter { it.status == TurnSlotStatus.PENDING && it.slotAt > now }.minByOrNull { it.slotAt }
@@ -189,7 +189,7 @@ object BedViews {
     /** "1 overdue · 1 due now", "All on time · next 11:20", "Nothing running". */
     fun summary(beds: List<BedView>): String {
         val active = beds.filter { !it.idle }
-        if (active.isEmpty()) return "Nothing running"
+        if (active.isEmpty()) return "All quiet"
         val stopped = active.count { it.stoppedForReaction }
         val overdue = active.count { it.urgency == Urgency.OVERDUE && !it.stoppedForReaction }
         val now = active.count { it.urgency == Urgency.NOW }
@@ -207,7 +207,7 @@ object BedViews {
     fun running(beds: List<BedView>): String {
         val n = beds.count { it.running }
         return when (n) {
-            0 -> "NO BEDS RUNNING"
+            0 -> if (beds.any { !it.idle }) "NONE RUNNING · STILL OPEN" else "NO BEDS RUNNING"
             1 -> "1 BED RUNNING"
             else -> "$n BEDS RUNNING"
         }

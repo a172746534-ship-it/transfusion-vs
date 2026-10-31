@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import app.transfusionvs.R
@@ -116,8 +117,8 @@ fun PrimaryButton(
     val c = Ward.c
     WardButton(
         text, onClick, modifier,
-        fill = if (enabled) c.primary else c.track,
-        content = if (enabled) c.onPrimary else c.ink,
+        fill = if (enabled) c.primary else c.bg,
+        content = if (enabled) c.onPrimary else c.muted,
         edge = if (enabled) c.primaryEdge else c.muted,
         enabled = enabled, icon = icon, minHeight = minHeight, style = style,
     )
@@ -131,9 +132,9 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
 
 /** Acknowledge in place: amber like the alarm's action, and it always says which bed. */
 @Composable
-fun AckButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier.fillMaxWidth()) {
+fun AckButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier.fillMaxWidth(), minHeight: Dp = TvsSize.Touch) {
     val c = Ward.c
-    WardButton(text, onClick, modifier, fill = c.alarmAction, content = c.alarmOnAction, minHeight = TvsSize.Touch, style = WardType.ButtonSmall)
+    WardButton(text, onClick, modifier, fill = c.alarmAction, content = c.alarmOnAction, minHeight = minHeight, style = WardType.ButtonSmall)
 }
 
 /** The band on top of every screen: navy like the card by day, a dark card by night. */
@@ -184,21 +185,23 @@ fun WardHeader(
  * On transfusion screens only.
  */
 @Composable
-fun ReactionBar(onClick: () -> Unit, modifier: Modifier = Modifier, minHeight: Dp = TvsSize.TouchLarge) {
+fun ReactionBar(onClick: () -> Unit, modifier: Modifier = Modifier, minHeight: Dp = TvsSize.TouchLarge, quiet: Boolean = false) {
     val c = Ward.c
+    // Quiet when nothing is wrong (Home, Detail): always there, with its red kept for when it matters.
+    val ink = if (quiet) c.danger else c.onDangerFill
     Row(
         modifier.fillMaxWidth().heightIn(min = minHeight)
-            .background(c.dangerFill, TvsShape.Card)
-            .border(TvsSize.Edge, c.dangerEdge, TvsShape.Card)
+            .background(if (quiet) c.card else c.dangerFill, TvsShape.Card)
+            .border(TvsSize.Edge, if (quiet) c.danger else c.dangerEdge, TvsShape.Card)
             .wardClick(onClick = onClick)
             .padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s6),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = c.onDangerFill, modifier = Modifier.size(TvsSize.IconMedium))
+        Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = ink, modifier = Modifier.size(TvsSize.IconMedium))
         Spacer(Modifier.width(TvsSpace.s12))
         Column {
-            Text("SUSPECTED REACTION?", color = c.onDangerFill, style = WardType.Tag)
-            Text("STOP the transfusion & call", color = c.onDangerFill, style = WardType.Body)
+            Text("SUSPECTED REACTION?", color = ink, style = WardType.Tag)
+            Text("STOP the transfusion & call", color = if (quiet) c.ink else ink, style = WardType.Body)
         }
     }
 }
@@ -235,6 +238,23 @@ fun ChoiceRow(options: List<String>, selected: Int, onPick: (Int) -> Unit, minHe
     }
 }
 
+/**
+ * What a Start screen will do unless changed, next to the action, and the way to change it. Tapping
+ * scrolls to the options.
+ */
+@Composable
+fun ChangeRow(text: String, onClick: () -> Unit) {
+    val c = Ward.c
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch).wardClick(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text, color = c.ink, style = WardType.BodyBold, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(TvsSpace.s8))
+        Text("Change", color = c.ink, style = WardType.Lead, textDecoration = TextDecoration.Underline)
+    }
+}
+
 /** Rounded panel on the page background. */
 @Composable
 fun Panel(modifier: Modifier = Modifier, background: Color = Ward.c.card, content: @Composable () -> Unit) {
@@ -256,7 +276,7 @@ fun StatusPill(status: StatusView) {
     val c = Ward.c
     when (status.kind) {
         StatusKind.ON_TIME -> PlainStatus("✓ ${status.text}", c.ink)
-        StatusKind.LATE, StatusKind.SNOOZED -> FilledStatus(status.text, c.soon, c.onSoon)
+        StatusKind.LATE, StatusKind.SNOOZED -> OutlinedStatus(status.text, c.soon)
         StatusKind.MISSED -> FilledStatus(status.text, c.overdue, c.onOverdue)
         StatusKind.RINGING, StatusKind.DUE -> FilledStatus(status.text, c.now, c.onNow)
         StatusKind.UPCOMING, StatusKind.SKIPPED, StatusKind.CANCELLED -> PlainStatus(status.text, c.muted)
@@ -265,8 +285,23 @@ fun StatusPill(status: StatusView) {
 
 @Composable
 fun FilledStatus(text: String, bg: Color, fg: Color) {
-    Box(Modifier.background(bg, TvsShape.Pill).padding(horizontal = TvsSpace.s8)) {
-        Text(text, color = fg, style = WardType.BodyBold)
+    if (Ward.c.isNight) {
+        // A bright pill would be the brightest thing in a dark room: a tint and an edge say the same.
+        Box(Modifier.background(bg.copy(alpha = 0.18f), TvsShape.Pill).border(TvsSize.Edge, bg, TvsShape.Pill).padding(horizontal = TvsSpace.s8)) {
+            Text(text, color = bg, style = WardType.BodyBold)
+        }
+    } else {
+        Box(Modifier.background(bg, TvsShape.Pill).padding(horizontal = TvsSpace.s8)) {
+            Text(text, color = fg, style = WardType.BodyBold)
+        }
+    }
+}
+
+/** Coming, not here yet: an outline, quieter than the filled "due now". */
+@Composable
+fun OutlinedStatus(text: String, edge: Color) {
+    Box(Modifier.border(TvsSize.Edge, edge, TvsShape.Pill).padding(horizontal = TvsSpace.s8)) {
+        Text(text, color = Ward.c.ink, style = WardType.BodyBold)
     }
 }
 

@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.transfusionvs.R
 import app.transfusionvs.data.Checkpoint
@@ -28,6 +29,7 @@ import app.transfusionvs.data.CheckpointType
 import app.transfusionvs.data.Transfusion
 import app.transfusionvs.data.TransfusionStatus
 import app.transfusionvs.data.TransfusionWithCheckpoints
+import app.transfusionvs.schedule.BedViews
 import app.transfusionvs.schedule.Labels
 import app.transfusionvs.schedule.MINUTE_MS
 import app.transfusionvs.schedule.TimelineBuilder
@@ -42,8 +44,10 @@ import app.transfusionvs.ui.components.Panel
 import app.transfusionvs.ui.components.PrimaryButton
 import app.transfusionvs.ui.components.ReactionBar
 import app.transfusionvs.ui.components.SecondaryButton
+import app.transfusionvs.ui.components.StateText
 import app.transfusionvs.ui.components.StatusPill
 import app.transfusionvs.ui.components.UndoSlot
+import app.transfusionvs.ui.components.WardButton
 import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.components.largeFont
 import app.transfusionvs.ui.components.rememberNow
@@ -52,7 +56,7 @@ import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
 import app.transfusionvs.ui.theme.WardType
 
-/** Full timeline in the card layout, every checkpoint with its status, and End / Edit / Stopped. */
+/** The next check first, then the timeline in the card layout and every checkpoint with its status. */
 @Composable
 fun DetailScreen(
     vm: MainViewModel,
@@ -114,7 +118,11 @@ fun DetailContent(
             content = if (stopped) c.onDangerFill else c.onHeader,
             capsColor = if (stopped) c.onDangerFill else c.headerCaps,
         )
-        if (t == null) return@Column
+        if (t == null || item == null) return@Column
+
+        val endVs = rows.firstOrNull { it.type == CheckpointType.END && it.status == CheckpointStatus.PENDING }
+        // The one action this bed needs now: pinned where the thumb is, not somewhere in the list.
+        val dueRow = rows.filter { it.status == CheckpointStatus.RINGING || (it.status == CheckpointStatus.MISSED && it.ackAt == null) }.minByOrNull { it.scheduledAt }
 
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(TvsSpace.s12),
@@ -126,17 +134,29 @@ fun DetailContent(
                         "Stopped at ${t.endAt?.let { Labels.clock(it) } ?: ""}. Remaining alarms for this bed are cancelled.",
                         color = c.ink, style = WardType.Lead,
                     )
+                    if (dueRow != null) Text("A check that was already overdue can still be documented below.", color = c.muted, style = WardType.Body)
                 }
             }
 
-            // The End VS prompt, right after End, until documented.
-            val endVs = rows.firstOrNull { it.type == CheckpointType.END && it.status == CheckpointStatus.PENDING }
             if (endVs != null) {
                 Panel {
                     CapsLabel("End VS — ${t.bedLabel}")
                     Text("Transfusion ended at ${Labels.clock(endVs.scheduledAt)}.", color = c.ink, style = WardType.Body)
-                    MeasureDocumentBlocks(c.ink, c.muted, c.calm, c.typeTx, c.card)
-                    AckButton("End VS · ${Labels.ACK}", { onAcknowledge(listOf(endVs.id)) })
+                    MeasureDocumentBlocks(c.ink, c.muted, c.ink, c.card)
+                }
+            }
+
+            if (!stopped && endVs == null) {
+                val view = BedViews.of(item, now)
+                Panel {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            CapsLabel("Next")
+                            Text(view.what, color = c.ink, style = WardType.Lead)
+                            StateText(view)
+                        }
+                        view.time?.let { Text(Labels.clock(it), color = c.ink, style = WardType.Hero, softWrap = false, textAlign = TextAlign.End) }
+                    }
                 }
             }
 
@@ -149,7 +169,11 @@ fun DetailContent(
             Panel {
                 CapsLabel("Checkpoints")
                 visibleRows(t, rows, now).forEach { row ->
-                    CheckpointRow(row, now, toleranceMin, onAck = { onAcknowledge(listOf(row.id)) })
+                    CheckpointRow(row, now, toleranceMin)
+                    // On a stopped bed the late documentation stays possible, but quietly: nothing else is routine here.
+                    if (stopped && row.status == CheckpointStatus.MISSED && row.ackAt == null) {
+                        SecondaryButton("${Labels.title(row.type, row.offsetMin)} · ${Labels.ACK}", { onAcknowledge(listOf(row.id)) })
+                    }
                 }
             }
 
@@ -163,13 +187,28 @@ fun DetailContent(
 
         Column(
             Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = TvsSpace.s12).padding(top = TvsSpace.s8, bottom = TvsSpace.s8),
-            // Apart on purpose: End is the costlier mistake for a thumb aiming at the red bar.
+            // Apart on purpose: End is the costlier mistake for a thumb aiming at the reaction row.
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s16),
         ) {
             UndoSlot()
-            if (stopped) SecondaryButton("Open the reaction steps", onReaction) else ReactionBar(onClick = onReaction)
-            if (t.status == TransfusionStatus.RUNNING) {
-                PrimaryButton("End transfusion", { onEnd(t.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
+            if (stopped) {
+                WardButton(
+                    "Open the reaction steps", onReaction, Modifier.fillMaxWidth().testTag(PRIMARY_TAG),
+                    fill = c.danger, content = c.onDanger, icon = R.drawable.ic_warning,
+                )
+            } else {
+                ReactionBar(onClick = onReaction, minHeight = TvsSize.Touch, quiet = true)
+                when {
+                    endVs != null -> AckButton("End VS · ${Labels.ACK}", { onAcknowledge(listOf(endVs.id)) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
+                    dueRow != null -> AckButton("${Labels.title(dueRow.type, dueRow.offsetMin)} · ${Labels.ACK}", { onAcknowledge(listOf(dueRow.id)) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
+                }
+                if (t.status == TransfusionStatus.RUNNING) {
+                    if (dueRow != null) {
+                        SecondaryButton("End transfusion", { onEnd(t.id) })
+                    } else {
+                        PrimaryButton("End transfusion", { onEnd(t.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
+                    }
+                }
             }
         }
     }
@@ -191,39 +230,32 @@ private fun visibleRows(t: Transfusion, rows: List<Checkpoint>, now: Long): List
         .sortedBy { it.scheduledAt }
 
 @Composable
-private fun CheckpointRow(row: Checkpoint, now: Long, toleranceMin: Int, onAck: () -> Unit) {
+private fun CheckpointRow(row: Checkpoint, now: Long, toleranceMin: Int) {
     val c = Ward.c
     val status = Timeliness.status(row, now, toleranceMin)
-    val needsAck = row.status == CheckpointStatus.RINGING || (row.status == CheckpointStatus.MISSED && row.ackAt == null)
-
-    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s6)) {
-        val pill: @Composable () -> Unit = {
-            if (row.type != CheckpointType.START) StatusPill(status) else Text("logged", color = c.muted, style = WardType.BodyBold)
+    val pill: @Composable () -> Unit = {
+        if (row.type != CheckpointType.START) StatusPill(status) else Text("logged", color = c.muted, style = WardType.BodyBold)
+    }
+    val words: @Composable () -> Unit = {
+        Text(Labels.title(row.type, row.offsetMin), color = c.ink, style = WardType.BodyBold)
+        if (row.type == CheckpointType.PLANNED_END || row.type == CheckpointType.LIMIT_WARNING) {
+            Text(Labels.subtitle(row.type), color = c.muted, style = WardType.Body)
         }
-        val words: @Composable () -> Unit = {
-            Text(Labels.title(row.type, row.offsetMin), color = c.ink, style = WardType.BodyBold)
-            if (row.type == CheckpointType.PLANNED_END || row.type == CheckpointType.LIMIT_WARNING) {
-                Text(Labels.subtitle(row.type), color = c.muted, style = WardType.Body)
-            }
-            if (row.ackAt != null && row.type != CheckpointType.START) {
-                Text("Documented ${Labels.clock(row.ackAt)}", color = c.muted, style = WardType.Body)
-            }
+        if (row.ackAt != null && row.type != CheckpointType.START) {
+            Text("Documented ${Labels.clock(row.ackAt)}", color = c.muted, style = WardType.Body)
         }
-        if (largeFont()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(Labels.clock(row.scheduledAt), style = WardType.Time, color = c.ink, softWrap = false, modifier = Modifier.weight(1f))
-                pill()
-            }
+    }
+    if (largeFont()) {
+        Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s2)) {
+            Text(Labels.clock(row.scheduledAt), style = WardType.Time, color = c.ink, softWrap = false)
             words()
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(Labels.clock(row.scheduledAt), style = WardType.Time, color = c.ink, softWrap = false, modifier = Modifier.width(TvsSize.TimeColumn))
-                Column(Modifier.weight(1f)) { words() }
-                pill()
-            }
+            pill()
         }
-        if (needsAck) {
-            AckButton("${Labels.title(row.type, row.offsetMin)} · ${Labels.ACK}", onAck)
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(Labels.clock(row.scheduledAt), style = WardType.Time, color = c.ink, softWrap = false, modifier = Modifier.width(TvsSize.TimeColumn))
+            Column(Modifier.weight(1f)) { words() }
+            pill()
         }
     }
 }

@@ -32,7 +32,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +54,7 @@ import app.transfusionvs.ui.PRIMARY_TAG
 import app.transfusionvs.ui.components.BedGrid
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.CardTimeline
+import app.transfusionvs.ui.components.ChangeRow
 import app.transfusionvs.ui.components.ChoiceChip
 import app.transfusionvs.ui.components.ChoiceRow
 import app.transfusionvs.ui.components.OTHER_BED
@@ -71,6 +74,7 @@ import app.transfusionvs.ui.theme.WardType
 import androidx.compose.foundation.border
 import java.time.Instant
 import java.time.ZoneId
+import kotlinx.coroutines.launch
 
 /** What the Start screen hands over to the engine. */
 data class TurnPlanDraft(
@@ -165,8 +169,10 @@ fun TurnStartContent(
             onBack = onBack,
             icon = R.drawable.ic_turn,
         )
+        val scroll = rememberScrollState()
+        val scope = rememberCoroutineScope()
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(TvsSpace.s12),
+            Modifier.weight(1f).verticalScroll(scroll).imePadding().padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
             Panel {
@@ -280,10 +286,13 @@ fun TurnStartContent(
                     enabled = validPlan,
                 )
             } else {
-                Text(
-                    "First turn ${Labels.clock(firstSlot)}, then every ${Labels.duration(interval)}" + (stopAt?.let { " until ${Labels.clock(it)}" } ?: ""),
-                    color = c.ink, style = WardType.BodyBold,
-                )
+                ChangeRow("First turn ${Labels.clock(firstSlot)}, then every ${Labels.duration(interval)}" + (stopAt?.let { " until ${Labels.clock(it)}" } ?: "")) {
+                    options = true
+                    scope.launch {
+                        withFrameNanos { }
+                        scroll.animateScrollTo(scroll.maxValue)
+                    }
+                }
                 CapsLabel(if (bed.isBlank()) "Pick a bed first" else "$bed: lying now? Tap to start")
                 PositionButtons(rotation, enabled = validPlan) { p ->
                     onSubmit(TurnPlanDraft(bed, interval, rotation, p, firstSlot, stopAt))
@@ -320,8 +329,8 @@ private fun PositionButtons(positions: List<Position>, enabled: Boolean, onPick:
         positions.chunked(perRow).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
                 row.forEach { p ->
-                    val fill = if (enabled) c.primary else c.track
-                    val ink = if (enabled) c.onPrimary else c.ink
+                    val fill = if (enabled) c.primary else c.bg
+                    val ink = if (enabled) c.onPrimary else c.muted
                     Column(
                         Modifier.weight(1f).heightIn(min = TvsSize.TouchLarge)
                             .background(fill, TvsShape.Card)

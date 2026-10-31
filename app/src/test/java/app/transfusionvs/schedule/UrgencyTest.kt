@@ -101,7 +101,7 @@ class UrgencyTest {
 
     @Test
     fun theSummaryTellsTheTruthOfTheWard() {
-        assertEquals("Nothing running", BedViews.summary(emptyList()))
+        assertEquals("All quiet", BedViews.summary(emptyList()))
         assertEquals("NO BEDS RUNNING", BedViews.running(emptyList()))
         val mixed = listOf(BedViews.of(Fakes.bed12, now), BedViews.of(Fakes.bed14, now))
         assertEquals("1 overdue", BedViews.summary(mixed))

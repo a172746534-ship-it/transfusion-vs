@@ -27,13 +27,13 @@ import app.transfusionvs.ui.theme.WardType
  * buttons, so only the action is a filled block on the screen.
  */
 @Composable
-fun MeasureDocumentBlocks(ink: Color, edge: Color, measure: Color, document: Color, onBadge: Color, modifier: Modifier = Modifier) {
+fun MeasureDocumentBlocks(ink: Color, edge: Color, accent: Color, onBadge: Color, modifier: Modifier = Modifier) {
     Column(
         modifier.fillMaxWidth().border(TvsSize.Edge, edge, TvsShape.Card).padding(TvsSpace.s12),
         verticalArrangement = Arrangement.spacedBy(TvsSpace.s10),
     ) {
-        Step("1", "MEASURE", "T · HR · RR · BP · SpO₂", measure, ink, onBadge)
-        Step("2", "DOCUMENT", "in Cerner, right away", document, ink, onBadge)
+        Step("1", "MEASURE", "T · HR · RR · BP · SpO₂", accent, ink, onBadge)
+        Step("2", "DOCUMENT", "in Cerner, right away", accent, ink, onBadge)
     }
 }
 
@@ -46,7 +46,7 @@ private fun Step(number: String, title: String, body: String, accent: Color, ink
         Spacer(Modifier.width(TvsSpace.s12))
         Column {
             Text(title, color = accent, style = WardType.Lead)
-            Text(body, color = ink, style = WardType.Body)
+            Text(body, color = ink, style = WardType.LeadPlain)
         }
     }
 }

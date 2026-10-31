@@ -34,14 +34,14 @@ object TurnTimeline {
             slot = TurnGrid.nextSlotAfter(slot, intervalMin, zone)
         }
         if (stopAt != null && out.last().time < stopAt && stopAt <= slot) {
-            out += TimelinePoint("Stop", null, stopAt, filledChip = false, dot = DotStyle.FILLED)
+            out += TimelinePoint("Stop", null, stopAt, filledChip = false, dot = DotStyle.HOLLOW)
         }
         return out
     }
 
     /**
      * A running plan: the last two finished slots, anything open, and the next upcoming ones.
-     * Dots: filled = done or skipped, red = ringing / overdue / missed, hollow = upcoming.
+     * Dots: filled = done, dash = skipped, due = ringing, overdue = missed, hollow = upcoming.
      */
     fun live(plan: TurnPlan, slots: List<TurnSlot>, now: Long, ahead: Int = 3): List<TimelinePoint> {
         val sorted = slots.filter { it.status != TurnSlotStatus.CANCELLED }.sortedBy { it.slotAt }
@@ -58,15 +58,17 @@ object TurnTimeline {
                 else -> TurnGrid.nextPosition(predicted, rotation).also { predicted = it }
             }
             val dot = when {
-                s.status == TurnSlotStatus.ACKED || s.status == TurnSlotStatus.SKIPPED -> DotStyle.FILLED
-                s.status == TurnSlotStatus.MISSED || s.status == TurnSlotStatus.RINGING || s.slotAt <= now -> DotStyle.OVERDUE
+                s.status == TurnSlotStatus.ACKED -> DotStyle.FILLED
+                s.status == TurnSlotStatus.SKIPPED -> DotStyle.SKIPPED
+                s.status == TurnSlotStatus.MISSED -> DotStyle.OVERDUE
+                s.status == TurnSlotStatus.RINGING || s.slotAt <= now -> DotStyle.DUE
                 else -> DotStyle.HOLLOW
             }
             TimelinePoint("", null, s.slotAt, filledChip = true, dot = dot, position = position)
         }
         val stop = plan.stopAt
         return if (stop != null && (points.isEmpty() || points.last().time < stop) && upcoming.size < ahead) {
-            points + TimelinePoint("Stop", null, stop, filledChip = false, dot = DotStyle.FILLED)
+            points + TimelinePoint("Stop", null, stop, filledChip = false, dot = DotStyle.HOLLOW)
         } else {
             points
         }

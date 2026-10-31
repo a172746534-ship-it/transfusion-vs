@@ -136,7 +136,7 @@ class UiChecks {
     private val wardBeds = (1..19).map { "Bed $it" } + longBed
 
     private val manyBeds = (1..20).map { i ->
-        Fakes.transfusion(100L + i, if (i == 20) longBed else "Bed $i", i % 8, "2026-01-15T10:${(i * 2).toString().padStart(2, '0')}", 120)
+        Fakes.transfusion(100L + i, if (i == 20) longBed else "Bed $i", i % 8, "2026-01-15T10:${(51 + i % 14).toString().padStart(2, '0')}", 120)
     }
 
     private fun ringingBed(): TransfusionWithCheckpoints = Fakes.bed14.copy(

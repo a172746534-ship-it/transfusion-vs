@@ -40,7 +40,7 @@ fun Rail(
         val r = size.height * 0.27f
         val gap = (size.width - r * 4) / (state.total - 1)
         fun x(i: Int) = r * 2 + gap * i
-        drawLine(c.track, Offset(x(0), y), Offset(x(state.total - 1), y), r * 0.4f)
+        drawLine(c.railLine, Offset(x(0), y), Offset(x(state.total - 1), y), r * 0.4f)
         val filledTo = if (state.done == 0) x(0) else x(state.done - 1) + gap * state.progress
         drawLine(ink, Offset(x(0), y), Offset(filledTo, y), r * 0.55f)
         for (i in 0 until state.total) {

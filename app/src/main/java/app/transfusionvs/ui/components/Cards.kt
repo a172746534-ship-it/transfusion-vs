@@ -2,7 +2,6 @@ package app.transfusionvs.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -44,14 +43,20 @@ fun BedType.spoken(): String = if (this == BedType.TRANSFUSION) "Transfusion" el
 @Composable
 fun BedType.color(): Color = if (this == BedType.TRANSFUSION) Ward.c.typeTx else Ward.c.typeRp
 
-/** Full-width tappable banner ("Alarm ringing — tap to open", "Setup check: …"). */
+/** Full-width banner with an icon and a chevron, so it reads as something to tap. */
 @Composable
-fun Alert(text: String, color: Color, textColor: Color, onClick: () -> Unit) {
-    Box(
-        Modifier.fillMaxWidth().heightIn(min = TvsSize.Touch).background(color, TvsShape.Card)
-            .wardClick(onClick = onClick).padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s8),
-        contentAlignment = Alignment.CenterStart,
-    ) { Text(text, color = textColor, style = WardType.Lead) }
+fun Alert(text: String, icon: Int, color: Color, textColor: Color, edge: Color?, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = TvsSize.TouchLarge).background(color, TvsShape.Card)
+            .let { if (edge != null) it.border(TvsSize.Edge, edge, TvsShape.Card) else it }
+            .wardClick(onClick = onClick).padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s6),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(icon), contentDescription = null, tint = textColor, modifier = Modifier.size(TvsSize.IconMedium))
+        Spacer(Modifier.width(TvsSpace.s10))
+        Text(text, color = textColor, style = WardType.Lead, modifier = Modifier.weight(1f))
+        Icon(painterResource(R.drawable.ic_chevron), contentDescription = null, tint = textColor, modifier = Modifier.size(TvsSize.IconSmall))
+    }
 }
 
 @Composable
@@ -63,11 +68,12 @@ private fun TypeTag(type: BedType, tint: Color) {
 
 /** The state, in words: quiet text when calm, a filled pill from "due soon" up. */
 @Composable
-private fun StateText(view: BedView) {
+fun StateText(view: BedView) {
     val c = Ward.c
     when {
         view.stoppedForReaction -> Unit
         view.urgency == Urgency.CALM -> PlainStatus(view.stateText, c.muted)
+        view.urgency == Urgency.SOON -> OutlinedStatus(view.stateText, c.soon)
         else -> FilledStatus(view.stateText, c.of(view.urgency), c.on(view.urgency))
     }
 }
@@ -98,7 +104,12 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
             .let { if (edge != null) it.border(TvsSize.EdgeStrong, edge, shape) else it }
             .wardClick(onClick = onOpen),
     ) {
-        if (!stopped) Box(Modifier.width(TvsSize.TypeStrip).fillMaxHeight().background(view.type.color(), TvsShape.CardStart))
+        // The stripe gives way to a red edge, so the two never collide at the corners.
+        if (edge == null) {
+            Box(Modifier.width(TvsSize.TypeStrip).fillMaxHeight().background(view.type.color(), TvsShape.CardStart))
+        } else {
+            Spacer(Modifier.width(TvsSize.TypeStrip))
+        }
         Column(Modifier.weight(1f).padding(start = TvsSpace.s10, end = TvsSpace.s4, top = TvsSpace.s2, bottom = TvsSpace.s4)) {
             // A stopped bed says when in words: that corner always means the next check.
             val time = view.time?.takeIf { !stopped }?.let { Labels.clock(it) }
@@ -149,13 +160,9 @@ fun BedCard(view: BedView, onOpen: () -> Unit, actions: @Composable () -> Unit =
 
 /** Clean empty state. */
 @Composable
-fun EmptyCard(title: String, body: String) {
+fun EmptyCard(body: String) {
     val c = Ward.c
-    Column(
-        Modifier.fillMaxWidth().background(c.card, TvsShape.Card).padding(TvsSpace.s16),
-        verticalArrangement = Arrangement.spacedBy(TvsSpace.s6),
-    ) {
-        Text(title, color = c.ink, style = WardType.Heading)
-        Text(body, color = c.muted, style = WardType.Body)
+    Column(Modifier.fillMaxWidth().background(c.card, TvsShape.Card).padding(TvsSpace.s16)) {
+        Text(body, color = c.ink, style = WardType.Lead)
     }
 }
