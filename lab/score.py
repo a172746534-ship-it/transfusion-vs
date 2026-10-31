@@ -12,7 +12,7 @@ import sys
 
 sys.stdout.reconfigure(encoding="utf-8")
 root = pathlib.Path(sys.argv[1])
-MATRIX = [26, 29, 31, 33, 34, 36]
+MATRIX = [int(a) for a in __import__("os").environ.get("LAB_MATRIX", "26,29,31,33,34,36").split(",")]
 POINTS = {
     "A01_timing_locked_keyguard": 2, "A02_doze_force_idle": 1, "A03_battery_saver": 1, "A04_do_not_disturb": 1,
     "A05_silent_alarm_stream_and_vibration": 1, "A06_vibrate_alarm_stream_and_vibration": 1, "A07_process_killed_am_kill": 1,

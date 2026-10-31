@@ -59,3 +59,20 @@ Read this first after any restart, then docs/DESIGN_OVERHAUL.md and docs/TEST_LO
 - A run of 5+ digits in a bed label counts as an MRN typed by mistake: masked in notifications, on the alarm over
   the lock screen and on the widget (`schedule/BedMask.kt`). Evidence: `BedMaskTest`, lab `M01`, `widget_mrn_masked`.
 - No CSV exists, so that item holds by having none. M01 is a gate for the merge and carries no points.
+
+## Where it stopped on 2026-10-31 (usage limit). Read this first.
+- Ward Card is built: design system, all screens, bed grid, undo, pocket guards, night theme, widget, shortcuts, MRN mask, timezone fix. Phase 3 strips are in docs/flows and PR #1. v0.4.1 is released and merged into this branch.
+- Lab run 41161823563 (commit 219b0a2, API 34 only): area A 25/25, nine tasks within budget, monkey clean, 0 leaks, cold start 598.5 ms, double tap, undo and widget PASS.
+- Lab run 41164846208 (commit 5b75b86, API 34) was still running. It is the first with the persona fixes and M01. Read it next: `LAB_MATRIX=34 python lab/score.py <dir>`.
+- Persona findings, round 1, are in docs/audit/reviewers-round1.md and mostly fixed in f497bde, not yet re-reviewed. The design reviewer's round was stopped before it finished: run a fresh one.
+
+## Next, in order
+1. Read run 41164846208. Fix what remains from run 41161823563 if it still shows:
+   - TOUCH: `start` duration chips 46x56 dp ("1 h"): give them a minimum width. `round_checklist` "Back" chip 62x64.
+   - SPACING: `round_checklist` chips against the pinned action 1.1 dp; `detail` last button against the reaction bar 6.5 dp: add padding above pinned areas.
+   - f2.0: glyphs in fixed-size boxes count as TRUNCATED (step badges, ± steppers, ↑, "!"): let them grow. MIDWORD in `settings` chips.
+   - StrictMode 23: disk reads about 215 ms and leaked closables, one a Cursor: find the sites in monkey.logcat.txt. LabReceiver's own `rows()` is not the leak (it uses `use`).
+2. ktlint: run `ktlint -F` once in CI and apply the patch near the end, since it breaks exact-string patches. Add only `ktlint_function_naming_ignore_when_annotated_with = Composable`. Fix long lines by hand.
+3. Set app/src/test/screenshots/MODE back to verify and commit the recorded references. Add the 3.json schema from the CI artifact.
+4. Fresh design reviewer and 3 personas on new screenshots, then the full matrix (lab/config.json apis 26,29,31,33,34,36). Android 8 needs `grant_policy_access_by_hand` to work: check its log.
+5. Update SCORECARD.md: add the iteration history, and add baseline APIs 29 (17 pass, 5 fail, 2 N/A) and 34 (emulator died at A11). Then loop to 100/100 on two full-matrix runs, merge, release.
