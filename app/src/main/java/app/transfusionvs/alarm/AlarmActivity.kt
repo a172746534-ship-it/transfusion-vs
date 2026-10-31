@@ -452,10 +452,11 @@ private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
         } else {
             Text("${beds.size} patients due now", color = c.alarmInk, style = WardType.AlarmTitle)
         }
-        AlarmSteps()
+        // With several due, their own buttons come first: on a small phone the steps are the part that scrolls.
         if (beds.size > 1) {
             beds.forEachIndexed { i, bed -> BedRow(bed, rows, if (i == 0) null else ({ onAcknowledge(bed.checkpointIds) })) }
         }
+        AlarmSteps()
     }
     Spacer(Modifier.size(TvsSpace.s8))
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s12)) {
@@ -463,7 +464,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
         if (round != null && round.beds.isNotEmpty()) {
             val late = (now - round.slotAt) / MINUTE_MS
             WardButton(
-                "Start round · ${Labels.clock(round.slotAt)}${if (late >= 1) " · +$late min" else ""} · ${round.beds.size} patient${if (round.beds.size > 1) "s" else ""}",
+                "Start round · ${Labels.clock(round.slotAt)} · " + if (late >= 1) "+$late min" else "${round.beds.size} patient${if (round.beds.size > 1) "s" else ""}",
                 onStartRound, Modifier.fillMaxWidth(),
                 fill = c.alarmBg, content = c.alarmInk, edge = c.alarmInk, style = WardType.ButtonSmall, icon = R.drawable.ic_turn,
             )
@@ -596,10 +597,10 @@ private fun RoundBedRow(
         val stacked = largeFont()
         @Composable
         fun choice(choice: RoundChoice, label: String, modifier: Modifier) {
-            // The open one waits for an answer below: a tint and an arrow, no ✓, since nothing is done yet.
+            // The open one waits for the answer below: a tint and a stronger edge, no ✓, since nothing is done yet.
             val on = open == choice
             WardButton(
-                if (on) "$label ▾" else label, { onOpen(choice) }, modifier,
+                label, { onOpen(choice) }, modifier,
                 fill = if (on) c.alarmTint else c.alarmBg,
                 content = c.alarmInk,
                 edge = if (on) c.alarmInk else c.alarmMuted, style = WardType.BodyBold, shape = TvsShape.Control,
