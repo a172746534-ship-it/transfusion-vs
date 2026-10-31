@@ -16,6 +16,8 @@ scores 0. Not run = 0.
 
 **Stopped on 2026-10-31 by the maintainer's decision, before the full matrix and with no 100/100.** The loop's stop condition was not met, and no final score was computed: by §5, what was not run scores 0.
 
+**Merged and released as v0.5.0 the same day, also by the maintainer's decision, knowing the list below.**
+
 Not proven, so not to be read as PASS:
 - Everything from commit 4c509ee on, on any emulator. Those commits change the alarm screen's layout and the Start screens, not when an alarm rings. They also carry the test fixes for A07, A08, A15, A16, rotation and process death, which therefore never ran.
 - Typing the MRN on a real keyboard: the number pad's height and the button above it are only reasoned from the layout, since the screenshots show no keyboard.

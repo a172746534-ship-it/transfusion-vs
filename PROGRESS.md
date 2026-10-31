@@ -82,3 +82,6 @@ SPEC.md has the rules. Code still says `bedLabel` and `BedView`; what they hold 
 
 ## Stopped on 2026-10-31 (maintainer)
 The maintainer ended the emulator testing: the MRN change was the last thing wanted. So the full matrix did not run and 100/100 was not reached. SCORECARD.md lists what is and isn't proven. Merging and releasing without that stop condition is the maintainer's call, asked for separately. Screenshots are back to MODE=verify, with references from run 41204703448.
+
+## Released as v0.5.0 (maintainer's decision, 2026-10-31)
+The maintainer approved merging and releasing without the loop's 100/100 condition, knowing what SCORECARD.md lists as not proven. Colleagues should get it only after the maintainer has tried it on a real phone.
