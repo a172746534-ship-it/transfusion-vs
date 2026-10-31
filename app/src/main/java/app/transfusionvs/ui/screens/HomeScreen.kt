@@ -158,7 +158,7 @@ fun HomeContent(
     Column(Modifier.fillMaxSize().background(c.bg)) {
         WardHeader(
             caps = BedViews.running(beds),
-            title = (if (worstIsLate) "◆ " else "") + BedViews.summary(beds),
+            title = BedViews.summary(beds),
             trailing = {
                 Spacer(Modifier.width(TvsSpace.s8))
                 Text(Labels.clock(now), color = c.onHeader, style = WardType.CardTime, softWrap = false)

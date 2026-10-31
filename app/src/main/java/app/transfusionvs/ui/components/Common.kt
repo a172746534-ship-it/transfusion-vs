@@ -351,7 +351,7 @@ fun ChangeRow(text: String, onClick: () -> Unit) {
         Text(text, color = c.ink, style = WardType.BodyBold, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(TvsSpace.s8))
         Box(
-            Modifier.heightIn(min = TvsSize.Touch).widthIn(min = TvsSize.Stepper).border(TvsSize.Edge, c.muted, TvsShape.Control),
+            Modifier.heightIn(min = TvsSize.Touch).widthIn(min = TvsSize.Stepper).border(TvsSize.Edge, c.muted, TvsShape.Control).padding(horizontal = TvsSpace.s8),
             contentAlignment = Alignment.Center,
         ) {
             Text("Change", color = c.ink, style = WardType.BodyBold)
