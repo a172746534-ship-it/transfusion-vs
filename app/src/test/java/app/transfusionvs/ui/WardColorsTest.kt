@@ -61,7 +61,7 @@ class WardColorsTest {
         // Key numbers: times and beds on the cards, the header and the alarm.
         check("$name key on card", c.ink, c.card, key)
         check("$name key on alarm", c.alarmInk, c.alarmBg, key)
-        check("$name key on danger fill", c.onDangerFill, c.dangerFill, key.coerceAtMost(7.0).let { if (name == "day") 4.5 else 7.0 })
+        check("$name key on danger fill", c.onDangerFill, c.dangerFill, key)
         // Text.
         check("$name muted on card", c.muted, c.card, text)
         check("$name muted on page", c.muted, c.bg, text)
