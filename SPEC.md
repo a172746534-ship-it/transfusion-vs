@@ -423,6 +423,8 @@ schedules. The alarm engine, schedules, data meaning and privacy rules do not ch
 - **Combined alarm:** one Snooze covers everything; the transfusion sound wins while a transfusion
   sounds; once only turns sound, the turning chime and double-pulse vibration play.
 - **"Other position"** offers allowed positions except the suggestion and the current one.
+- **Phones set to Arabic (v0.4.1):** the layout is left-to-right on every phone (`supportsRtl="false"`, and forced in
+  `TvsTheme`). The UI language is English; mirroring it scrambled the alarm's text. Digits were already Latin.
 
 ## Ward Card (chosen 2026-10-31)
 The maintainer chose direction 1, Ward Card. Colours in `ui/theme/Theme.kt`, verified from `lab/palettes.json`. Red Hat Display and Red Hat Text (OFL). The rail is the signature: the paper card's dots on a line, alive. Overdue is a red diamond with "!".
