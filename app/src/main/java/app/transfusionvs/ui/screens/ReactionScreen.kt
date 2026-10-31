@@ -46,7 +46,7 @@ import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
 import app.transfusionvs.ui.theme.WardType
 
-/** A running bed the nurse can mark as stopped. */
+/** A running transfusion the nurse can mark as stopped. */
 data class BedChoice(val transfusionId: Long, val bedLabel: String, val colorIndex: Int)
 
 private val WARNING_SIGNS = listOf(

@@ -203,13 +203,13 @@ object BedViews {
         return if (next == null) "All on time" else "All on time · next ${Labels.clock(next)}"
     }
 
-    /** "6 BEDS RUNNING". */
+    /** "6 PATIENTS RUNNING". */
     fun running(beds: List<BedView>): String {
         val n = beds.count { it.running }
         return when (n) {
-            0 -> if (beds.any { !it.idle }) "NONE RUNNING · STILL OPEN" else "NO BEDS RUNNING"
-            1 -> "1 BED RUNNING"
-            else -> "$n BEDS RUNNING"
+            0 -> if (beds.any { !it.idle }) "NONE RUNNING · STILL OPEN" else "NOTHING RUNNING"
+            1 -> "1 PATIENT RUNNING"
+            else -> "$n PATIENTS RUNNING"
         }
     }
 }
@@ -229,27 +229,18 @@ object NightRule {
     }
 }
 
-/** The ward's bed list: "1-12, 14, ICU 3" typed once in Settings. Bed numbers, no names. */
-object BedInput {
-    const val MAX_LABEL = 16
-    private const val MAX_RANGE = 100
+/** The MRN as typed: digits only, in any script the phone's keyboard uses, so a name can't get in. */
+object PatientInput {
+    const val MIN_DIGITS = 5
+    const val MAX_DIGITS = 16
 
-    /** A plain number means "Bed N"; a range adds each bed; anything else is kept as typed. */
-    fun parse(text: String): List<String> = text.split(',', '\n', ';').map { it.trim() }.filter { it.isNotEmpty() }.flatMap { part ->
-        val range = Regex("""^(\d{1,4})\s*[-–]\s*(\d{1,4})$""").find(part)
-        when {
-            range != null -> {
-                val from = range.groupValues[1].toInt()
-                val to = range.groupValues[2].toInt()
-                if (from <= to && to - from < MAX_RANGE) (from..to).map { "Bed $it" } else emptyList()
-            }
-            part.all { it.isDigit() } -> listOf("Bed $part".take(MAX_LABEL))
-            else -> listOf(part.take(MAX_LABEL))
-        }
-    }.distinct()
+    fun clean(text: String): String =
+        text.mapNotNull { c -> Character.digit(c, 10).takeIf { it >= 0 } }.joinToString("").take(MAX_DIGITS)
 
-    /** Natural order: Bed 2 before Bed 10. */
+    fun valid(mrn: String): Boolean = mrn.length in MIN_DIGITS..MAX_DIGITS && mrn.all { it in '0'..'9' }
+
+    /** Natural order, in case labels from older versions are still around. */
     fun sorted(labels: List<String>): List<String> = labels.sortedWith(
-        compareBy<String> { it.replace(Regex("""\d+"""), "") }.thenBy { Regex("""\d+""").find(it)?.value?.toIntOrNull() ?: 0 }.thenBy { it },
+        compareBy<String> { it.replace(Regex("""\d+"""), "") }.thenBy { Regex("""\d+""").find(it)?.value?.toLongOrNull() ?: 0 }.thenBy { it },
     )
 }

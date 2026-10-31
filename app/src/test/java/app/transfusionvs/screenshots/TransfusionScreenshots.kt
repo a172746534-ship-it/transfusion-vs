@@ -113,7 +113,7 @@ class TransfusionScreenshots {
     @Config(qualifiers = TALL_PHONE)
     fun reaction() = shot("transfusion_reaction") {
         ReactionScreen(
-            beds = listOf(BedChoice(1, "Bed 12", 0), BedChoice(2, "Bed 14", 1)),
+            beds = listOf(BedChoice(1, "7654812", 0), BedChoice(2, "7654814", 1)),
             onStopped = {}, onBack = {},
         )
     }

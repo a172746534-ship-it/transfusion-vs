@@ -75,7 +75,7 @@ class ArabicPhoneTest {
         val width = rule.onRoot().fetchSemanticsNode().boundsInRoot.width
         assertTrue("the title starts at the left edge, at ${title.left} of $width", title.left < width / 4)
         rule.onNodeWithText(Labels.ACK).assertExists()
-        rule.onNodeWithText("Bed 14").assertExists()
+        rule.onNodeWithText("7654814").assertExists()
     }
 
     @Test

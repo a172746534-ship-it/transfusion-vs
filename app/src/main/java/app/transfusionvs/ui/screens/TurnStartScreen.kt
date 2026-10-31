@@ -12,10 +12,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -47,6 +48,7 @@ import app.transfusionvs.R
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.TurnPlan
 import app.transfusionvs.schedule.Labels
+import app.transfusionvs.schedule.PatientInput
 import app.transfusionvs.schedule.TurnGrid
 import app.transfusionvs.schedule.TurnTimeline
 import app.transfusionvs.ui.MainViewModel
@@ -95,10 +97,7 @@ fun TurnStartScreen(vm: MainViewModel, editing: TurnPlan?, onSubmit: (TurnPlanDr
     TurnStartContent(
         editing = editing, beds = beds, busy = busy,
         defaultIntervalMin = editing?.intervalMin ?: vm.turnIntervalMin, openedAt = openedAt,
-        onSubmit = { draft ->
-            if (draft.bedLabel !in beds) vm.addWardBeds(listOf(draft.bedLabel))
-            onSubmit(draft)
-        },
+        onSubmit = onSubmit,
         onBack = onBack,
     )
 }
@@ -129,7 +128,9 @@ fun TurnStartContent(
 
     var picked by rememberSaveable { mutableStateOf(editing?.bedLabel ?: initialBed) }
     var otherText by rememberSaveable { mutableStateOf("") }
-    val bed = if (picked == OTHER_BED) otherText.trim() else picked
+    // With nobody seen yet the only way in is the MRN field.
+    val typing = picked == OTHER_BED || (picked.isBlank() && beds.isEmpty())
+    val bed = if (typing) otherText.takeIf { PatientInput.valid(it) } ?: "" else picked
 
     var options by rememberSaveable { mutableStateOf(initiallyExpanded || editing != null) }
     var interval by rememberSaveable { mutableIntStateOf(editing?.intervalMin ?: defaultIntervalMin) }
@@ -173,11 +174,11 @@ fun TurnStartContent(
         val scroll = rememberScrollState()
         val scope = rememberCoroutineScope()
         Column(
-            Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).imePadding().padding(TvsSpace.s12),
+            Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
             Panel {
-                CapsLabel("Which bed?")
+                CapsLabel("Which patient?")
                 BedGrid(
                     beds = (beds + listOfNotNull(editing?.bedLabel)).distinct(), busy = busy, selected = picked, otherText = otherText,
                     onPick = { picked = it }, onOtherText = { otherText = it },
@@ -212,7 +213,7 @@ fun TurnStartContent(
                 // Positions: include / exclude and the rotation order
                 Panel {
                     CapsLabel("Positions")
-                    Text("Untick a position this bed must not use. Arrows change the rotation order.", color = c.muted, style = WardType.Body)
+                    Text("Untick a position this patient must not use. Arrows change the rotation order.", color = c.muted, style = WardType.Body)
                     orderList.forEachIndexed { i, p ->
                         val on = p in rotation
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -229,7 +230,7 @@ fun TurnStartContent(
                             Spacer(Modifier.width(TvsSpace.s6))
                             Column(Modifier.weight(1f)) {
                                 Text(p.label, color = if (on) c.ink else c.muted, style = WardType.BodyBold)
-                                if (!on) Text("not for this bed", color = c.muted, style = WardType.Body)
+                                if (!on) Text("not for this patient", color = c.muted, style = WardType.Body)
                             }
                             OrderButton("↑", enabled = i > 0, description = "Move ${p.label} up") { order = Position.toCsv(orderList.swap(i, i - 1)) }
                             Spacer(Modifier.width(TvsSpace.s8))
@@ -273,7 +274,7 @@ fun TurnStartContent(
         }
 
         Column(
-            Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars).padding(TvsSpace.s12),
+            Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)).padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
         ) {
             if (editing != null) {
@@ -292,7 +293,7 @@ fun TurnStartContent(
                         scroll.animateScrollTo(scroll.maxValue)
                     }
                 }
-                Text(if (bed.isBlank()) "Pick a bed first" else "$bed: lying now? Tap to start", color = c.ink, style = WardType.Lead)
+                Text(if (bed.isBlank()) (if (typing) "Enter the MRN first" else "Pick a patient first") else "$bed: lying now? Tap to start", color = c.ink, style = WardType.Lead)
                 PositionButtons(rotation, enabled = validPlan) { p ->
                     onSubmit(TurnPlanDraft(bed, interval, rotation, p, firstSlot, stopAt))
                 }

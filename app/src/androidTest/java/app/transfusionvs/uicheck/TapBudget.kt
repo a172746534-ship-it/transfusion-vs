@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -12,6 +13,7 @@ import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import app.transfusionvs.App
@@ -20,12 +22,12 @@ import app.transfusionvs.alarm.AlarmService
 import app.transfusionvs.data.Checkpoint
 import app.transfusionvs.data.CheckpointStatus
 import app.transfusionvs.data.CheckpointType
+import app.transfusionvs.data.Patient
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.Transfusion
 import app.transfusionvs.data.TurnPlan
 import app.transfusionvs.data.TurnSlot
 import app.transfusionvs.data.TurnSlotStatus
-import app.transfusionvs.data.WardBed
 import app.transfusionvs.schedule.TurnGrid
 import app.transfusionvs.ui.MainActivity
 import java.time.ZoneId
@@ -43,7 +45,8 @@ import org.junit.Test
  * starts from the launcher. No task may need typing; none of these flows touches a text field.
  * Each result is logged with tag TAPS.
  *
- * Preconditions, as the spec states them: setup done, ward beds entered. Task 7 runs where a reaction
+ * Preconditions: setup done, the patient already seen once (a new patient's MRN is typed once, the
+ * maintainer's decision; `task4_newPatient` measures that path). Task 7 runs where a reaction
  * is possible: the maintainer decided the guide belongs to transfusions, not to turning screens.
  */
 class TapBudget {
@@ -57,7 +60,7 @@ class TapBudget {
     @Before fun clean() = runBlocking {
         app.db.clearAllTables()
         app.settings.setupSeen = true
-        app.db.wardDao().addBeds((1..20).map { WardBed("Bed $it") })
+        (1..20).forEach { app.db.wardDao().usePatient(Patient("76548${it.toString().padStart(2, '0')}", now)) }
         taps = 0
     }
 
@@ -142,7 +145,7 @@ class TapBudget {
     }
 
     @Test fun task1_seeAllBeds() {
-        val beds = (1..6).map { "Bed $it" }
+        val beds = (1..6).map { "76548${it.toString().padStart(2, '0')}" }
         beds.forEach { running(it) }
         runBlocking { app.engine.rearm() }
         home()
@@ -159,14 +162,14 @@ class TapBudget {
     }
 
     @Test fun task2_ackFromAlarm() {
-        ringing("Bed 12")
+        ringing("7654812")
         alarm("Measured & documented")
         tap("Measured & documented")
         report(2, 1)
     }
 
     @Test fun task3_wholeRoundAsSuggested() {
-        roundOf("Bed 3", "Bed 7", "Bed 9")
+        roundOf("7654803", "7654807", "7654809")
         alarm("Start round")
         tap("Start round")
         tap("All turned as suggested")
@@ -177,33 +180,45 @@ class TapBudget {
     @Test fun task4_startTransfusion() {
         home()
         tap("Start transfusion")
-        tap("Bed 5")
+        tap("7654805")
         tap("Baseline done")
         report(4, 4)
-        rule.waitUntil(10_000) { runBlocking { app.db.dao().runningTransfusions().any { it.bedLabel == "Bed 5" } } }
+        rule.waitUntil(10_000) { runBlocking { app.db.dao().runningTransfusions().any { it.bedLabel == "7654805" } } }
+    }
+
+    /** Reported, not budgeted: a patient the phone hasn't seen needs the MRN typed once. */
+    @Test fun task4_newPatient() {
+        home()
+        tap("Start transfusion")
+        tap("New MRN")
+        rule.onNode(hasSetTextAction()).performTextInput("7654899")
+        rule.waitForIdle()
+        tap("Baseline done")
+        Log.i("TAPS", "new patient: taps=$taps plus typing the MRN")
+        rule.waitUntil(10_000) { runBlocking { app.db.dao().runningTransfusions().any { it.bedLabel == "7654899" } } }
     }
 
     @Test fun task5_startPlan() {
         home()
         tap("Start turning")
-        tap("Bed 6")
+        tap("7654806")
         tapLast("Back")
         report(5, 4)
-        rule.waitUntil(10_000) { runBlocking { app.db.turnDao().allPlans().any { it.bedLabel == "Bed 6" && it.currentPosition == Position.BACK } } }
+        rule.waitUntil(10_000) { runBlocking { app.db.turnDao().allPlans().any { it.bedLabel == "7654806" && it.currentPosition == Position.BACK } } }
     }
 
     @Test fun task6_endTransfusion() {
-        running("Bed 12")
+        running("7654812")
         runBlocking { app.engine.rearm() }
-        home("Bed 12")
-        tap("Bed 12")
+        home("7654812")
+        tap("7654812")
         tap("End transfusion")
         report(6, 3)
         rule.waitUntil(10_000) { runBlocking { app.db.dao().runningTransfusions().isEmpty() } }
     }
 
     @Test fun task7_reactionFromHome() {
-        running("Bed 12")
+        running("7654812")
         runBlocking { app.engine.rearm() }
         home("SUSPECTED REACTION")
         tap("SUSPECTED REACTION")
@@ -212,7 +227,7 @@ class TapBudget {
     }
 
     @Test fun task7_reactionFromAlarm() {
-        ringing("Bed 12")
+        ringing("7654812")
         alarm("SUSPECTED REACTION")
         tap("SUSPECTED REACTION")
         rule.onAllNodes(hasText("Do now", ignoreCase = true)).onFirst().assertExists()
@@ -220,10 +235,10 @@ class TapBudget {
     }
 
     @Test fun task7_reactionFromDetail() {
-        running("Bed 12")
+        running("7654812")
         runBlocking { app.engine.rearm() }
-        home("Bed 12")
-        tap("Bed 12")
+        home("7654812")
+        tap("7654812")
         taps = 0 // "from anywhere": counted from this screen
         tap("SUSPECTED REACTION")
         rule.onAllNodes(hasText("Do now", ignoreCase = true)).onFirst().assertExists()
@@ -231,7 +246,7 @@ class TapBudget {
     }
 
     @Test fun task8_markStopped() {
-        running("Bed 12")
+        running("7654812")
         runBlocking { app.engine.rearm() }
         home("SUSPECTED REACTION")
         tap("SUSPECTED REACTION")
@@ -241,7 +256,7 @@ class TapBudget {
     }
 
     @Test fun task9_cantTurnWithReason() {
-        roundOf("Bed 3")
+        roundOf("7654803")
         alarm("Start round")
         tap("Start round")
         tap("Can't turn")

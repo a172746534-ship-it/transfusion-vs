@@ -74,6 +74,7 @@ import app.transfusionvs.schedule.BedViews
 import app.transfusionvs.schedule.Urgency
 import app.transfusionvs.ui.PRIMARY_TAG
 import app.transfusionvs.ui.components.CapsLabel
+import app.transfusionvs.ui.components.LabelText
 import app.transfusionvs.ui.components.MeasureDocumentBlocks
 import app.transfusionvs.ui.components.PositionChange
 import app.transfusionvs.ui.components.Rail
@@ -193,7 +194,7 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
             now = System.currentTimeMillis()
         }
     }
-    // Over the lock screen a long number in a bed label is masked; the whole of it needs an unlocked phone.
+    // Over the lock screen the MRN is masked; the whole of it needs an unlocked phone.
     val locked = remember(now) { context.getSystemService(KeyguardManager::class.java).isKeyguardLocked }
     val mask: (String) -> String = if (locked) BedMask.masker(txLabels + planLabels) else { label -> label }
     val nothingOpen = rows?.isEmpty() == true && plans?.isEmpty() == true
@@ -367,13 +368,14 @@ private fun AlarmCaps(icon: Int, text: String) {
 @Composable
 private fun KeyNumbers(first: String, second: String, firstStyle: TextStyle = WardType.AlarmKey, secondStyle: TextStyle = WardType.AlarmKey) {
     val c = Ward.c
-    if (first.length > 6 || largeFont()) {
-        Text(first, color = c.alarmInk, style = firstStyle)
-        Text(second, color = c.alarmInk, style = secondStyle)
+    if (first.length > 7 || largeFont()) {
+        LabelText(first, c.alarmInk, firstStyle, min = WardType.Title.fontSize)
+        LabelText(second, c.alarmInk, secondStyle, min = WardType.Title.fontSize)
     } else {
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(first, color = c.alarmInk, style = firstStyle, modifier = Modifier.weight(1f))
-            Text(second, color = c.alarmInk, style = secondStyle)
+            LabelText(first, c.alarmInk, firstStyle, Modifier.weight(1f), min = WardType.AlarmKeySmall.fontSize)
+            Spacer(Modifier.width(TvsSpace.s8))
+            Text(second, color = c.alarmInk, style = secondStyle, softWrap = false)
         }
     }
 }
@@ -434,7 +436,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
             if (!isTest && first != null) Rail(BedViews.alarmRail(first.offsetMin, first.plannedDurationMin), Urgency.NOW, height = TvsSize.RailLarge, ink = c.alarmInk, background = c.alarmBg, beadColor = c.alarmAction, onBead = c.alarmOnAction)
             if (bed.subtitle != Labels.subtitle(CheckpointType.M15)) Text(bed.subtitle, color = c.alarmInk, style = WardType.Lead)
         } else {
-            Text("${beds.size} beds due now", color = c.alarmInk, style = WardType.AlarmTitle)
+            Text("${beds.size} patients due now", color = c.alarmInk, style = WardType.AlarmTitle)
         }
         AlarmSteps()
         if (beds.size > 1) beds.forEach { bed -> BedRow(bed, rows) { onAcknowledge(bed.checkpointIds) } }
@@ -491,7 +493,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
 ) {
     val c = Ward.c
     val open = remember { mutableStateMapOf<Long, RoundChoice>().apply { putAll(initiallyOpen) } }
-    val count = "${round.beds.size} bed${if (round.beds.size > 1) "s" else ""}"
+    val count = "${round.beds.size} patient${if (round.beds.size > 1) "s" else ""}"
     val scroll = rememberScrollState()
     Column(
         Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll),
@@ -516,7 +518,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
                     Modifier.fillMaxWidth().background(c.alarmTint, TvsShape.Control).padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s8),
                     verticalArrangement = Arrangement.spacedBy(TvsSpace.s2),
                 ) {
-                    Text(bed.bedLabel, color = c.alarmInk, style = WardType.AlarmKeySmall)
+                    LabelText(bed.bedLabel, c.alarmInk, WardType.AlarmKeySmall, min = WardType.Title.fontSize)
                     PositionChange(bed.from, bed.suggested, c.alarmInk, TvsSize.IconLarge)
                 }
             }
@@ -542,7 +544,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
     }
 }
 
-/** One bed on the started round: the turn to make, its own ✓, and the two exceptions. */
+/** One patient on the started round: the turn to make, its own action, and the two exceptions. */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun RoundBedRow(
@@ -557,7 +559,7 @@ private fun RoundBedRow(
         Modifier.fillMaxWidth().background(c.alarmTint, TvsShape.Card).padding(TvsSpace.s12),
         verticalArrangement = Arrangement.spacedBy(TvsSpace.s8),
     ) {
-        Text(bed.bedLabel, color = c.alarmInk, style = WardType.AlarmKeySmall)
+        LabelText(bed.bedLabel, c.alarmInk, WardType.AlarmKeySmall, min = WardType.Title.fontSize)
         PositionChange(bed.from, bed.suggested, c.alarmInk, TvsSize.IconLarge)
         AlarmSecondary("Turned to ${bed.suggested.label}", { onTurned(bed.suggested) }, style = WardType.ButtonSmall)
         val stacked = largeFont()

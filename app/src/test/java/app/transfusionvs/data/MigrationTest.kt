@@ -107,7 +107,7 @@ class MigrationTest {
         }
     }
 
-    /** The update from v2 (what phones have today) keeps both features and adds the bed list and undo. */
+    /** The update from v2 (what phones have today) keeps both features and adds recent patients and undo. */
     @Test
     fun updatingFromV2KeepsEverythingAndAddsBedsAndUndo() = runBlocking {
         val context: Context = RuntimeEnvironment.getApplication()
@@ -123,8 +123,12 @@ class MigrationTest {
             assertEquals(Position.BACK, plan.currentPosition)
             assertEquals(TurnSlotStatus.PENDING, room.turnDao().slotsFor(3).single().status)
 
-            room.wardDao().addBeds(listOf(WardBed("Bed 1"), WardBed("Bed 1"), WardBed("Bed 2")))
-            assertEquals(2, room.wardDao().observeBeds().first().size)
+            room.wardDao().usePatient(Patient("7654801", 1))
+            room.wardDao().usePatient(Patient("7654801", 2))
+            room.wardDao().usePatient(Patient("7654802", 1))
+            assertEquals(2, room.wardDao().observePatients().first().size)
+            room.wardDao().forgetPatients(5)
+            assertTrue("a day after last use they go", room.wardDao().observePatients().first().isEmpty())
             val undo = room.wardDao().insertUndo(UndoAction(ownerKey = "T7", label = "x", at = 1, expiresAt = 2, snapshot = ""))
             assertEquals("T7", room.wardDao().undo(undo)!!.ownerKey)
         } finally {

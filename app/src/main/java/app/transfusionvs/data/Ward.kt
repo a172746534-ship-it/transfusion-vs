@@ -9,9 +9,12 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
-/** One of the ward's beds, entered once in Settings. A bed number, never a patient identifier. */
-@Entity(tableName = "ward_bed")
-data class WardBed(@PrimaryKey val label: String)
+/**
+ * A patient this phone has seen lately, so the next plan for them takes one tap instead of typing.
+ * The MRN only, never a name. It goes a day after its last use, once nothing is running for it.
+ */
+@Entity(tableName = "patient")
+data class Patient(@PrimaryKey val mrn: String, val lastUsedAt: Long)
 
 /**
  * What it takes to take one action back: "Undo" for 5 seconds and "Undo last" on the bed's card for
@@ -22,7 +25,7 @@ data class UndoAction(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     /** "T12" = transfusion 12, "P3" = turning plan 3, [ROUND] = a whole round at once. */
     val ownerKey: String,
-    /** "Bed 14 · 15-min check done". */
+    /** "7654814 · 15-min check done". Masked wherever it shows over the lock screen. */
     val label: String,
     val at: Long,
     val expiresAt: Long,
@@ -38,16 +41,25 @@ data class UndoAction(
 @Dao
 interface WardDao {
 
-    // ---- Ward beds ----
+    // ---- Recent patients ----
 
-    @Query("SELECT * FROM ward_bed")
-    fun observeBeds(): Flow<List<WardBed>>
+    @Query("SELECT * FROM patient")
+    fun observePatients(): Flow<List<Patient>>
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun addBeds(beds: List<WardBed>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun usePatient(patient: Patient)
 
-    @Query("DELETE FROM ward_bed WHERE label = :label")
-    suspend fun removeBed(label: String)
+    @Query("DELETE FROM patient WHERE mrn = :mrn")
+    suspend fun removePatient(mrn: String)
+
+    @Query(
+        """
+        DELETE FROM patient WHERE lastUsedAt < :cutoff
+          AND mrn NOT IN (SELECT bedLabel FROM transfusion)
+          AND mrn NOT IN (SELECT bedLabel FROM turn_plan)
+        """,
+    )
+    suspend fun forgetPatients(cutoff: Long)
 
     // ---- Undo ----
 

@@ -57,7 +57,7 @@ class UrgencyTest {
 
     @Test
     fun calmSaysWhenInWords() {
-        val bed = Fakes.transfusion(9, "Bed 9", 0, "2026-01-15T10:30", 120).with(CheckpointType.M15, 15, 1).with(CheckpointType.M30, 30, 1)
+        val bed = Fakes.transfusion(9, "7654809", 0, "2026-01-15T10:30", 120).with(CheckpointType.M15, 15, 1).with(CheckpointType.M30, 30, 1)
         val v = BedViews.of(bed, Fakes.at("2026-01-15T11:05"))
         assertEquals(Urgency.CALM, v.urgency)
         assertEquals("in 25 min", v.stateText)
@@ -102,10 +102,10 @@ class UrgencyTest {
     @Test
     fun theSummaryTellsTheTruthOfTheWard() {
         assertEquals("All quiet", BedViews.summary(emptyList()))
-        assertEquals("NO BEDS RUNNING", BedViews.running(emptyList()))
+        assertEquals("NOTHING RUNNING", BedViews.running(emptyList()))
         val mixed = listOf(BedViews.of(Fakes.bed12, now), BedViews.of(Fakes.bed14, now))
         assertEquals("1 overdue", BedViews.summary(mixed))
-        assertEquals("2 BEDS RUNNING", BedViews.running(mixed))
+        assertEquals("2 PATIENTS RUNNING", BedViews.running(mixed))
         val calm = listOf(BedViews.of(TurnFakes.bed3, now, 10))
         assertEquals("All on time · next 12:00", BedViews.summary(calm))
     }
@@ -145,14 +145,15 @@ class UrgencyTest {
     }
 
     @Test
-    fun bedsTypedOnce() {
-        assertEquals(listOf("Bed 1", "Bed 2", "Bed 3", "Bed 14", "ICU 3"), BedInput.parse("1-3, 14, ICU 3"))
-        assertEquals(listOf("Bed 7"), BedInput.parse(" 7 , 7 "))
-        assertTrue(BedInput.parse("").isEmpty())
-        assertTrue(BedInput.parse("9-1").isEmpty())
-        assertTrue(BedInput.parse("1-5000").isEmpty())
-        assertEquals(16, BedInput.parse("A very long bed label indeed").first().length)
-        assertEquals(listOf("Bed 2", "Bed 10", "ICU 1"), BedInput.sorted(listOf("Bed 10", "ICU 1", "Bed 2")))
+    fun theMrnIsDigitsOnly() {
+        assertEquals("7654821", PatientInput.clean(" 765-4821 "))
+        assertEquals("7654821", PatientInput.clean("٧٦٥٤٨٢١"))
+        assertEquals("", PatientInput.clean("Ahmed"))
+        assertEquals(16, PatientInput.clean("1234567890123456789").length)
+        assertFalse(PatientInput.valid("1234"))
+        assertTrue(PatientInput.valid("12345"))
+        assertFalse(PatientInput.valid("12a45"))
+        assertEquals(listOf("20000", "100000"), PatientInput.sorted(listOf("100000", "20000")))
     }
 
     @Test

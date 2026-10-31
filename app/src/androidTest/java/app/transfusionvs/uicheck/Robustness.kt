@@ -21,8 +21,8 @@ import app.transfusionvs.alarm.AlarmService
 import app.transfusionvs.data.Checkpoint
 import app.transfusionvs.data.CheckpointStatus
 import app.transfusionvs.data.CheckpointType
+import app.transfusionvs.data.Patient
 import app.transfusionvs.data.Transfusion
-import app.transfusionvs.data.WardBed
 import app.transfusionvs.schedule.BedViews
 import app.transfusionvs.ui.MainActivity
 import app.transfusionvs.widget.BedsWidget
@@ -52,7 +52,7 @@ class Robustness {
     @Before fun clean() = runBlocking {
         app.db.clearAllTables()
         app.settings.setupSeen = true
-        app.db.wardDao().addBeds((1..6).map { WardBed("Bed $it") })
+        (1..6).forEach { app.db.wardDao().usePatient(Patient("76548${it.toString().padStart(2, '0')}", now)) }
     }
 
     @After fun stop() {
@@ -86,7 +86,7 @@ class Robustness {
     private fun pass(name: String) = Log.i("ROBUST", "$name PASS")
 
     @Test fun doubleTapOnAckAcknowledgesOnce() {
-        val id = ringing("Bed 1")
+        val id = ringing("7654801")
         ActivityScenario.launch(AlarmActivity::class.java)
         val n = node("Measured & documented")
         n.performClick()
@@ -100,7 +100,7 @@ class Robustness {
     @Test fun doubleTapOnStartStartsOnce() {
         ActivityScenario.launch(MainActivity::class.java)
         node("Start transfusion").performClick()
-        node("Bed 2").performClick()
+        node("7654802").performClick()
         val n = node("Baseline done")
         n.performClick()
         runCatching { n.performClick() }
@@ -117,14 +117,14 @@ class Robustness {
         n.performClick()
         runCatching { n.performClick() }
         rule.waitForIdle()
-        node("Bed 2").performClick() // the Start screen is showing, once
+        node("7654802").performClick() // the Start screen is showing, once
         node("Back").performClick()
         node("Start transfusion") // one Back returns to Home
         pass("double_tap_home")
     }
 
     @Test fun undoOnAlarmRestoresTheExactPreviousState() {
-        val id = ringing("Bed 1")
+        val id = ringing("7654801")
         val before = row(id)
         ActivityScenario.launch(AlarmActivity::class.java)
         node("Measured & documented").performClick()
@@ -137,7 +137,7 @@ class Robustness {
     }
 
     @Test fun undoLastOnTheCardRestoresTheExactPreviousState() {
-        val id = ringing("Bed 1")
+        val id = ringing("7654801")
         val before = row(id)
         runBlocking { app.engine.acknowledge(listOf(id)) }
         ActivityScenario.launch(MainActivity::class.java)
@@ -162,7 +162,7 @@ class Robustness {
 
     /** Renders the real RemoteViews, saves the image, and taps the real pending intent. */
     @Test fun widgetShowsClockTimesAndAcknowledges() {
-        val id = ringing("Bed 1")
+        val id = ringing("7654801")
         runBlocking { app.db.dao().updateCheckpoints(listOf(row(id).copy(status = CheckpointStatus.MISSED))) }
         val beds = runBlocking { app.db.dao().homeOnce() }.map { BedViews.of(it, now) }
         val instrumentation = InstrumentationRegistry.getInstrumentation()

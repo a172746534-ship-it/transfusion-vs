@@ -55,7 +55,7 @@ Read this first after any restart, then docs/DESIGN_OVERHAUL.md and docs/TEST_LO
   A reviewer finding that asks for it there is out of scope, and the rubric says so.
 
 ## MRN add-on (docs/MRN_ADDON.md), added to this plan on 2026-10-31
-- Part of this plan, not a separate task. The app still has no MRN field and none was added.
+- Part of this plan, not a separate task. (Since replaced: the MRN is now how a patient is identified, see the end of this file.)
 - A run of 5+ digits in a bed label counts as an MRN typed by mistake: masked in notifications, on the alarm over
   the lock screen and on the widget (`schedule/BedMask.kt`). Evidence: `BedMaskTest`, lab `M01`, `widget_mrn_masked`.
 - No CSV exists, so that item holds by having none. M01 is a gate for the merge and carries no points.
@@ -76,3 +76,6 @@ Read this first after any restart, then docs/DESIGN_OVERHAUL.md and docs/TEST_LO
 3. Set app/src/test/screenshots/MODE back to verify and commit the recorded references. Add the 3.json schema from the CI artifact.
 4. Fresh design reviewer and 3 personas on new screenshots, then the full matrix (lab/config.json apis 26,29,31,33,34,36). Android 8 needs `grant_policy_access_by_hand` to work: check its log.
 5. Update SCORECARD.md: add the iteration history, and add baseline APIs 29 (17 pass, 5 fail, 2 N/A) and 34 (emulator died at A11). Then loop to 100/100 on two full-matrix runs, merge, release.
+
+## MRN instead of the bed number (maintainer, 2026-10-31)
+SPEC.md has the rules. Code still says `bedLabel`, `BedView`, `BedGrid`; what they hold is the MRN. The reviewers' rubric must state this decision, and that typing a new patient's MRN once is the maintainer's choice.

@@ -113,7 +113,7 @@ target SDK before using it. Do not rely on memory.
    - A persistent red "Suspected reaction?" banner.
 
 3. **Start transfusion**
-   - Bed label: short free text such as "Bed 12". The hint text says: no names or MRN.
+   - Bed label: short free text such as "Bed 12". The hint text says: no names or MRN. *(Replaced on 2026-10-31: see "MRN instead of the bed number".)*
    - Color: auto-assigned.
    - Start-time picker, duration chips, and the required "Baseline VS taken" checkbox.
    - A full timeline preview with real clock times, like the card's example row.
@@ -439,4 +439,11 @@ The maintainer chose direction 1, Ward Card. Colours in `ui/theme/Theme.kt`, ver
 
 **Language:** the layout is left-to-right on every phone (`supportsRtl="false"` and forced in the theme), the UI language stays English, digits stay Latin.
 
-**MRN (add-on, docs/MRN_ADDON.md):** the rule stays: bed only, no MRN field. A run of 5 or more digits in a bed label counts as an MRN typed by mistake, and outside the app (notifications, the alarm over the lock screen, the widget) it shows as "•••4821": the shortest suffix, at least 4 digits, unique among active labels. The full value shows only inside the app on an unlocked phone. Nothing logs bed labels.
+**MRN (add-on, docs/MRN_ADDON.md):** the bed number is gone (see "MRN instead of the bed number" below), so every patient is an MRN. Outside the app (notifications, the alarm over the lock screen, the widget) it shows as "•••4821": the shortest suffix, at least 4 digits, unique among active labels. The full value shows only inside the app on an unlocked phone. Nothing logs an MRN.
+
+## MRN instead of the bed number (2026-10-31)
+The maintainer's decision: some places in the hospital have no beds, so a patient is identified by MRN. This replaces "bed only, no MRN" and the ward bed list.
+- The MRN is digits only (5 to 16), so a name can't be typed. Names are still never stored.
+- A patient the phone has seen is one tap on Start. A new patient's MRN is typed once, which is the one exception to "no typing in a core task". The tap budget is measured for a known patient; `task4_newPatient` reports the other path.
+- The phone keeps a recent MRN for a day after its last use, once nothing is running for it (Settings shows them and can remove them). `bedLabel` in the database now holds the MRN; a plan from an older version keeps its bed label, unmasked.
+- The database is in device-protected storage, so alarms can ring after a reboot before the first unlock. That keeps working, and it means MRNs live there too, encrypted by the device but readable before the first unlock by the app.

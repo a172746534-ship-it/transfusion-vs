@@ -133,7 +133,7 @@ fun DetailContent(
             if (stopped) {
                 Panel {
                     Text(
-                        "Stopped at ${t.endAt?.let { Labels.clock(it) } ?: ""}. Remaining alarms for this bed are cancelled.",
+                        "Stopped at ${t.endAt?.let { Labels.clock(it) } ?: ""}. Remaining alarms for this patient are cancelled.",
                         color = c.ink, style = WardType.Lead,
                     )
                     if (dueRow != null) Text("A check that was already overdue can still be documented below.", color = c.muted, style = WardType.Body)

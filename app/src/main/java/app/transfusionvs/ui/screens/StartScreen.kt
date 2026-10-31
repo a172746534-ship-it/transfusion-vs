@@ -9,9 +9,10 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -40,6 +41,7 @@ import app.transfusionvs.R
 import app.transfusionvs.data.Transfusion
 import app.transfusionvs.schedule.Labels
 import app.transfusionvs.schedule.MINUTE_MS
+import app.transfusionvs.schedule.PatientInput
 import app.transfusionvs.schedule.ScheduleCalculator
 import app.transfusionvs.schedule.ScheduleConfig
 import app.transfusionvs.schedule.TimelineBuilder
@@ -86,7 +88,6 @@ fun StartScreen(vm: MainViewModel, editing: Transfusion?, onDone: () -> Unit, on
             if (editing == null) {
                 vm.start(bed, startAt, duration)
                 vm.lastDurationMin = duration
-                if (bed !in beds) vm.addWardBeds(listOf(bed))
             } else {
                 vm.edit(editing.id, bed, startAt, duration)
             }
@@ -117,7 +118,9 @@ fun StartContent(
 
     var picked by rememberSaveable { mutableStateOf(editing?.bedLabel ?: initialBed) }
     var otherText by rememberSaveable { mutableStateOf("") }
-    val bed = if (picked == OTHER_BED) otherText.trim() else picked
+    // With nobody seen yet the only way in is the MRN field.
+    val typing = picked == OTHER_BED || (picked.isBlank() && beds.isEmpty())
+    val bed = if (typing) otherText.takeIf { PatientInput.valid(it) } ?: "" else picked
 
     var startAt by rememberSaveable { mutableLongStateOf(editing?.startAt ?: ScheduleCalculator.truncateToMinute(openedAt)) }
     var agoChoice by rememberSaveable { mutableIntStateOf(if (editing == null) 0 else -1) } // -1 = picked time
@@ -139,11 +142,11 @@ fun StartContent(
         val scroll = rememberScrollState()
         val scope = rememberCoroutineScope()
         Column(
-            Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).imePadding().padding(TvsSpace.s12),
+            Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
             Panel {
-                CapsLabel("Which bed?")
+                CapsLabel("Which patient?")
                 BedGrid(
                     beds = (beds + listOfNotNull(editing?.bedLabel)).distinct(), busy = busy, selected = picked, otherText = otherText,
                     onPick = { picked = it }, onOtherText = { otherText = it },
@@ -213,7 +216,7 @@ fun StartContent(
         }
 
         Column(
-            Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars).padding(TvsSpace.s12),
+            Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)).padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s6),
         ) {
             if (duration != null) {
@@ -224,7 +227,7 @@ fun StartContent(
             PrimaryButton(
                 when {
                     editing != null -> "Save changes"
-                    bed.isBlank() -> "Pick a bed first"
+                    bed.isBlank() -> if (typing) "Enter the MRN first" else "Pick a patient first"
                     else -> "Baseline done · Start"
                 },
                 onClick = { duration?.let { d -> onSubmit(bed, startAt, d) } },

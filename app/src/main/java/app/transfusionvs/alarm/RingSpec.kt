@@ -52,7 +52,7 @@ data class RingSpec(
         get() = when {
             beds.isEmpty() && round != null -> roundTitle(round)
             beds.size == 1 -> beds[0].title
-            else -> "${beds.size} beds due now"
+            else -> "${beds.size} patients due now"
         }
 
     companion object {
@@ -77,7 +77,7 @@ data class RingSpec(
         )
 
         fun roundTitle(r: RoundUi) =
-            "Turning round · ${Labels.clock(r.slotAt)} · ${r.beds.size} bed${if (r.beds.size > 1) "s" else ""}"
+            "Turning round · ${Labels.clock(r.slotAt)} · ${r.beds.size} patient${if (r.beds.size > 1) "s" else ""}"
 
         fun groupByBed(rows: List<CheckpointWithBed>): List<RingBed> =
             rows.sortedBy { it.scheduledAt }.groupBy { it.transfusionId }.values.map { bedRows ->

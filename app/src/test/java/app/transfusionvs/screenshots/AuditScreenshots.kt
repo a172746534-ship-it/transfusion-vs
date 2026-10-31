@@ -86,9 +86,9 @@ class AuditScreenshots {
     }
 
     private val noop: () -> Unit = {}
-    private val longBed = "Isolation Bed 23"
+    private val longBed = "7654800123"
     private val many = (1..20).map { i ->
-        Fakes.transfusion(100L + i, if (i == 20) longBed else "Bed $i", i % 8, "2026-01-15T10:${(51 + i % 9).toString().padStart(2, '0')}", 120)
+        Fakes.transfusion(100L + i, if (i == 20) longBed else "76548${i.toString().padStart(2, '0')}", i % 8, "2026-01-15T10:${(51 + i % 9).toString().padStart(2, '0')}", 120)
     }
 
     @Composable
@@ -177,7 +177,7 @@ class AuditScreenshots {
         Alarm(listOf(Fakes.ringing(Fakes.bed14, CheckpointType.M15, 15)), TurnFakes.round(TurnFakes.roundBeds.take(2)))
     }
 
-    private val bedsChoice = (1..20).map { BedChoice(it.toLong(), if (it == 20) longBed else "Bed $it", it % 8) }
+    private val bedsChoice = (1..20).map { BedChoice(it.toLong(), if (it == 20) longBed else "76548${it.toString().padStart(2, '0')}", it % 8) }
     @Test fun reaction_no_bed() = shots("reaction_no_bed") { ReactionScreen(beds = emptyList(), onStopped = {}, onBack = noop) }
     @Test fun reaction_one_bed() = shots("reaction_1bed") { ReactionScreen(beds = bedsChoice.take(1), onStopped = {}, onBack = noop) }
     @Test fun reaction_20_beds() = shots("reaction_20beds") { ReactionScreen(beds = bedsChoice, onStopped = {}, onBack = noop) }
@@ -231,21 +231,24 @@ class AuditScreenshots {
 
     /** Six beds at once, every urgency: what task 1 must show without a scroll. */
     @Test fun home_six_beds() = shots("home_6beds") { Home(tx = Fakes.sixBeds(), turns = emptyList(), problems = 0) }
+    @Test fun start_first_patient() = shots("start_first_patient") {
+        StartContent(editing = null, beds = emptyList(), busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop)
+    }
     @Test fun home_only_turning() = shots("home_only_turning") { Home(turns = listOf(TurnFakes.bed3)) }
     @Test fun start_bed_picked() = shots("start_bed_picked") {
-        StartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop, initialBed = "Bed 5")
+        StartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop, initialBed = "7654805")
     }
     @Test fun turn_start_bed_picked() = shots("turn_start_bed_picked") {
-        TurnStartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initialBed = "Bed 6")
+        TurnStartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initialBed = "7654806")
     }
     @Test fun turn_start_options() = shots("turn_start_options") {
-        TurnStartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initialBed = "Bed 6", initiallyExpanded = true)
+        TurnStartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initialBed = "7654806", initiallyExpanded = true)
     }
     @Test fun alarm_done_undo() = shots("alarm_done_undo") {
-        DoneContent(UndoAction(id = 1, ownerKey = "T2", label = "Bed 14 · 15-min check done", at = Fakes.now, expiresAt = Fakes.now + 300_000, snapshot = ""), onUndo = {})
+        DoneContent(UndoAction(id = 1, ownerKey = "T2", label = "7654814 · 15-min check done", at = Fakes.now, expiresAt = Fakes.now + 300_000, snapshot = ""), onUndo = {})
     }
     @Test fun undo_bar_on_home() = shots("undo_bar_on_home") {
-        val action = UndoAction(id = 1, ownerKey = "T2", label = "Bed 5 · transfusion started", at = System.currentTimeMillis(), expiresAt = Long.MAX_VALUE, snapshot = "")
+        val action = UndoAction(id = 1, ownerKey = "T2", label = "7654805 · transfusion started", at = System.currentTimeMillis(), expiresAt = Long.MAX_VALUE, snapshot = "")
         CompositionLocalProvider(LocalUndo provides UndoState(action) {}) { Home(tx = Fakes.home) }
     }
     @Test fun widget() = shots("widget") {

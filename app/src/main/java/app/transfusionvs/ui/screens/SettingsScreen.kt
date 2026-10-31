@@ -43,7 +43,6 @@ import androidx.core.content.IntentCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.transfusionvs.app
 import app.transfusionvs.data.Settings
-import app.transfusionvs.data.WardBed
 import app.transfusionvs.schedule.Labels
 import app.transfusionvs.schedule.NightRule
 import app.transfusionvs.ui.PRIMARY_TAG
@@ -97,7 +96,7 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
     val s = app.settings
     var values by remember { mutableStateOf(SettingsValues.from(s)) }
     val wardDao = app.db.wardDao()
-    val bedsFlow = remember { wardDao.observeBeds().map { list -> list.map { it.label } } }
+    val bedsFlow = remember { wardDao.observePatients().map { list -> list.map { it.mrn } } }
     val beds by bedsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
 
     fun save(v: SettingsValues) {
@@ -140,8 +139,7 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
     SettingsContent(
         values = values,
         beds = beds,
-        onAddBeds = { labels -> app.scope.launch { wardDao.addBeds(labels.map { WardBed(it) }) } },
-        onRemoveBed = { label -> app.scope.launch { wardDao.removeBed(label) } },
+        onRemovePatient = { mrn -> app.scope.launch { wardDao.removePatient(mrn) } },
         soundTitle = soundTitle(context, values.soundUri),
         turnSoundTitle = values.turnSoundUri?.let { soundTitle(context, it) } ?: "Turning chime (built in)",
         onPickTurnSound = {
@@ -183,8 +181,7 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
 fun SettingsContent(
     values: SettingsValues,
     beds: List<String> = emptyList(),
-    onAddBeds: (List<String>) -> Unit = {},
-    onRemoveBed: (String) -> Unit = {},
+    onRemovePatient: (String) -> Unit = {},
     soundTitle: String,
     turnSoundTitle: String = "Turning chime (built in)",
     onChange: (SettingsValues) -> Unit,
@@ -196,13 +193,13 @@ fun SettingsContent(
     val v = values
     val c = Ward.c
     Column(Modifier.fillMaxSize().background(c.bg)) {
-        WardHeader(caps = "Settings", title = "Ward & alarm settings", onBack = onBack)
+        WardHeader(caps = "Settings", title = "Alarm settings", onBack = onBack)
         val scroll = rememberScrollState()
         Column(
             Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll).padding(TvsSpace.s12),
             verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
         ) {
-            WardBedsPanel(beds, onAddBeds, onRemoveBed)
+            RecentPatientsPanel(beds, onRemovePatient)
 
             Panel {
                 CapsLabel("Night theme")

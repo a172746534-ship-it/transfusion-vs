@@ -1,14 +1,14 @@
 package app.transfusionvs.schedule
 
 /**
- * The app has no MRN field: bed only. An MRN can still be typed as a bed label by mistake, so outside
- * the app (notifications, the alarm over the lock screen, the widget) a long number in a label shows as
- * "•••4821": the shortest suffix, at least 4 digits, that is unique among the active labels.
+ * Patients go by MRN. Outside the app (notifications, the alarm over the lock screen, the widget) it
+ * shows as "•••4821": the shortest suffix, at least 4 digits, that is unique among the active labels.
+ * The whole number is only inside the app, on an unlocked phone.
  */
 object BedMask {
     private const val SUFFIX_MIN = 4
 
-    /** Any script's digits: a phone in Arabic may type ١٢٣٤٥. Real bed numbers are shorter than this. */
+    /** Any script's digits. A bed label from an older version is shorter than this and stays as it is. */
     private val MRN_LIKE = Regex("""\p{Nd}{5,}""")
 
     fun masker(active: Collection<String>): (String) -> String {

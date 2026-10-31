@@ -6,6 +6,7 @@ import app.transfusionvs.data.AppDatabase
 import app.transfusionvs.data.Checkpoint
 import app.transfusionvs.data.CheckpointStatus
 import app.transfusionvs.data.CheckpointType
+import app.transfusionvs.data.Patient
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.Settings
 import app.transfusionvs.data.Transfusion
@@ -16,6 +17,7 @@ import app.transfusionvs.data.TurnSlot
 import app.transfusionvs.data.TurnSlotStatus
 import app.transfusionvs.data.SkipReason
 import app.transfusionvs.data.UndoAction
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -49,7 +51,7 @@ class UndoEngineTest {
 
     private suspend fun ringingCheck(snoozes: Int = 1): Checkpoint {
         val id = db.dao().insertTransfusion(
-            Transfusion(bedLabel = "Bed 1", colorIndex = 0, startAt = now - 15 * 60_000, plannedDurationMin = 120, baselineConfirmed = true),
+            Transfusion(bedLabel = "7654801", colorIndex = 0, startAt = now - 15 * 60_000, plannedDurationMin = 120, baselineConfirmed = true),
         )
         val rowId = db.dao().insertCheckpoints(
             listOf(Checkpoint(transfusionId = id, type = CheckpointType.M15, offsetMin = 15, scheduledAt = now - 1_000, firedAt = now - 1_000, snoozeCount = snoozes, status = CheckpointStatus.RINGING)),
@@ -71,13 +73,37 @@ class UndoEngineTest {
 
     private suspend fun latest(): UndoAction = db.wardDao().undoAll().first()
 
+    private suspend fun recent(): List<String> = db.wardDao().observePatients().first().map { it.mrn }
+
+    @Test
+    fun aPatientStaysOneTapAwayForADayAfterLastUse() = runBlocking {
+        val id = engine.startTransfusion("7654888", now, 120)
+        assertEquals(listOf("7654888"), recent())
+
+        // Still running: never forgotten, however old the last use.
+        db.wardDao().usePatient(Patient("7654888", now - 3 * Engine.RETENTION_MS))
+        db.wardDao().forgetPatients(now - Engine.RETENTION_MS)
+        assertEquals(listOf("7654888"), recent())
+
+        engine.endTransfusion(id)
+        db.dao().deleteFinishedBefore(now + 1)
+        db.wardDao().forgetPatients(now - Engine.RETENTION_MS)
+        assertTrue(recent().isEmpty())
+    }
+
+    @Test
+    fun anOlderBedLabelIsNotRemembered() = runBlocking {
+        engine.startTransfusion("Bed 12", now, 120)
+        assertTrue(recent().isEmpty())
+    }
+
     @Test
     fun acknowledgeThenUndoIsTheExactRow() = runBlocking {
         val before = ringingCheck()
         engine.acknowledge(listOf(before.id))
         val done = db.dao().checkpoints(listOf(before.id)).first()
         assertEquals(CheckpointStatus.ACKED, done.status)
-        assertEquals("Bed 1 · 15-min check done", latest().label)
+        assertEquals("7654801 · 15-min check done", latest().label)
         assertEquals(UndoAction.transfusion(before.transfusionId), latest().ownerKey)
 
         engine.undo(latest().id)
@@ -97,7 +123,7 @@ class UndoEngineTest {
 
     @Test
     fun endThenUndoRestoresTheBedAndItsSchedule() = runBlocking {
-        val id = engine.startTransfusion("Bed 2", now, 120)
+        val id = engine.startTransfusion("7654802", now, 120)
         val before = db.dao().transfusion(id)!!
         val pending = db.dao().checkpointsFor(id).filter { it.status == CheckpointStatus.PENDING }
         assertTrue(pending.isNotEmpty())
@@ -128,7 +154,7 @@ class UndoEngineTest {
 
     @Test
     fun undoingAStartRemovesTheBed() = runBlocking {
-        val id = engine.startTransfusion("Bed 3", now, 120)
+        val id = engine.startTransfusion("7654803", now, 120)
         engine.undo(db.wardDao().undoAll().first { it.ownerKey == UndoAction.transfusion(id) }.id)
         assertNull(db.dao().transfusion(id))
         assertTrue(db.dao().checkpointsFor(id).isEmpty())
@@ -136,7 +162,7 @@ class UndoEngineTest {
 
     @Test
     fun turnedThenUndoRestoresSlotAndPosition() = runBlocking {
-        val (plan, slot) = ringingSlot("Bed 4")
+        val (plan, slot) = ringingSlot("7654804")
         engine.turned(slot.id, Position.RIGHT_30)
         assertEquals(Position.RIGHT_30, db.turnDao().plan(plan.id)!!.currentPosition)
         assertEquals(TurnSlotStatus.ACKED, db.turnDao().slots(listOf(slot.id)).first().status)
@@ -148,7 +174,7 @@ class UndoEngineTest {
 
     @Test
     fun cantTurnThenUndoRestoresTheSlot() = runBlocking {
-        val (_, slot) = ringingSlot("Bed 4")
+        val (_, slot) = ringingSlot("7654804")
         engine.cantTurn(slot.id, SkipReason.PROCEDURE)
         assertEquals(SkipReason.PROCEDURE, db.turnDao().slots(listOf(slot.id)).first().skipReason)
         engine.undo(latest().id)
@@ -157,8 +183,8 @@ class UndoEngineTest {
 
     @Test
     fun allTurnedMovesEveryBedAndUndoesAsOne() = runBlocking {
-        val (p1, s1) = ringingSlot("Bed 5")
-        val (p2, s2) = ringingSlot("Bed 6")
+        val (p1, s1) = ringingSlot("7654805")
+        val (p2, s2) = ringingSlot("7654806")
         engine.allTurned()
         assertEquals(Position.RIGHT_30, db.turnDao().plan(p1.id)!!.currentPosition)
         assertEquals(Position.RIGHT_30, db.turnDao().plan(p2.id)!!.currentPosition)
@@ -176,8 +202,8 @@ class UndoEngineTest {
 
     @Test
     fun oneBedOfARoundCanGoBackAlone() = runBlocking {
-        val (p1, s1) = ringingSlot("Bed 5")
-        val (p2, _) = ringingSlot("Bed 6")
+        val (p1, s1) = ringingSlot("7654805")
+        val (p2, _) = ringingSlot("7654806")
         engine.allTurned()
         val entry = db.wardDao().undoAll().first { it.ownerKey == UndoAction.plan(p1.id) }
         engine.undo(entry.id)
@@ -200,7 +226,7 @@ class UndoEngineTest {
 
     @Test
     fun stoppingAPlanThenUndoKeepsItRunning() = runBlocking {
-        val (plan, _) = ringingSlot("Bed 7")
+        val (plan, _) = ringingSlot("7654807")
         engine.stopTurnPlan(plan.id)
         assertEquals(TurnPlanStatus.STOPPED, db.turnDao().plan(plan.id)!!.status)
         engine.undo(latest().id)

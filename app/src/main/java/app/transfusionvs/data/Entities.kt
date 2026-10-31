@@ -7,7 +7,8 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
 
-// No patient identifiers and no vital values are ever stored: documentation stays in Cerner.
+// The patient is identified by MRN (`bedLabel`, a name kept from before: plans from older versions
+// still hold a bed label there). No names and no vital values are ever stored: documentation stays in Cerner.
 // All times are epoch millis; they are shown with java.time in the device timezone.
 
 enum class TransfusionStatus { RUNNING, ENDED, STOPPED_REACTION }

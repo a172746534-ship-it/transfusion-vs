@@ -18,9 +18,7 @@ tests, screenshot regression, scope audit.
 
 ---
 
-*How it applies here (added 2026-10-31; the text above is verbatim).* The app has no MRN field, by a rule
-that stays: bed only, no names or MRN. The one way an MRN can get in is by mistake, typed as a bed label under
-"+ Other bed" or in the ward's bed list. So a run of 5 or more digits in a bed label counts as an MRN, and is
-masked in those three places. No MRN field was added and no new data is stored. There is no CSV export (removed
-on 2026-10-28, Cerner is the record), so that item holds by having none. Sample screens use short bed numbers,
-which are never masked, so no screenshot differs.
+*How it applies here (updated 2026-10-31; the text above is verbatim).* The maintainer replaced the bed number with
+the MRN, because some places in the hospital have no beds. So the mask now covers every patient: outside the app
+(notifications, the alarm over the lock screen, the widget) an MRN shows as "•••4821". There is no CSV export (removed
+on 2026-10-28, Cerner is the record), so that item holds by having none.

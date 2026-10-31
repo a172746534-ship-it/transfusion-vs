@@ -14,10 +14,9 @@ import android.os.Vibrator
 import app.transfusionvs.App
 import app.transfusionvs.alarm.AlarmService
 import app.transfusionvs.app
+import app.transfusionvs.data.Patient
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.SkipReason
-import app.transfusionvs.data.WardBed
-import app.transfusionvs.schedule.BedInput
 import app.transfusionvs.schedule.TurnGrid
 import app.transfusionvs.ui.screens.TurnPlanDraft
 import java.time.ZoneId
@@ -43,7 +42,7 @@ class LabReceiver : BroadcastReceiver() {
                     "lab.START_TRANSFUSION" -> {
                         val ago = intent.getIntExtra("ago", 0)
                         app.engine.startTransfusion(
-                            intent.getStringExtra("bed") ?: "Bed 1",
+                            intent.getStringExtra("bed") ?: "7654801",
                             now - ago * 60_000L,
                             intent.getIntExtra("dur", 120),
                         )
@@ -52,7 +51,7 @@ class LabReceiver : BroadcastReceiver() {
                         val interval = intent.getIntExtra("interval", 60)
                         app.engine.startTurnPlan(
                             TurnPlanDraft(
-                                bedLabel = intent.getStringExtra("bed") ?: "Bed 2",
+                                bedLabel = intent.getStringExtra("bed") ?: "7654802",
                                 intervalMin = interval,
                                 rotation = Position.DEFAULT_ROTATION,
                                 current = Position.BACK,
@@ -76,7 +75,7 @@ class LabReceiver : BroadcastReceiver() {
                     "lab.DND" -> context.getSystemService(NotificationManager::class.java).setInterruptionFilter(
                         if (intent.getStringExtra("mode") == "off") NotificationManager.INTERRUPTION_FILTER_ALL else NotificationManager.INTERRUPTION_FILTER_PRIORITY,
                     )
-                    "lab.ADD_BEDS" -> app.db.wardDao().addBeds(BedInput.parse(intent.getStringExtra("beds") ?: "1-20").map { WardBed(it) })
+                    "lab.ADD_PATIENT" -> app.db.wardDao().usePatient(Patient(intent.getStringExtra("mrn") ?: "7654801", now))
                     "lab.DUMP_HEAP" -> leakcanary.LeakCanary.dumpHeap()
                     "lab.SET_MISSED_TIMEOUT" -> app.settings.missedTimeoutMin = intent.getIntExtra("min", 10)
                 }

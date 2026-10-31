@@ -34,9 +34,9 @@ object TurnFakes {
         ackAt = ack?.let { at(it) }, positionFrom = from, positionTo = to, status = status, skipReason = reason, silenced = silenced,
     )
 
-    /** Bed 3: turned on time at 08:00, late at 10:25 — the grid still says 12:00 next. */
+    /** 7654803: turned on time at 08:00, late at 10:25 — the grid still says 12:00 next. */
     val bed3 = TurnPlanWithSlots(
-        plan(31, "Bed 3", 2, 120, "2026-01-15T07:30", "2026-01-15T08:00", "2026-01-15T20:00", listOf(LEFT_30, BACK, RIGHT_30), BACK),
+        plan(31, "7654803", 2, 120, "2026-01-15T07:30", "2026-01-15T08:00", "2026-01-15T20:00", listOf(LEFT_30, BACK, RIGHT_30), BACK),
         listOf(
             slot(31, "2026-01-15T08:00", RIGHT_30, TurnSlotStatus.ACKED, LEFT_30, ack = "2026-01-15T08:06"),
             slot(31, "2026-01-15T10:00", LEFT_30, TurnSlotStatus.ACKED, BACK, ack = "2026-01-15T10:25"),
@@ -46,9 +46,9 @@ object TurnFakes {
         ),
     )
 
-    /** Bed 7: missed 08:00, 10:00 still not done (Overdue). */
+    /** 7654807: missed 08:00, 10:00 still not done (Overdue). */
     val bed7 = TurnPlanWithSlots(
-        plan(32, "Bed 7", 3, 120, "2026-01-15T07:00", "2026-01-15T08:00", null, listOf(LEFT_30, BACK, RIGHT_30), LEFT_30),
+        plan(32, "7654807", 3, 120, "2026-01-15T07:00", "2026-01-15T08:00", null, listOf(LEFT_30, BACK, RIGHT_30), LEFT_30),
         listOf(
             slot(32, "2026-01-15T08:00", LEFT_30, TurnSlotStatus.MISSED),
             slot(32, "2026-01-15T10:00", LEFT_30, TurnSlotStatus.RINGING, silenced = true),
@@ -58,7 +58,7 @@ object TurnFakes {
 
     /** A long bed label, 4-hourly, left side excluded (line on that side), skipped once. */
     val isolation = TurnPlanWithSlots(
-        plan(33, "Isolation Bed 23", 4, 240, "2026-01-15T06:40", "2026-01-15T08:00", "2026-01-15T20:00", listOf(BACK, RIGHT_30), RIGHT_30),
+        plan(33, "7654800123", 4, 240, "2026-01-15T06:40", "2026-01-15T08:00", "2026-01-15T20:00", listOf(BACK, RIGHT_30), RIGHT_30),
         listOf(
             slot(33, "2026-01-15T08:00", RIGHT_30, TurnSlotStatus.SKIPPED, reason = SkipReason.PROCEDURE),
             slot(33, "2026-01-15T12:00", RIGHT_30),
@@ -72,10 +72,10 @@ object TurnFakes {
         RoundBed(planId = 40L + i, slotId = 60L + i, bedLabel = bed, colorIndex = i, from = from, suggested = to, allowed = allowed)
 
     val roundBeds = listOf(
-        roundBed(0, "Bed 3", LEFT_30, BACK),
-        roundBed(1, "Bed 7", BACK, RIGHT_30),
-        roundBed(2, "Bed 9", RIGHT_30, LEFT_30),
-        roundBed(3, "Isolation Bed 23", BACK, RIGHT_30, allowed = listOf(BACK, RIGHT_30)),
+        roundBed(0, "7654803", LEFT_30, BACK),
+        roundBed(1, "7654807", BACK, RIGHT_30),
+        roundBed(2, "7654809", RIGHT_30, LEFT_30),
+        roundBed(3, "7654800123", BACK, RIGHT_30, allowed = listOf(BACK, RIGHT_30)),
     )
 
     fun round(beds: List<RoundBed> = roundBeds, started: Boolean = false) = RoundUi(
@@ -85,6 +85,6 @@ object TurnFakes {
 
     /** Seven beds on one slot: every label must fit. */
     val sevenBeds = (0 until 7).map { i ->
-        roundBed(i, if (i == 6) "Isolation Bed 23" else "Bed ${i + 1}", listOf(LEFT_30, BACK, RIGHT_30)[i % 3], listOf(BACK, RIGHT_30, LEFT_30)[i % 3])
+        roundBed(i, if (i == 6) "7654800123" else "76548${(i + 1).toString().padStart(2, '0')}", listOf(LEFT_30, BACK, RIGHT_30)[i % 3], listOf(BACK, RIGHT_30, LEFT_30)[i % 3])
     }
 }

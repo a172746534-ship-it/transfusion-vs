@@ -273,7 +273,7 @@ def fired_row(state, cid):
     return next((c for c in state["checkpoints"] if c["id"] == cid), None)
 
 
-def arrange_transfusion(ago=13, bed="Bed 12", dur=120):
+def arrange_transfusion(ago=13, bed="7654812", dur=120):
     """T0 = now - ago min, so the 15-min check is between 1 and 2 min away."""
     state = hook("START_TRANSFUSION", ago=ago, bed=bed, dur=dur)
     due = first_due(state)
@@ -562,9 +562,9 @@ def t_clock(name):
 @test("A13_timezone_change")
 def t_tz(name):
     original = sh("getprop persist.sys.timezone").strip()
-    state = hook("START_PLAN", interval=60, bed="Bed 2")
+    state = hook("START_PLAN", interval=60, bed="7654802")
     before = next(s for s in state["slots"] if s["status"] == "PENDING")
-    tr = hook("START_TRANSFUSION", ago=0, bed="Bed 12", dur=120)
+    tr = hook("START_TRANSFUSION", ago=0, bed="7654812", dur=120)
     tr_due = first_due(tr)["scheduledAt"]
     sh("service call alarm 3 s16 Asia/Kathmandu")  # +05:45: the hourly grid must move by 15 min
     time.sleep(6)
@@ -590,7 +590,7 @@ def t_dst(name):
     set_clock(dt.datetime(2027, 4, 29, 23, 58, 0))
     time.sleep(2)
     offset_before = sh("date +%z").strip()
-    state = hook("START_PLAN", interval=60, bed="Bed 2")
+    state = hook("START_PLAN", interval=60, bed="7654802")
     slot = next(s for s in state["slots"] if s["status"] == "PENDING")
     # The 00:00 slot doesn't exist that night; if this image's tzdata lacks Egypt's 2023 rule, N/A.
     set_clock(dt.datetime(2027, 4, 30, 2, 0, 0))
@@ -840,8 +840,8 @@ def t_mrn(name):
 def t_collision(name):
     t = device_time()
     set_clock(t.replace(minute=59, second=0))
-    state = hook("START_PLAN", interval=60, bed="Bed 2")
-    state = hook("START_TRANSFUSION", ago=14, bed="Bed 12", dur=120)
+    state = hook("START_PLAN", interval=60, bed="7654802")
+    state = hook("START_TRANSFUSION", ago=14, bed="7654812", dur=120)
     due = first_due(state)
     slot = next(s for s in state["slots"] if s["status"] == "PENDING")
     same = due["scheduledAt"] == slot["slotAt"]
@@ -849,9 +849,10 @@ def t_collision(name):
     ok, msg, state = assert_fired(due, name, timeout_extra=40)
     xml = sh("uiautomator dump /sdcard/lab.xml >/dev/null 2>&1; cat /sdcard/lab.xml")
     save(name, xml)
-    both = "Bed 12" in xml and "Bed 2" in xml
+    # A sleeping emulator is behind its keyguard, so these may show masked.
+    both = ("7654812" in xml or "•••4812" in xml) and ("7654802" in xml or "•••4802" in xml)
     set_clock(dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
-    return ok and same and both, f"{msg}; same minute={same}; both beds on one screen={both}"
+    return ok and same and both, f"{msg}; same minute={same}; both patients on one screen={both}"
 
 
 @test("A21_missed_timeout_overdue_notification")
@@ -915,8 +916,8 @@ def t_round(name):
     try:
         t = device_time()
         set_clock(t.replace(minute=59, second=0))
-        state = hook("START_PLAN", interval=60, bed="Bed 2")
-        hook("START_PLAN", interval=60, bed="Bed 3")
+        state = hook("START_PLAN", interval=60, bed="7654802")
+        hook("START_PLAN", interval=60, bed="7654803")
         slot = next(s for s in state["slots"] if s["status"] == "PENDING")
         sleep_screen()
         fired = wait_alarm(90)

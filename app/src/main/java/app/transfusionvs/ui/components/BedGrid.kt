@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -14,37 +15,37 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import app.transfusionvs.R
-import app.transfusionvs.schedule.BedInput
+import app.transfusionvs.schedule.PatientInput
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
 import app.transfusionvs.ui.theme.WardType
 
-private const val NARROW_DP = 380
-
-/** The value for "+ Other bed" while it is being typed. */
+/** The value for "+ New MRN" while it is being typed. */
 const val OTHER_BED = "\u0000other"
 
 /**
- * Pick a bed with one tap. Beds with running timers come first and carry a drop or turn icon.
- * "+ Other bed" with typing stays as a rare fallback.
+ * Pick a patient with one tap: everyone seen lately, those with running timers first, each with a drop
+ * or turn icon. A new patient's MRN is typed once, digits only.
  */
 @Composable
 fun BedGrid(
@@ -56,59 +57,70 @@ fun BedGrid(
     onOtherText: (String) -> Unit,
 ) {
     val c = Ward.c
+    // As many across as the longest MRN allows, so the last digits are never cut off.
+    val longest = beds.maxOfOrNull { it.length } ?: 0
     val columns = when {
-        largeFont() -> 2
-        LocalConfiguration.current.screenWidthDp < NARROW_DP -> 3
-        else -> 4
+        largeFont() || longest > 12 -> 1
+        longest > 7 -> 2
+        else -> 3
     }
-    val ordered = BedInput.sorted(beds.filter { it in busy }) + BedInput.sorted(beds.filter { it !in busy })
+    val ordered = PatientInput.sorted(beds.filter { it in busy }) + PatientInput.sorted(beds.filter { it !in busy })
+    val typing = selected == OTHER_BED || (selected.isBlank() && beds.isEmpty())
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-        (ordered + OTHER_BED).chunked(columns).forEach { row ->
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                row.forEach { bed ->
-                    val on = bed == selected
-                    Box(
-                        Modifier.weight(1f).fillMaxHeight().heightIn(min = TvsSize.TouchLarge)
-                            .background(if (on) c.primary else c.card, TvsShape.Control)
-                            .border(TvsSize.Edge, if (on) c.primaryEdge else c.muted, TvsShape.Control)
-                            .semantics { this.selected = on }
-                            .wardClick(role = Role.RadioButton) { onPick(bed) }
-                            .padding(horizontal = TvsSpace.s4, vertical = TvsSpace.s4),
-                    ) {
-                        val ink = if (on) c.onPrimary else c.ink
-                        Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
-                            val icon = busy[bed]
-                            if (icon != null) {
-                                Icon(painterResource(icon), contentDescription = "Running", tint = ink, modifier = Modifier.size(TvsSize.IconSmall))
-                                Spacer(Modifier.width(TvsSpace.s2))
+        if (beds.isNotEmpty()) {
+            (ordered + OTHER_BED).chunked(columns).forEach { row ->
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                    row.forEach { bed ->
+                        val on = bed == selected
+                        Box(
+                            Modifier.weight(1f).fillMaxHeight().heightIn(min = TvsSize.TouchLarge)
+                                .background(if (on) c.primary else c.card, TvsShape.Control)
+                                .border(TvsSize.Edge, if (on) c.primaryEdge else c.muted, TvsShape.Control)
+                                .semantics { this.selected = on }
+                                .wardClick(role = Role.RadioButton) { onPick(bed) }
+                                .padding(horizontal = TvsSpace.s4, vertical = TvsSpace.s4),
+                        ) {
+                            val ink = if (on) c.onPrimary else c.ink
+                            Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
+                                val icon = busy[bed]
+                                if (icon != null) {
+                                    Icon(painterResource(icon), contentDescription = "Running", tint = ink, modifier = Modifier.size(TvsSize.IconSmall))
+                                    Spacer(Modifier.width(TvsSpace.s2))
+                                }
+                                if (bed == OTHER_BED) {
+                                    Text("+ New MRN", color = ink, style = WardType.BodyBold, textAlign = TextAlign.Center)
+                                } else {
+                                    LabelText(bed, ink, WardType.Lead)
+                                }
                             }
-                            Text(if (bed == OTHER_BED) "+ Other bed" else bed, color = ink, style = WardType.BodyBold, textAlign = TextAlign.Center)
-                        }
-                        // Selected also carries a mark, so it never rests on colour alone, and the cell keeps its size.
-                        if (on) {
-                            Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = ink, modifier = Modifier.align(Alignment.TopEnd).size(TvsSize.IconSmall))
+                            // Selected also carries a mark, so it never rests on colour alone, and the cell keeps its size.
+                            if (on) {
+                                Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = ink, modifier = Modifier.align(Alignment.TopEnd).size(TvsSize.IconSmall))
+                            }
                         }
                     }
+                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
-                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
-        if (selected == OTHER_BED) {
+        if (typing) {
+            val focus = remember { FocusRequester() }
+            LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
             OutlinedTextField(
                 value = otherText,
-                onValueChange = { onOtherText(it.take(BedInput.MAX_LABEL)) },
-                modifier = Modifier.fillMaxWidth(),
+                onValueChange = { onOtherText(PatientInput.clean(it)) },
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
                 singleLine = true,
-                textStyle = WardType.Lead.copy(color = c.ink),
-                placeholder = { Text("e.g. Bed 12", color = c.muted, style = WardType.Lead) },
-                supportingText = { Text("Bed only — no names or MRN", color = c.ink, style = WardType.Body) },
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                textStyle = WardType.Heading.copy(color = c.ink),
+                label = { Text("Patient's MRN", style = WardType.Body) },
+                supportingText = { Text("${PatientInput.MIN_DIGITS} to ${PatientInput.MAX_DIGITS} digits. No names.", color = c.ink, style = WardType.Body) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
         }
     }
 }
 
-/** "No beds yet" hint plus chips with × for the Settings and Setup screens. */
+/** A recent patient on the Settings screen. Tap to remove it from this phone. */
 @Composable
 fun BedChip(label: String, onRemove: () -> Unit, modifier: Modifier = Modifier) {
     val c = Ward.c

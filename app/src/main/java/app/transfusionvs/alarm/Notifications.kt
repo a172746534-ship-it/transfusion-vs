@@ -128,13 +128,13 @@ object Notifications {
 
     // ---- Turning round overdue (past the missed timer, still open until the next slot) ----
 
-    /** One persistent "Overdue — Bed 3, Bed 7" listing the beds not ticked; gone once none is left. */
+    /** One persistent "Overdue — •••4803, •••4807" listing the patients not ticked; gone once none is left. */
     fun syncTurnOverdue(context: Context, beds: List<String>, canRemind: Boolean) {
         if (beds.isEmpty()) {
             manager(context).cancel(TAG_TURN_OVERDUE, 0)
             return
         }
-        val text = "Turn not done. Open the round and tick each bed."
+        val text = "Turn not done. Open the round and tick each patient."
         val builder = NotificationCompat.Builder(context, CH_OVERDUE)
             .setSmallIcon(R.drawable.ic_stat_turn)
             .setColor(red(context))
@@ -158,7 +158,7 @@ object Notifications {
 
     // ---- Overdue (missed, not yet acknowledged) ----
 
-    /** One persistent "Overdue — Bed X" notification per bed, until it is acknowledged. */
+    /** One persistent "Overdue — •••4812" notification per patient, until it is acknowledged. */
     fun syncOverdue(context: Context, missed: List<CheckpointWithBed>) {
         val nm = manager(context)
         val byBed = missed.groupBy { it.transfusionId }

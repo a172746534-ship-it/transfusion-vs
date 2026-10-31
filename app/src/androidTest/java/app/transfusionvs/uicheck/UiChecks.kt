@@ -132,11 +132,11 @@ class UiChecks {
     }
 
     private val noop: () -> Unit = {}
-    private val longBed = "Isolation Bed 23"
-    private val wardBeds = (1..19).map { "Bed $it" } + longBed
+    private val longBed = "7654800123"
+    private val wardBeds = (1..19).map { "76548${it.toString().padStart(2, '0')}" } + longBed
 
     private val manyBeds = (1..20).map { i ->
-        Fakes.transfusion(100L + i, if (i == 20) longBed else "Bed $i", i % 8, "2026-01-15T10:${(51 + i % 9).toString().padStart(2, '0')}", 120)
+        Fakes.transfusion(100L + i, if (i == 20) longBed else "76548${i.toString().padStart(2, '0')}", i % 8, "2026-01-15T10:${(51 + i % 9).toString().padStart(2, '0')}", 120)
     }
 
     private fun ringingBed(): TransfusionWithCheckpoints = Fakes.bed14.copy(
@@ -167,10 +167,10 @@ class UiChecks {
         )
     }
     @Test fun reaction() = check("reaction", primary = true) {
-        ReactionScreen(beds = listOf(BedChoice(1, "Bed 12", 0), BedChoice(2, longBed, 1)), onStopped = {}, onBack = noop)
+        ReactionScreen(beds = listOf(BedChoice(1, "7654812", 0), BedChoice(2, longBed, 1)), onStopped = {}, onBack = noop)
     }
     @Test fun reactionManyBeds() = check("reaction_20beds", primary = true) {
-        ReactionScreen(beds = (1..20).map { BedChoice(it.toLong(), if (it == 20) longBed else "Bed $it", it % 8) }, onStopped = {}, onBack = noop)
+        ReactionScreen(beds = (1..20).map { BedChoice(it.toLong(), if (it == 20) longBed else "76548${it.toString().padStart(2, '0')}", it % 8) }, onStopped = {}, onBack = noop)
     }
     @Test fun alarm() = check("alarm", alarm = true, primary = true) {
         AlarmContent(

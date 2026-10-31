@@ -41,7 +41,6 @@ import app.transfusionvs.alarm.AlarmActivity
 import app.transfusionvs.app
 import app.transfusionvs.data.CheckpointStatus
 import app.transfusionvs.data.CheckpointWithBed
-import app.transfusionvs.data.WardBed
 import app.transfusionvs.schedule.Labels
 import app.transfusionvs.schedule.MINUTE_MS
 import app.transfusionvs.setup.CheckItem
@@ -62,10 +61,9 @@ import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
 import app.transfusionvs.ui.theme.WardType
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-/** Setup check: the ward's beds, a live permission checklist, per-brand steps, and real test alarms. */
+/** Setup check: a live permission checklist, per-brand steps, and real test alarms. */
 @Composable
 fun SetupScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -83,9 +81,6 @@ fun SetupScreen(onBack: () -> Unit) {
     val guide = remember { OemGuides.forThisPhone(context) }
     val tests by app.db.dao().observeTests().collectAsStateWithLifecycle(initialValue = emptyList())
     val ringing by app.db.dao().observeRinging().collectAsStateWithLifecycle(initialValue = emptyList())
-    val wardDao = app.db.wardDao()
-    val bedsFlow = remember { wardDao.observeBeds().map { list -> list.map { it.label } } }
-    val beds by bedsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     var message by rememberSaveable { mutableStateOf<String?>(null) }
 
     fun fix(item: CheckItem) {
@@ -109,9 +104,6 @@ fun SetupScreen(onBack: () -> Unit) {
         tests = tests,
         ringing = ringing.isNotEmpty(),
         message = message,
-        beds = beds,
-        onAddBeds = { labels -> app.scope.launch { wardDao.addBeds(labels.map { WardBed(it) }) } },
-        onRemoveBed = { label -> app.scope.launch { wardDao.removeBed(label) } },
         onBack = onBack,
         onFix = ::fix,
         onOpenStep = { SetupChecks.open(context, it.intents) },
@@ -132,9 +124,6 @@ fun SetupContent(
     tests: List<CheckpointWithBed>,
     ringing: Boolean,
     message: String?,
-    beds: List<String> = emptyList(),
-    onAddBeds: (List<String>) -> Unit = {},
-    onRemoveBed: (String) -> Unit = {},
     onBack: () -> Unit,
     onFix: (CheckItem) -> Unit,
     onOpenStep: (OemStep) -> Unit,
@@ -164,8 +153,6 @@ fun SetupContent(
                 CapsLabel("This phone")
                 checks.forEach { item -> CheckRow(item, onFix = { onFix(item) }) }
             }
-
-            WardBedsPanel(beds, onAddBeds, onRemoveBed)
 
             // 2. Brand-specific steps
             Panel {

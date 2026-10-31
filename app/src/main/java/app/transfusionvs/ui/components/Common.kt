@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,6 +47,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import app.transfusionvs.R
 import app.transfusionvs.schedule.StatusKind
 import app.transfusionvs.schedule.StatusView
@@ -128,6 +131,18 @@ fun WardButton(
         }
         Text(text, color = content, style = style, textAlign = TextAlign.Center)
     }
+}
+
+/**
+ * A patient's MRN or any one-line label: shrinks to fit rather than breaking a number in two, down to
+ * [min]. [style] is the size it wants.
+ */
+@Composable
+fun LabelText(text: String, color: Color, style: TextStyle, modifier: Modifier = Modifier, min: TextUnit = WardType.Body.fontSize) {
+    BasicText(
+        text, modifier, style = style.copy(color = color), maxLines = 1,
+        autoSize = TextAutoSize.StepBased(minFontSize = min, maxFontSize = style.fontSize),
+    )
 }
 
 /** The one main action of a screen, in the thumb zone. */

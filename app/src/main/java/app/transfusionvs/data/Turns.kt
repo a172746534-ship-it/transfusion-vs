@@ -7,7 +7,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
 
-// Repositioning rounds. Bed label only — no names, MRN or clinical values.
+// Repositioning rounds. The patient by MRN only (`bedLabel`): no names or clinical values.
 
 enum class Position(val label: String) {
     LEFT_30("Left 30°"),
