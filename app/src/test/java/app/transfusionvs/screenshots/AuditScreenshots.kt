@@ -131,10 +131,10 @@ class AuditScreenshots {
     @Test fun home_20_beds() = shots("home_20beds") { Home(tx = many) }
 
     @Test fun start_empty() = shots("start_empty") {
-        StartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop)
+        StartContent(editing = null, defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop)
     }
     @Test fun start_edit() = shots("start_edit") {
-        StartContent(editing = Fakes.bed12.transfusion, beds = Fakes.wardBeds, busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop)
+        StartContent(editing = Fakes.bed12.transfusion, defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop)
     }
 
     @Composable
@@ -183,10 +183,10 @@ class AuditScreenshots {
     @Test fun reaction_20_beds() = shots("reaction_20beds") { ReactionScreen(beds = bedsChoice, onStopped = {}, onBack = noop) }
 
     @Test fun turn_start() = shots("turn_start") {
-        TurnStartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop)
+        TurnStartContent(editing = null, defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop)
     }
     @Test fun turn_edit() = shots("turn_edit") {
-        TurnStartContent(editing = TurnFakes.isolation.plan, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.now, onSubmit = {}, onBack = noop)
+        TurnStartContent(editing = TurnFakes.isolation.plan, defaultIntervalMin = 120, openedAt = Fakes.now, onSubmit = {}, onBack = noop)
     }
 
     @Composable
@@ -231,18 +231,15 @@ class AuditScreenshots {
 
     /** Six beds at once, every urgency: what task 1 must show without a scroll. */
     @Test fun home_six_beds() = shots("home_6beds") { Home(tx = Fakes.sixBeds(), turns = emptyList(), problems = 0) }
-    @Test fun start_first_patient() = shots("start_first_patient") {
-        StartContent(editing = null, beds = emptyList(), busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop)
-    }
     @Test fun home_only_turning() = shots("home_only_turning") { Home(turns = listOf(TurnFakes.bed3)) }
     @Test fun start_bed_picked() = shots("start_bed_picked") {
-        StartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop, initialBed = "7654805")
+        StartContent(editing = null, defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop, initialBed = "7654805")
     }
     @Test fun turn_start_bed_picked() = shots("turn_start_bed_picked") {
-        TurnStartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initialBed = "7654806")
+        TurnStartContent(editing = null, defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initialBed = "7654806")
     }
     @Test fun turn_start_options() = shots("turn_start_options") {
-        TurnStartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initialBed = "7654806", initiallyExpanded = true)
+        TurnStartContent(editing = null, defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initialBed = "7654806", initiallyExpanded = true)
     }
     @Test fun alarm_done_undo() = shots("alarm_done_undo") {
         DoneContent(UndoAction(id = 1, ownerKey = "T2", label = "7654814 · 15-min check done", at = Fakes.now, expiresAt = Fakes.now + 300_000, snapshot = ""), onUndo = {}, closesIn = 5)

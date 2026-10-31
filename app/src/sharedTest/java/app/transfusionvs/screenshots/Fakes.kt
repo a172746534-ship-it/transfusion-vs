@@ -67,7 +67,6 @@ object Fakes {
     val home = listOf(bed12, bed14)
 
     /** The ward's beds, entered once in Settings. */
-    val wardBeds = (1..19).map { "76548${it.toString().padStart(2, '0')}" } + "7654800123"
 
     /** Every urgency at once: overdue, due now, soon, calm. */
     fun sixBeds(): List<TransfusionWithCheckpoints> = listOf(

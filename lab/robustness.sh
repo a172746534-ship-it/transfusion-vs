@@ -69,7 +69,7 @@ ADB_TIMEOUT=240
 adb logcat -d -s ROBUST:I > "$OUT/robust.findings.txt"
 adb shell "cat /sdcard/Android/data/$PKG/files/widget.png" > "$OUT/widget.png" 2>/dev/null
 
-# --- Rotation and process death mid-flow: the picked bed must survive ---------------------------
+# --- Rotation and process death mid-flow: the typed MRN must survive ---------------------------
 adb shell pm clear $PKG; grant
 adb shell am start -W -n $HOME_ACT >/dev/null; sleep 3
 adb shell input keyevent KEYCODE_BACK; sleep 1   # leave first-run Setup
@@ -82,19 +82,18 @@ m=re.search(r'text=\"$1\"[^>]*bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"',sys.std
 print((int(m[1])+int(m[3]))//2,(int(m[2])+int(m[4]))//2) if m else print('')")
   [ -n "$xy" ] && adb shell input tap $xy && sleep 1
 }
-adb shell am broadcast -n $PKG/.lab.LabReceiver -a lab.ADD_PATIENT --es mrn "7654877" -f 0x20 > /dev/null; sleep 1
-tap_text "Start transfusion"; tap_text "7654877"
+tap_text "Start transfusion"; adb shell input text 7654877; sleep 1
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 1; sleep 3
 dump > "$OUT/rotation.xml"; adb exec-out screencap -p > "$OUT/rotation.png"
-if grep -qE 'text="7654877"[^>]*selected="true"' "$OUT/rotation.xml"; then echo "PASS rotation keeps the picked patient"; else echo "FAIL rotation lost the picked patient"; fi | tee "$OUT/rotation.txt"
+if grep -q 'text="7654877"' "$OUT/rotation.xml"; then echo "PASS rotation keeps the typed MRN"; else echo "FAIL rotation lost the typed MRN"; fi | tee "$OUT/rotation.txt"
 adb shell settings put system user_rotation 0; sleep 2
 adb shell input keyevent KEYCODE_HOME; sleep 2
 adb shell am kill --user 0 $PKG; sleep 2   # bare, Android 8 reads it as all users and kills nothing
 killed=$(adb shell pidof $PKG | tr -d '\r')
 adb shell am start -W -n $HOME_ACT >/dev/null; sleep 3
 dump > "$OUT/process_death.xml"; adb exec-out screencap -p > "$OUT/process_death.png"
-if [ -n "$killed" ]; then echo "FAIL process death: the process was never killed"; elif grep -qE 'text="7654877"[^>]*selected="true"' "$OUT/process_death.xml"; then echo "PASS process death keeps the picked patient"; else echo "FAIL process death lost the picked patient"; fi | tee "$OUT/process_death.txt"
+if [ -n "$killed" ]; then echo "FAIL process death: the process was never killed"; elif grep -q 'text="7654877"' "$OUT/process_death.xml"; then echo "PASS process death keeps the typed MRN"; else echo "FAIL process death lost the typed MRN"; fi | tee "$OUT/process_death.txt"
 
 # --- Monkey (debug build: LeakCanary and StrictMode are on) --------------------------------------
 adb shell pm clear $PKG; grant

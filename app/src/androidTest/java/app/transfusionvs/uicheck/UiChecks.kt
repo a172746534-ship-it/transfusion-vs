@@ -137,7 +137,6 @@ class UiChecks {
 
     private val noop: () -> Unit = {}
     private val longBed = "7654800123"
-    private val wardBeds = (1..19).map { "76548${it.toString().padStart(2, '0')}" } + longBed
 
     private val manyBeds = (1..20).map { i ->
         Fakes.transfusion(100L + i, if (i == 20) longBed else "76548${i.toString().padStart(2, '0')}", i % 8, "2026-01-15T10:${(51 + i % 9).toString().padStart(2, '0')}", 120)
@@ -160,7 +159,7 @@ class UiChecks {
     @Test fun homeBedsNight() = check("home_beds_night", primary = true, night = true) { Home() }
     @Test fun start() = check("start", primary = true) {
         StartContent(
-            editing = null, beds = wardBeds, busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15,
+            editing = null, defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15,
             openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = noop,
         )
     }
@@ -208,7 +207,7 @@ class UiChecks {
         )
     }
     @Test fun turnStart() = check("turn_start", primary = true) {
-        TurnStartContent(editing = null, beds = wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initiallyExpanded = true)
+        TurnStartContent(editing = null, defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = noop, initiallyExpanded = true)
     }
     @Test fun turnDetail() = check("turn_detail", primary = true) {
         TurnDetailContent(item = TurnFakes.bed3, now = Fakes.now, windowMin = 15, onBack = noop, onEdit = noop, onStop = {}, onRestart = {}, onOpenRound = noop)
@@ -219,7 +218,7 @@ class UiChecks {
                 soundOn = true, soundUri = null, snoozeMin = 2, missedTimeoutMin = 10, toleranceMin = 5,
                 preAlertMin = 0, limitMin = 240, warnBeforeMin = 15,
             ),
-            beds = wardBeds, soundTitle = "Phone's default alarm sound", onChange = {}, onPickSound = noop, onBack = noop, onSetup = noop,
+            soundTitle = "Phone's default alarm sound", onChange = {}, onPickSound = noop, onBack = noop, onSetup = noop,
         )
     }
     @Test fun setup() = check("setup", primary = true) {

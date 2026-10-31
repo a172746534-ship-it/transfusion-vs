@@ -40,7 +40,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.core.content.IntentCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.transfusionvs.app
 import app.transfusionvs.data.Settings
 import app.transfusionvs.schedule.Labels
@@ -60,7 +59,6 @@ import app.transfusionvs.ui.theme.TvsSize
 import app.transfusionvs.ui.theme.TvsSpace
 import app.transfusionvs.ui.theme.Ward
 import app.transfusionvs.ui.theme.WardType
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /** A snapshot of every setting shown on the screen. */
@@ -95,9 +93,6 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
     val app = context.app
     val s = app.settings
     var values by remember { mutableStateOf(SettingsValues.from(s)) }
-    val wardDao = app.db.wardDao()
-    val bedsFlow = remember { wardDao.observePatients().map { list -> list.map { it.mrn } } }
-    val beds by bedsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
 
     fun save(v: SettingsValues) {
         s.soundOn = v.soundOn
@@ -138,8 +133,6 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
 
     SettingsContent(
         values = values,
-        beds = beds,
-        onRemovePatient = { mrn -> app.scope.launch { wardDao.removePatient(mrn) } },
         soundTitle = soundTitle(context, values.soundUri),
         turnSoundTitle = values.turnSoundUri?.let { soundTitle(context, it) } ?: "Turning chime (built in)",
         onPickTurnSound = {
@@ -180,8 +173,6 @@ fun SettingsScreen(onBack: () -> Unit, onSetup: () -> Unit) {
 @Composable
 fun SettingsContent(
     values: SettingsValues,
-    beds: List<String> = emptyList(),
-    onRemovePatient: (String) -> Unit = {},
     soundTitle: String,
     turnSoundTitle: String = "Turning chime (built in)",
     onChange: (SettingsValues) -> Unit,
@@ -309,8 +300,6 @@ fun SettingsContent(
                 )
                 SoundRow("Turning alarm sound", turnSoundTitle, onPickTurnSound)
             }
-
-            RecentPatientsPanel(beds, onRemovePatient)
         }
         Box(Modifier.fillMaxWidth().testTag(PRIMARY_TAG).windowInsetsPadding(WindowInsets.navigationBars).padding(TvsSpace.s12)) {
             PrimaryButton("Setup check & test alarm", onSetup)

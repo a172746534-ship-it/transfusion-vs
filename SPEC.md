@@ -442,8 +442,7 @@ The maintainer chose direction 1, Ward Card. Colours in `ui/theme/Theme.kt`, ver
 **MRN (add-on, docs/MRN_ADDON.md):** the bed number is gone (see "MRN instead of the bed number" below), so every patient is an MRN. Outside the app (notifications, the alarm over the lock screen, the widget) it shows as "•••4821": the shortest suffix, at least 4 digits, unique among active labels. The full value shows only inside the app on an unlocked phone. Nothing logs an MRN.
 
 ## MRN instead of the bed number (2026-10-31)
-The maintainer's decision: some places in the hospital have no beds, so a patient is identified by MRN. This replaces "bed only, no MRN" and the ward bed list.
-- The MRN is digits only (5 to 16), so a name can't be typed. Names are still never stored.
-- A patient the phone has seen is one tap on Start. A new patient's MRN is typed once, which is the one exception to "no typing in a core task". The tap budget is measured for a known patient; `task4_newPatient` reports the other path.
-- The phone keeps a recent MRN for a day after its last use, once nothing is running for it (Settings shows them and can remove them). `bedLabel` in the database now holds the MRN; a plan from an older version keeps its bed label, unmasked.
-- The database is in device-protected storage, so alarms can ring after a reboot before the first unlock. That keeps working, and it means MRNs live there too, encrypted by the device but readable before the first unlock by the app.
+The maintainer's decisions: some places in the hospital have no beds, so a patient is identified by MRN, and the nurse simply types it. There is no list to pick from: it was clutter and would not be used. This replaces "bed only, no MRN" and the ward bed list, and it is the one exception to "no typing in a core task".
+- The MRN is typed on the number pad when Start opens, digits only (5 to 16), so a name can't be typed. Names are still never stored.
+- The phone keeps an MRN only as part of its plan, and it goes with the plan, a day after that plan finishes. `bedLabel` in the database now holds the MRN; a plan from an older version keeps its bed label, unmasked.
+- The database is in device-protected storage, so alarms can ring after a reboot before the first unlock. That keeps working, and it means MRNs live there too, encrypted by the device but readable before the first unlock by the app. Backup is off.

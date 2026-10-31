@@ -36,7 +36,7 @@ jobs:
         run: |
           MODE=$(tr -d '[:space:]' < app/src/test/screenshots/MODE 2>/dev/null || echo record)
           echo "Screenshot mode: $MODE"
-          gradle --no-daemon --stacktrace "${MODE}RoborazziDebug"
+          gradle --no-daemon --stacktrace "${MODE}RoborazziDebug" compileDebugAndroidTestKotlin
 
       - name: Upload screenshots
         if: always()

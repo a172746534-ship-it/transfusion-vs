@@ -237,9 +237,4 @@ object PatientInput {
         text.mapNotNull { c -> Character.digit(c, 10).takeIf { it >= 0 } }.joinToString("").take(MAX_DIGITS)
 
     fun valid(mrn: String): Boolean = mrn.length in MIN_DIGITS..MAX_DIGITS && mrn.all { it in '0'..'9' }
-
-    /** Natural order, in case labels from older versions are still around. */
-    fun sorted(labels: List<String>): List<String> = labels.sortedWith(
-        compareBy<String> { it.replace(Regex("""\d+"""), "") }.thenBy { Regex("""\d+""").find(it)?.value?.toLongOrNull() ?: 0 }.thenBy { it },
-    )
 }

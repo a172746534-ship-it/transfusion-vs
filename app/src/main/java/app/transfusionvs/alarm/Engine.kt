@@ -8,7 +8,6 @@ import app.transfusionvs.data.CheckpointStatus.MISSED
 import app.transfusionvs.data.CheckpointStatus.PENDING
 import app.transfusionvs.data.CheckpointStatus.RINGING
 import app.transfusionvs.data.CheckpointType
-import app.transfusionvs.data.Patient
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.Settings
 import app.transfusionvs.data.SkipReason
@@ -25,7 +24,6 @@ import app.transfusionvs.schedule.ArmPlanner
 import app.transfusionvs.schedule.BedMask
 import app.transfusionvs.schedule.Grouping
 import app.transfusionvs.schedule.MINUTE_MS
-import app.transfusionvs.schedule.PatientInput
 import app.transfusionvs.schedule.Reconciler
 import app.transfusionvs.schedule.ScheduleCalculator
 import app.transfusionvs.schedule.ScheduleConfig
@@ -118,10 +116,6 @@ class Engine(
                 before.filter { it.id in ids }.map { UndoStep.of(it) },
             )
         }
-    }
-
-    private suspend fun rememberPatientLocked(label: String, now: Long) {
-        if (PatientInput.valid(label)) wardDao.usePatient(Patient(label, now))
     }
 
     private suspend fun recordUndoLocked(ownerKey: String, label: String, now: Long, steps: List<UndoStep>) {
@@ -217,7 +211,6 @@ class Engine(
                 ),
             )
             recordUndoLocked(UndoAction.plan(id), "${draft.bedLabel.trim()} · turning started", now, listOf(UndoStep.DeletePlan(id)))
-            rememberPatientLocked(draft.bedLabel.trim(), now)
         }
         update(canStartService = true)
     }
@@ -228,7 +221,6 @@ class Engine(
             val p = turnDao.plan(id)
             if (p != null && p.status == TurnPlanStatus.RUNNING) {
                 turns.cancelOpen(id, includeRinging = false)
-                rememberPatientLocked(draft.bedLabel.trim(), now())
                 turnDao.updatePlan(
                     p.copy(
                         bedLabel = draft.bedLabel.trim(), intervalMin = draft.intervalMin,
@@ -402,7 +394,6 @@ class Engine(
                 ),
             ).also {
                 recordUndoLocked(UndoAction.transfusion(it), "${bedLabel.trim()} · transfusion started", now, listOf(UndoStep.DeleteTransfusion(it)))
-                rememberPatientLocked(bedLabel.trim(), now)
             }
         }
         update(canStartService = true) // creates the checkpoints; passed ones ring as one alarm
@@ -415,7 +406,6 @@ class Engine(
         mutex.withLock {
             val t = dao.transfusion(id)
             if (t != null && t.status == TransfusionStatus.RUNNING) {
-                rememberPatientLocked(bedLabel.trim(), now)
                 dao.updateTransfusion(
                     t.copy(
                         bedLabel = bedLabel.trim(),
@@ -508,7 +498,6 @@ class Engine(
         // 0. Finished transfusions are deleted a day later (Cerner is the record, not the phone).
         dao.deleteFinishedBefore(now - RETENTION_MS)
         wardDao.deleteExpiredUndo(now)
-        wardDao.forgetPatients(now - RETENTION_MS)
 
         // 1. Missed timer: 10 min after the first ring (snoozes don't extend it).
         val timedOut = Grouping.timedOut(dao.activeCheckpoints(), now, settings.missedTimeoutMin)

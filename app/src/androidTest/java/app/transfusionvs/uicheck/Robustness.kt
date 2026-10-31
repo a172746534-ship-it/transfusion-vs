@@ -6,6 +6,8 @@ import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -21,7 +23,6 @@ import app.transfusionvs.alarm.AlarmService
 import app.transfusionvs.data.Checkpoint
 import app.transfusionvs.data.CheckpointStatus
 import app.transfusionvs.data.CheckpointType
-import app.transfusionvs.data.Patient
 import app.transfusionvs.data.Transfusion
 import app.transfusionvs.schedule.BedViews
 import app.transfusionvs.ui.MainActivity
@@ -52,7 +53,6 @@ class Robustness {
     @Before fun clean() = runBlocking {
         app.db.clearAllTables()
         app.settings.setupSeen = true
-        (1..6).forEach { app.db.wardDao().usePatient(Patient("76548${it.toString().padStart(2, '0')}", now)) }
     }
 
     @After fun stop() {
@@ -100,7 +100,7 @@ class Robustness {
     @Test fun doubleTapOnStartStartsOnce() {
         ActivityScenario.launch(MainActivity::class.java)
         node("Start transfusion").performClick()
-        node("7654802").performClick()
+        rule.onNode(hasSetTextAction()).performTextInput("7654802")
         val n = node("Baseline done")
         n.performClick()
         runCatching { n.performClick() }
@@ -117,7 +117,7 @@ class Robustness {
         n.performClick()
         runCatching { n.performClick() }
         rule.waitForIdle()
-        node("7654802").performClick() // the Start screen is showing, once
+        rule.onNode(hasSetTextAction()).assertExists() // the Start screen is showing, once
         node("Back").performClick()
         node("Start transfusion") // one Back returns to Home
         pass("double_tap_home")

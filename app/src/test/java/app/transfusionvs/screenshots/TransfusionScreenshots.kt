@@ -67,14 +67,14 @@ class TransfusionScreenshots {
     @Test
     @Config(qualifiers = TALL_PHONE)
     fun start() = shot("transfusion_start") {
-        StartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = {})
+        StartContent(editing = null, defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now, onSubmit = { _, _, _ -> }, onBack = {})
     }
 
     @Test
     @Config(qualifiers = TALL_PHONE)
     fun edit() = shot("transfusion_edit") {
         StartContent(
-            editing = Fakes.bed12.transfusion, beds = Fakes.wardBeds, busy = emptyMap(), defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now,
+            editing = Fakes.bed12.transfusion, defaultDurationMin = 120, limitMin = 240, warnBeforeMin = 15, openedAt = Fakes.now,
             onSubmit = { _, _, _ -> }, onBack = {},
         )
     }

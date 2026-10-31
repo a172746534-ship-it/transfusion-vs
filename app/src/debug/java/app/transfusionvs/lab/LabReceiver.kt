@@ -14,7 +14,6 @@ import android.os.Vibrator
 import app.transfusionvs.App
 import app.transfusionvs.alarm.AlarmService
 import app.transfusionvs.app
-import app.transfusionvs.data.Patient
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.SkipReason
 import app.transfusionvs.schedule.TurnGrid
@@ -75,7 +74,6 @@ class LabReceiver : BroadcastReceiver() {
                     "lab.DND" -> context.getSystemService(NotificationManager::class.java).setInterruptionFilter(
                         if (intent.getStringExtra("mode") == "off") NotificationManager.INTERRUPTION_FILTER_ALL else NotificationManager.INTERRUPTION_FILTER_PRIORITY,
                     )
-                    "lab.ADD_PATIENT" -> app.db.wardDao().usePatient(Patient(intent.getStringExtra("mrn") ?: "7654801", now))
                     "lab.DUMP_HEAP" -> leakcanary.LeakCanary.dumpHeap()
                     "lab.SET_MISSED_TIMEOUT" -> app.settings.missedTimeoutMin = intent.getIntExtra("min", 10)
                 }

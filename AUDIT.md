@@ -241,3 +241,5 @@ Design 5/10, 1 Critical, 12 Major, 34 Minor. Personas 9, 8 and 5 findings.
 - A08: Android 8's Recents flings sideways.
 - SPACING: a pair in different scroll areas is measured on what can be touched. It used to depend on where the list happened to be scrolled.
 - TapBudget: its stated precondition is "setup done", so the lab gives the battery exemption Setup asks for. With the Setup warning showing, six patients at 360 dp take one scroll.
+
+Later on 2026-10-31 the maintainer removed the list of patients altogether: the nurse types the MRN. That closes S1 and the persona findings about the list. A15 to A23 don't depend on it.

@@ -6,7 +6,6 @@ import app.transfusionvs.data.AppDatabase
 import app.transfusionvs.data.Checkpoint
 import app.transfusionvs.data.CheckpointStatus
 import app.transfusionvs.data.CheckpointType
-import app.transfusionvs.data.Patient
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.Settings
 import app.transfusionvs.data.Transfusion
@@ -17,7 +16,6 @@ import app.transfusionvs.data.TurnSlot
 import app.transfusionvs.data.TurnSlotStatus
 import app.transfusionvs.data.SkipReason
 import app.transfusionvs.data.UndoAction
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -72,36 +70,6 @@ class UndoEngineTest {
     }
 
     private suspend fun latest(): UndoAction = db.wardDao().undoAll().first()
-
-    private suspend fun recent(): List<String> = db.wardDao().observePatients().first().map { it.mrn }
-
-    @Test
-    fun aPatientStaysOneTapAwayForADayAfterLastUse() = runBlocking {
-        val id = engine.startTransfusion("7654888", now, 120)
-        assertEquals(listOf("7654888"), recent())
-
-        // Still running: never forgotten, however old the last use.
-        db.wardDao().usePatient(Patient("7654888", now - 3 * Engine.RETENTION_MS))
-        db.wardDao().forgetPatients(now - Engine.RETENTION_MS)
-        assertEquals(listOf("7654888"), recent())
-
-        // Ended, but End VS is still open: the row stays, so the patient does too.
-        engine.endTransfusion(id)
-        db.dao().deleteFinishedBefore(now + 1)
-        db.wardDao().forgetPatients(now - Engine.RETENTION_MS)
-        assertEquals(listOf("7654888"), recent())
-
-        engine.acknowledge(db.dao().checkpointsFor(id).filter { it.type == CheckpointType.END }.map { it.id })
-        db.dao().deleteFinishedBefore(now + 1)
-        db.wardDao().forgetPatients(now - Engine.RETENTION_MS)
-        assertTrue(recent().isEmpty())
-    }
-
-    @Test
-    fun anOlderBedLabelIsNotRemembered() = runBlocking {
-        engine.startTransfusion("Bed 12", now, 120)
-        assertTrue(recent().isEmpty())
-    }
 
     @Test
     fun acknowledgeThenUndoIsTheExactRow() = runBlocking {

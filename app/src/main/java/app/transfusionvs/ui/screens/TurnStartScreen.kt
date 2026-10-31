@@ -43,7 +43,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.transfusionvs.R
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.TurnPlan
@@ -53,14 +52,13 @@ import app.transfusionvs.schedule.TurnGrid
 import app.transfusionvs.schedule.TurnTimeline
 import app.transfusionvs.ui.MainViewModel
 import app.transfusionvs.ui.PRIMARY_TAG
-import app.transfusionvs.ui.components.BedGrid
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.CardTimeline
 import app.transfusionvs.ui.components.ChangeRow
 import app.transfusionvs.ui.components.ChoiceChip
 import app.transfusionvs.ui.components.ChoiceRow
-import app.transfusionvs.ui.components.OTHER_BED
 import app.transfusionvs.ui.components.Panel
+import app.transfusionvs.ui.components.PatientField
 import app.transfusionvs.ui.components.PositionIcon
 import app.transfusionvs.ui.components.PrimaryButton
 import app.transfusionvs.ui.components.SecondaryButton
@@ -92,10 +90,8 @@ data class TurnPlanDraft(
 @Composable
 fun TurnStartScreen(vm: MainViewModel, editing: TurnPlan?, onSubmit: (TurnPlanDraft) -> Unit, onBack: () -> Unit) {
     val openedAt = rememberSaveable { System.currentTimeMillis() }
-    val beds by vm.wardBeds.collectAsStateWithLifecycle()
-    val busy by vm.busyBeds.collectAsStateWithLifecycle()
     TurnStartContent(
-        editing = editing, beds = beds.orEmpty(), loaded = beds != null, busy = busy,
+        editing = editing,
         defaultIntervalMin = editing?.intervalMin ?: vm.turnIntervalMin, openedAt = openedAt,
         onSubmit = onSubmit,
         onBack = onBack,
@@ -103,7 +99,7 @@ fun TurnStartScreen(vm: MainViewModel, editing: TurnPlan?, onSubmit: (TurnPlanDr
 }
 
 /**
- * Start repositioning, or Edit when [editing] is given. Pick a bed, then tap the position the patient
+ * Start repositioning, or Edit when [editing] is given. Type the MRN, then tap the position the patient
  * lies in now: that tap IS what starts the plan. Everything else has a default and sits behind
  * "More options", so changing it is possible and never required.
  */
@@ -111,30 +107,23 @@ fun TurnStartScreen(vm: MainViewModel, editing: TurnPlan?, onSubmit: (TurnPlanDr
 @Composable
 fun TurnStartContent(
     editing: TurnPlan?,
-    beds: List<String>,
-    busy: Map<String, Int>,
     defaultIntervalMin: Int,
     openedAt: Long,
     onSubmit: (TurnPlanDraft) -> Unit,
     onBack: () -> Unit,
     /** For screenshots: options open from the start. */
     initiallyExpanded: Boolean = false,
-    /** For screenshots: a bed already picked. */
+    /** For screenshots: an MRN already typed. */
     initialBed: String = "",
-    /** The patient list has loaded: until then an empty one doesn't mean nobody yet. */
-    loaded: Boolean = true,
 ) {
     val context = LocalContext.current
     val c = Ward.c
     val zone = ZoneId.systemDefault()
 
-    var picked by rememberSaveable { mutableStateOf(editing?.bedLabel ?: initialBed) }
-    var otherText by rememberSaveable { mutableStateOf("") }
-    // With nobody seen yet the only way in is the MRN field.
-    val typing = picked == OTHER_BED || (loaded && picked.isBlank() && beds.isEmpty())
-    // Editing: the patient is in the title, and a slip here would move their alarms to someone else.
+    // Editing keeps the patient unless asked: the title says who, and a slip here would move their alarms.
     var changingPatient by rememberSaveable { mutableStateOf(editing == null) }
-    val bed = if (typing) otherText.takeIf { PatientInput.valid(it) } ?: "" else picked
+    var mrn by rememberSaveable { mutableStateOf(initialBed) }
+    val bed = if (changingPatient) mrn.takeIf { PatientInput.valid(it) } ?: "" else editing?.bedLabel.orEmpty()
 
     var options by rememberSaveable { mutableStateOf(initiallyExpanded || editing != null) }
     var interval by rememberSaveable { mutableIntStateOf(editing?.intervalMin ?: defaultIntervalMin) }
@@ -184,12 +173,12 @@ fun TurnStartContent(
             Panel {
                 CapsLabel("Which patient?")
                 if (changingPatient) {
-                    BedGrid(
-                        beds = (beds + listOfNotNull(editing?.bedLabel)).distinct(), busy = busy, selected = picked, typing = typing, otherText = otherText,
-                        onPick = { picked = it }, onOtherText = { otherText = it },
-                    )
+                    PatientField(mrn) { mrn = it }
                 } else {
-                    ChangeRow(picked) { changingPatient = true }
+                    ChangeRow(editing?.bedLabel.orEmpty()) {
+                        mrn = PatientInput.clean(editing?.bedLabel.orEmpty())
+                        changingPatient = true
+                    }
                 }
             }
 
@@ -301,7 +290,7 @@ fun TurnStartContent(
                         scroll.animateScrollTo(scroll.maxValue)
                     }
                 }
-                Text(if (bed.isBlank()) (if (typing) "Enter the MRN first" else "Pick a patient first") else "$bed: lying now? Tap to start", color = c.ink, style = WardType.Lead)
+                Text(if (bed.isBlank()) "Enter the MRN first" else "$bed: lying now? Tap to start", color = c.ink, style = WardType.Lead)
                 PositionButtons(rotation, enabled = validPlan) { p ->
                     onSubmit(TurnPlanDraft(bed, interval, rotation, p, firstSlot, stopAt))
                 }

@@ -3,19 +3,14 @@ package app.transfusionvs.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.transfusionvs.App
-import app.transfusionvs.R
 import app.transfusionvs.data.CheckpointWithBed
-import app.transfusionvs.data.TransfusionStatus
 import app.transfusionvs.data.TransfusionWithCheckpoints
-import app.transfusionvs.data.TurnPlanStatus
 import app.transfusionvs.data.TurnPlanWithSlots
 import app.transfusionvs.data.UndoAction
 import app.transfusionvs.ui.screens.TurnPlanDraft
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -71,18 +66,6 @@ class MainViewModel(private val app: App) : ViewModel() {
     fun restartTurnPlan(id: Long) {
         app.scope.launch { app.engine.restartTurnPlan(id) }
     }
-
-    // ---- Recent patients ----
-
-    /** null until the first load: an empty list means nobody yet, and opens the keyboard for the first MRN. */
-    val wardBeds: StateFlow<List<String>?> =
-        wardDao.observePatients().map { list -> list.map { it.mrn } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    /** Patients with a running timer → the icon to show on the grid. */
-    val busyBeds: StateFlow<Map<String, Int>> = combine(dao.observeHome(), turnDao.observeHome()) { tx, plans ->
-        plans.filter { it.plan.status == TurnPlanStatus.RUNNING }.associate { it.plan.bedLabel to R.drawable.ic_turn } +
-            tx.filter { it.transfusion.status == TransfusionStatus.RUNNING }.associate { it.transfusion.bedLabel to R.drawable.ic_drop }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     // ---- Undo ----
 

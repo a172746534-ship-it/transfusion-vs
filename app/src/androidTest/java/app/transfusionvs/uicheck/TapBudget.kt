@@ -22,7 +22,6 @@ import app.transfusionvs.alarm.AlarmService
 import app.transfusionvs.data.Checkpoint
 import app.transfusionvs.data.CheckpointStatus
 import app.transfusionvs.data.CheckpointType
-import app.transfusionvs.data.Patient
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.Transfusion
 import app.transfusionvs.data.TurnPlan
@@ -42,11 +41,10 @@ import org.junit.Test
 /**
  * Drives the nine core tasks of docs/DESIGN_OVERHAUL.md §3 through the real activities and counts
  * every touch: tap, and scroll needed to reach the target. The app icon is tap 1 where the task
- * starts from the launcher. No task may need typing; none of these flows touches a text field.
- * Each result is logged with tag TAPS.
+ * starts from the launcher. Each result is logged with tag TAPS. Tasks 4 and 5 also type the MRN, the
+ * maintainer's decision (2026-10-31), and say so in their result; no other task touches a text field.
  *
- * Preconditions: setup done, the patient already seen once (a new patient's MRN is typed once, the
- * maintainer's decision; `task4_newPatient` measures that path). Task 7 runs where a reaction
+ * Preconditions: setup done. Task 7 runs where a reaction
  * is possible: the maintainer decided the guide belongs to transfusions, not to turning screens.
  */
 class TapBudget {
@@ -60,7 +58,6 @@ class TapBudget {
     @Before fun clean() = runBlocking {
         app.db.clearAllTables()
         app.settings.setupSeen = true
-        (1..20).forEach { app.db.wardDao().usePatient(Patient("76548${it.toString().padStart(2, '0')}", now)) }
         taps = 0
     }
 
@@ -68,9 +65,9 @@ class TapBudget {
         AlarmService.stop(app)
     }
 
-    private fun report(task: Int, budget: Int) {
+    private fun report(task: Int, budget: Int, typing: Boolean = false) {
         val ok = taps <= budget
-        Log.i("TAPS", "task=$task taps=$taps typing=false budget=$budget ${if (ok) "PASS" else "FAIL"}")
+        Log.i("TAPS", "task=$task taps=$taps typing=$typing budget=$budget ${if (ok) "PASS" else "FAIL"}")
         assertTrue("task $task used $taps touches (budget $budget)", ok)
     }
 
@@ -177,33 +174,26 @@ class TapBudget {
         rule.waitUntil(10_000) { runBlocking { app.db.turnDao().ringingSlots().isEmpty() } }
     }
 
+    private fun typeMrn(mrn: String) {
+        rule.onNode(hasSetTextAction()).performTextInput(mrn)
+        rule.waitForIdle()
+    }
+
     @Test fun task4_startTransfusion() {
         home()
         tap("Start transfusion")
-        tap("7654805")
+        typeMrn("7654805")
         tap("Baseline done")
-        report(4, 4)
+        report(4, 4, typing = true)
         rule.waitUntil(10_000) { runBlocking { app.db.dao().runningTransfusions().any { it.bedLabel == "7654805" } } }
-    }
-
-    /** Reported, not budgeted: a patient the phone hasn't seen needs the MRN typed once. */
-    @Test fun task4_newPatient() {
-        home()
-        tap("Start transfusion")
-        tap("New MRN")
-        rule.onNode(hasSetTextAction()).performTextInput("7654899")
-        rule.waitForIdle()
-        tap("Baseline done")
-        Log.i("TAPS", "new patient: taps=$taps plus typing the MRN")
-        rule.waitUntil(10_000) { runBlocking { app.db.dao().runningTransfusions().any { it.bedLabel == "7654899" } } }
     }
 
     @Test fun task5_startPlan() {
         home()
         tap("Start turning")
-        tap("7654806")
+        typeMrn("7654806")
         tapLast("Back")
-        report(5, 4)
+        report(5, 4, typing = true)
         rule.waitUntil(10_000) { runBlocking { app.db.turnDao().allPlans().any { it.bedLabel == "7654806" && it.currentPosition == Position.BACK } } }
     }
 

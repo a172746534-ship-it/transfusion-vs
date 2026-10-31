@@ -59,13 +59,13 @@ class RepositioningScreenshots {
     @Test
     @Config(qualifiers = XTALL_PHONE)
     fun start() = shot("repositioning_start") {
-        TurnStartContent(editing = null, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = {})
+        TurnStartContent(editing = null, defaultIntervalMin = 120, openedAt = Fakes.at("2026-01-15T09:45"), onSubmit = {}, onBack = {})
     }
 
     @Test
     @Config(qualifiers = TALL_PHONE)
     fun edit() = shot("repositioning_edit") {
-        TurnStartContent(editing = TurnFakes.isolation.plan, beds = Fakes.wardBeds, busy = emptyMap(), defaultIntervalMin = 120, openedAt = Fakes.now, onSubmit = {}, onBack = {})
+        TurnStartContent(editing = TurnFakes.isolation.plan, defaultIntervalMin = 120, openedAt = Fakes.now, onSubmit = {}, onBack = {})
     }
 
     @Test

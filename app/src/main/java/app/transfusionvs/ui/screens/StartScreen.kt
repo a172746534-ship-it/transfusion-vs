@@ -36,7 +36,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.transfusionvs.R
 import app.transfusionvs.data.Transfusion
 import app.transfusionvs.schedule.Labels
@@ -47,13 +46,12 @@ import app.transfusionvs.schedule.ScheduleConfig
 import app.transfusionvs.schedule.TimelineBuilder
 import app.transfusionvs.ui.MainViewModel
 import app.transfusionvs.ui.PRIMARY_TAG
-import app.transfusionvs.ui.components.BedGrid
 import app.transfusionvs.ui.components.CapsLabel
 import app.transfusionvs.ui.components.CardTimeline
 import app.transfusionvs.ui.components.ChangeRow
 import app.transfusionvs.ui.components.ChoiceChip
-import app.transfusionvs.ui.components.OTHER_BED
 import app.transfusionvs.ui.components.Panel
+import app.transfusionvs.ui.components.PatientField
 import app.transfusionvs.ui.components.PrimaryButton
 import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.components.moreBelow
@@ -70,18 +68,13 @@ private val AGO_CHIPS = listOf(0, 5, 10, 15)
 
 /**
  * Start transfusion, or Edit when [editing] is given. Defaults instead of questions: started now, the
- * last duration used. Pick a bed, then "Baseline done · Start" (the confirmation is in the action).
+ * last duration used. Type the MRN, then "Baseline done · Start" (the confirmation is in the action).
  */
 @Composable
 fun StartScreen(vm: MainViewModel, editing: Transfusion?, onDone: () -> Unit, onBack: () -> Unit) {
     val openedAt = rememberSaveable { System.currentTimeMillis() }
-    val beds by vm.wardBeds.collectAsStateWithLifecycle()
-    val busy by vm.busyBeds.collectAsStateWithLifecycle()
     StartContent(
         editing = editing,
-        beds = beds.orEmpty(),
-        loaded = beds != null,
-        busy = busy,
         defaultDurationMin = vm.lastDurationMin,
         limitMin = vm.limitMin,
         warnBeforeMin = vm.warnBeforeMin,
@@ -104,29 +97,22 @@ fun StartScreen(vm: MainViewModel, editing: Transfusion?, onDone: () -> Unit, on
 @Composable
 fun StartContent(
     editing: Transfusion?,
-    beds: List<String>,
-    busy: Map<String, Int>,
     defaultDurationMin: Int,
     limitMin: Int,
     warnBeforeMin: Int,
     openedAt: Long,
     onSubmit: (bed: String, startAt: Long, durationMin: Int) -> Unit,
     onBack: () -> Unit,
-    /** For screenshots: a bed already picked. */
+    /** For screenshots: an MRN already typed. */
     initialBed: String = "",
-    /** The patient list has loaded: until then an empty one doesn't mean nobody yet. */
-    loaded: Boolean = true,
 ) {
     val context = LocalContext.current
     val c = Ward.c
 
-    var picked by rememberSaveable { mutableStateOf(editing?.bedLabel ?: initialBed) }
-    var otherText by rememberSaveable { mutableStateOf("") }
-    // With nobody seen yet the only way in is the MRN field.
-    val typing = picked == OTHER_BED || (loaded && picked.isBlank() && beds.isEmpty())
-    // Editing: the patient is in the title, and a slip here would move their alarms to someone else.
+    // Editing keeps the patient unless asked: the title says who, and a slip here would move their alarms.
     var changingPatient by rememberSaveable { mutableStateOf(editing == null) }
-    val bed = if (typing) otherText.takeIf { PatientInput.valid(it) } ?: "" else picked
+    var mrn by rememberSaveable { mutableStateOf(initialBed) }
+    val bed = if (changingPatient) mrn.takeIf { PatientInput.valid(it) } ?: "" else editing?.bedLabel.orEmpty()
 
     var startAt by rememberSaveable { mutableLongStateOf(editing?.startAt ?: ScheduleCalculator.truncateToMinute(openedAt)) }
     var agoChoice by rememberSaveable { mutableIntStateOf(if (editing == null) 0 else -1) } // -1 = picked time
@@ -154,12 +140,12 @@ fun StartContent(
             Panel {
                 CapsLabel("Which patient?")
                 if (changingPatient) {
-                    BedGrid(
-                        beds = (beds + listOfNotNull(editing?.bedLabel)).distinct(), busy = busy, selected = picked, typing = typing, otherText = otherText,
-                        onPick = { picked = it }, onOtherText = { otherText = it },
-                    )
+                    PatientField(mrn) { mrn = it }
                 } else {
-                    ChangeRow(picked) { changingPatient = true }
+                    ChangeRow(editing?.bedLabel.orEmpty()) {
+                        mrn = PatientInput.clean(editing?.bedLabel.orEmpty())
+                        changingPatient = true
+                    }
                 }
             }
 
@@ -238,7 +224,7 @@ fun StartContent(
             PrimaryButton(
                 when {
                     editing != null -> "Save changes"
-                    bed.isBlank() -> if (typing) "Enter the MRN first" else "Pick a patient first"
+                    bed.isBlank() -> "Enter the MRN first"
                     else -> "Baseline done · Start"
                 },
                 onClick = { duration?.let { d -> onSubmit(bed, startAt, d) } },

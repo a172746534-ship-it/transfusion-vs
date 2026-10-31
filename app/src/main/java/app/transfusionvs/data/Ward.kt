@@ -4,17 +4,9 @@ import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
-
-/**
- * A patient this phone has seen lately, so the next plan for them takes one tap instead of typing.
- * The MRN only, never a name. It goes a day after its last use, once nothing is running for it.
- */
-@Entity(tableName = "patient")
-data class Patient(@PrimaryKey val mrn: String, val lastUsedAt: Long)
 
 /**
  * What it takes to take one action back: "Undo" for 5 seconds and "Undo last" on the bed's card for
@@ -40,26 +32,6 @@ data class UndoAction(
 
 @Dao
 interface WardDao {
-
-    // ---- Recent patients ----
-
-    @Query("SELECT * FROM patient")
-    fun observePatients(): Flow<List<Patient>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun usePatient(patient: Patient)
-
-    @Query("DELETE FROM patient WHERE mrn = :mrn")
-    suspend fun removePatient(mrn: String)
-
-    @Query(
-        """
-        DELETE FROM patient WHERE lastUsedAt < :cutoff
-          AND mrn NOT IN (SELECT bedLabel FROM transfusion)
-          AND mrn NOT IN (SELECT bedLabel FROM turn_plan)
-        """,
-    )
-    suspend fun forgetPatients(cutoff: Long)
 
     // ---- Undo ----
 

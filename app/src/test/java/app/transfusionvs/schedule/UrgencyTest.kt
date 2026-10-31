@@ -154,7 +154,6 @@ class UrgencyTest {
         assertFalse(PatientInput.valid("1234"))
         assertTrue(PatientInput.valid("12345"))
         assertFalse(PatientInput.valid("12a45"))
-        assertEquals(listOf("20000", "100000"), PatientInput.sorted(listOf("100000", "20000")))
     }
 
     @Test
