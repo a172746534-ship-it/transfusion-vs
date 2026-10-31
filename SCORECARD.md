@@ -12,14 +12,16 @@ scores 0. Not run = 0.
 | 2, API 26 and 34 | not scored | Run 41181135506, commit a5c206e. API 26: 19/25 in area A, 2 N/A | API 26: A04, A05 refused do-not-disturb access; A07, A08 the test didn't kill or remove anything (the alarm fired +0 s in both) |
 | 3, MRN instead of the bed | not scored | Run 41184986977, commit a1054e7, API 34 only: 23/25 in area A, 8 of 9 tasks in budget at 360 dp and all at 412, monkey clean, 0 leaks, StrictMode 0 in this app (7 from the framework), cold start 392.5 ms, M01 PASS | A15, A16 looked for the warning's old wording; task 1 at 360 dp; rotation and process death |
 | 4, reviewers round 3 fixed | not scored | Commits 4c509ee, 748a422. Design reviewer had given 5/10 before these fixes, personas 9, 8 and 5 findings. Unit tests and screenshots pass. **Not run on an emulator** | See below |
+| 5, MRN typed, final design review | not scored | The list of patients removed, commit cd1e9c4. Final design review 7/10 on that commit, 8 Major, 46 Minor, then fixed, commit 269144f. Unit tests and screenshots pass. **Not run on an emulator**, and the fixes weren't re-reviewed | See below |
 
 **Stopped on 2026-10-31 by the maintainer's decision, before the full matrix and with no 100/100.** The loop's stop condition was not met, and no final score was computed: by §5, what was not run scores 0.
 
 Not proven, so not to be read as PASS:
-- Commits 4c509ee and 748a422 on any emulator. They change the alarm screen's layout, not when it rings. They also carry the test fixes for A07, A08, A15, A16, rotation and process death, which therefore never ran.
+- Everything from commit 4c509ee on, on any emulator. Those commits change the alarm screen's layout and the Start screens, not when an alarm rings. They also carry the test fixes for A07, A08, A15, A16, rotation and process death, which therefore never ran.
+- Typing the MRN on a real keyboard: the number pad's height and the button above it are only reasoned from the layout, since the screenshots show no keyboard.
 - API 29, 31, 33 and 36 on any recent build.
 - Do-not-disturb and silent mode on API 26.
-- A fresh design review or persona review of the fixes. The reviewers saw commit bbace5b.
+- A fresh design review of the last fixes, or any persona review since commit bbace5b.
 - ktlint: its patch was never applied, since it rewrites most files.
 - Real phones and OEM battery killers (Xiaomi, Samsung), and real nurses on a real shift. Firebase Test Lab has no secrets here.
 
