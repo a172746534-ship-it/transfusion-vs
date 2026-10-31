@@ -190,7 +190,25 @@ parameter.
 
 ## 3. Findings from the emulator lab
 
-LAB_FINDINGS
+Run 41151371477, commit 7f2f463. Full scoring in [SCORECARD.md](SCORECARD.md).
+
+**The alarm engine holds.** On APIs 31, 33 and 36, every alarm test that applies passes and rings at +0 s: locked, Doze,
+battery saver, do not disturb, silent, vibrate, process killed, removed from recents, force stop, app update, a real
+reboot before and after unlock, and a clock change.
+
+**F42 · Critical · A13 on every API measured.** After a timezone change, a plan whose first slot has not fired keeps that
+slot, off the new grid: the next slot reads 07:45 local. `TurnGrid.slots` starts from `firstSlotAt` unconditionally. *Why:*
+a round rings at a time that is not on the ward clock. *Fix:* recompute an unfired first slot on the new grid.
+
+**F43 · Major · StrictMode.** 12 violations on API 31, 16 on 33, 5 on 36: disk reads on the main thread in
+`Settings.getSetupSeen`, `MainActivity.onCreate` and `AlarmPlayer.startSound`, and leaked closables. *Fix:* move them off
+the main thread, close what is opened. The alarm's own start path gets a reliability test before it changes.
+
+**Clean:** monkey 20,000 events with 0 crashes and 0 ANRs, 0 application leaks, rotation and process death keep the typed
+bed, cold start 665–1002 ms.
+
+**Lab bug, not an app defect:** on API 26 the lab's do-not-disturb hook is refused, so reliability could not be measured
+there. To fix first in the loop.
 
 ## 4. Findings from independent reviewers
 
