@@ -154,9 +154,10 @@ fun CustomDetailContent(
                         selected = stop != null,
                         onClick = { onSetStop(t.id, if (stop != null) null else shiftEnd) },
                     )
+                    // The state in words, plainly: the chip alone can read as already set.
                     Text(
                         if (stop != null) "On: no alarm at or after ${Labels.clock(stop)}. Tap again to turn it off." else "Off: it rings until you stop it.",
-                        color = c.muted, style = WardType.Body,
+                        color = c.ink, style = WardType.BodyBold,
                     )
                 }
             } else {

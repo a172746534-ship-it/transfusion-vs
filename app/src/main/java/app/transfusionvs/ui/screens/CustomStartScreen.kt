@@ -185,6 +185,9 @@ fun CustomStartContent(
     if (showOther) {
         OtherIntervalDialog(
             confirm = if (editing == null) "Start" else "Use",
+            // A new timer: who it's for and when it would first ring, as on the buttons.
+            forWhom = bed.takeIf { editing == null },
+            start = start.takeIf { editing == null },
             onConfirm = { m ->
                 showOther = false
                 if (editing == null) onSubmit(CustomDraft(bed, name.trim(), m)) else interval = m
@@ -233,7 +236,7 @@ private fun IntervalButtons(selected: Int?, enabled: Boolean, firstAt: ((Int) ->
 
 /** Any interval from 15 min to 24 h, in 5-minute steps. It opens at 15 min every time. */
 @Composable
-private fun OtherIntervalDialog(confirm: String, onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
+private fun OtherIntervalDialog(confirm: String, forWhom: String?, start: Long?, onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
     val c = Ward.c
     var minutes by rememberSaveable { mutableIntStateOf(CustomRules.MIN_INTERVAL) }
     fun change(by: Int) {
@@ -254,6 +257,9 @@ private fun OtherIntervalDialog(confirm: String, onConfirm: (Int) -> Unit, onDis
                     Step("+ ${CustomRules.OTHER_STEP} min", Modifier.weight(1f), enabled = minutes < CustomRules.MAX_INTERVAL) { change(CustomRules.OTHER_STEP) }
                 }
                 Text("From 15 min to 24 h.", color = c.muted, style = WardType.Body)
+                if (forWhom != null && start != null) {
+                    Text("For $forWhom · first alarm ${Labels.clock(start + minutes * MINUTE_MS)}", color = c.ink, style = WardType.BodyBold, textAlign = TextAlign.Center)
+                }
             }
         },
         confirmButton = {
@@ -270,7 +276,7 @@ private fun OtherIntervalDialog(confirm: String, onConfirm: (Int) -> Unit, onDis
 private fun Step(text: String, modifier: Modifier, enabled: Boolean, onClick: () -> Unit) {
     val c = Ward.c
     WardButton(
-        text, onClick, modifier, fill = if (enabled) c.card else c.bg, content = if (enabled) c.ink else c.muted, edge = c.muted,
+        text, onClick, modifier, fill = if (enabled) c.card else c.bg, content = if (enabled) c.ink else c.muted, edge = if (enabled) c.muted else c.track,
         minHeight = TvsSize.Touch, shape = TvsShape.Control, style = WardType.BodyBold, enabled = enabled,
     )
 }

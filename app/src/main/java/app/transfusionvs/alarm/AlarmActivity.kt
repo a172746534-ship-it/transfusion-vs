@@ -350,6 +350,7 @@ fun AlarmContent(
                 },
                 now = now,
                 customDue = customs.size,
+                customOverdue = customs.any { (now - it.slotAt) / MINUTE_MS >= overdueAfterMin },
                 onOpenCustom = { customFirst = true },
             )
             round != null && round.beds.isNotEmpty() && !showCustom -> RoundAlarm(
@@ -360,6 +361,7 @@ fun AlarmContent(
                 now = now,
                 overdueAfterMin = overdueAfterMin,
                 customDue = customs.size,
+                customOverdue = customs.any { (now - it.slotAt) / MINUTE_MS >= overdueAfterMin },
                 onOpenCustom = { customFirst = true },
             )
             customs.isNotEmpty() -> {
@@ -497,6 +499,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
     onStartRound: () -> Unit,
     now: Long,
     customDue: Int = 0,
+    customOverdue: Boolean = false,
     onOpenCustom: () -> Unit = {},
 ) {
     val c = Ward.c
@@ -542,7 +545,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
                 fill = c.alarmBg, content = c.alarmInk, edge = if (overdue) c.alarmDanger else c.alarmInk, style = WardType.BodyBold, icon = R.drawable.ic_turn,
             )
         }
-        if (customDue > 0) CustomDueButton(customDue, onOpenCustom)
+        if (customDue > 0) CustomDueButton(customDue, customOverdue, onOpenCustom)
         if (!isTest) {
             ReactionBar(onClick = onReaction)
             // Apart from Snooze: a thumb aiming for one mustn't land on the other.
@@ -600,6 +603,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
     now: Long,
     overdueAfterMin: Int,
     customDue: Int = 0,
+    customOverdue: Boolean = false,
     onOpenCustom: () -> Unit = {},
 ) {
     val c = Ward.c
@@ -658,7 +662,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
     }
     Spacer(Modifier.size(TvsSpace.s8))
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-        if (customDue > 0) CustomDueButton(customDue, onOpenCustom)
+        if (customDue > 0) CustomDueButton(customDue, customOverdue, onOpenCustom)
         if (round.started) {
             val others = round.beds.count { it.slotId !in open.keys }
             val waiting = "${open.size} above still waiting for your answer"
@@ -745,13 +749,16 @@ private fun RoundBedRow(
     }
 }
 
-/** On the transfusion and round screens, only while custom alarms are due: they come after. */
+/**
+ * On the transfusion and round screens, only while custom alarms are due: they come after. Once one is
+ * overdue its edge is red, as on the round's button.
+ */
 @Composable
-private fun CustomDueButton(count: Int, onClick: () -> Unit) {
+private fun CustomDueButton(count: Int, overdue: Boolean, onClick: () -> Unit) {
     val c = Ward.c
     WardButton(
         "Custom · $count due", onClick, Modifier.fillMaxWidth(),
-        fill = c.alarmBg, content = c.alarmInk, edge = c.alarmInk, style = WardType.BodyBold, icon = R.drawable.ic_custom,
+        fill = c.alarmBg, content = c.alarmInk, edge = if (overdue) c.alarmDanger else c.alarmInk, style = WardType.BodyBold, icon = R.drawable.ic_custom,
     )
 }
 

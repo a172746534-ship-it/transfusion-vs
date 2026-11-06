@@ -1202,7 +1202,8 @@ WHOLE_APP = {"A15_permissions_revoked_warns", "A16_alarm_volume_zero_warns"}
 
 def device_alive():
     try:
-        return "device" in run("adb get-state", 20)
+        # Exactly "device": a lost emulator answers "adb: device 'emulator-5554' not found", which holds the word too.
+        return run("adb get-state", 20).strip() == "device"
     except subprocess.TimeoutExpired:
         return False
 

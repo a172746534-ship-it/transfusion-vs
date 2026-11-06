@@ -70,7 +70,7 @@ Every changed line must map to an item here. A location found later is added her
 - **U5 New `ui/screens/CustomStartScreen.kt`:**
   - task-name field (auto-focus, Next) and `PatientField(autoFocus = false)`
   - 3 × 3 interval grid, pinned with `PRIMARY_TAG`, hidden while the keyboard is open, with the "Enter the task name and MRN first" line; once both are valid that line reads "How often for <MRN>? One tap starts it.", and each interval button shows when it would first ring (not at large font) (reviews 1 and 2)
-  - the "Other" dialog (± 1 h, ± 5 min, 15 min – 24 h, opens at 15 min); the steps look and act disabled at the limits
+  - the "Other" dialog (± 1 h, ± 5 min, 15 min – 24 h, opens at 15 min); the steps look and act disabled at the limits; on a new timer it says who for and when the first alarm would ring
   - edit mode: MRN behind `ChangeRow`, a "How often?" line, buttons select, "Save changes", duplicate rename refused
 - **U6 New `ui/screens/CustomDetailScreen.kt`:** MRN header, task and interval, the next alarm ("Now" while one is open; at large font the time under the state), then Edit (with an alarm open, Edit and Stop in one row); header "Custom timer running" / "Custom timer stopped", an "Auto-stop" panel with the "End of my shift" chip (a tap sets, a second clears) and a line saying whether it is on; "stops HH:MM" in the summary line; when stopped, when and how, the day's alarms. Pinned: Done when due, otherwise Stop. Stop ignores taps for 1 s after taking Done's place. No transfusion content.
 - **U7 `alarm/AlarmActivity.kt`:**
@@ -78,7 +78,7 @@ Every changed line must map to an item here. A location found later is added her
   - `nothingOpen` counts customs (trap 3)
   - `AlarmContent` gets new params with defaults
   - new `CustomAlarm`: single and selectable, with no reaction bar
-  - a "Custom · N due" button on the transfusion and round screens, only when customs are due
+  - a "Custom · N due" button on the transfusion and round screens, only when customs are due; its words are the request's, and its edge is red once one is overdue, as on the round's button (persona round 3)
   - the snooze rule
   - one custom alarm: "every 4 h · next 15:00"; several: the title "N timers due", each row with the single alarm's due / overdue / snoozed chip, and the bottom button naming the task as well as the patient
   - several custom alarms listed earliest due first (alarms of the same minute by the earliest start, as §4 says); at large font the name on its own line (persona round 1)
@@ -105,6 +105,7 @@ Every changed line must map to an item here. A location found later is added her
   - `--kind` (transfusion, custom or both): the arrange, assert and row helpers read the kind
   - custom variants of A13, A14, A20–A23 and M01: the cases written around a transfusion or a round. The others, A19 among them, run for custom alarms as they are, through the helpers.
   - custom results get ids `<id>@custom`
+  - the lab's recovery: `device_alive()` looked for the word "device" in `adb get-state`, so a lost emulator ("adb: device 'emulator-5554' not found") counted as alive and `revive()` never ran. That lost API 34 in the baseline and API 31 in full run 42231693326. It now compares exactly. No case's own steps change.
 - **L3 `lab/score.py`:** `@custom` ids become gates (no points). The existing gate lines print as before; after them, one line says how many gates pass on area A's rule (PASS or N/A on every API, PASS on at least one).
 - **L4 `.github/workflows/lab.yml`, `lab/config.json`:** done in commit 87365cc (baseline).
 

@@ -94,3 +94,4 @@ The request is docs/CUSTOM_TIMER.md, word for word: re-read it after any restart
 - Step 4: tests. JVM: CustomRulesTest, CustomSchedulePropertyTest (12,000 cases per rule), CustomViewsTest, CustomEngineTest (id collisions), CustomNameFitTest, CustomScreenshots, and a MigrationTest v3 to v4. Emulator: TapBudget tasks 10-12, UiChecks, Robustness. Lab: `--kind both`, ids `<id>@custom`, gates in score.py.
 - Next: the API 34 fast loop, BASELINE.md once the baseline run finishes, the fresh design reviewer, the personas and the scope audit, then two full-matrix runs.
 - Maintainer, 2026-11-06: **one full-matrix run for now**, not two consecutive (docs/CUSTOM_TIMER.md §9 says two). The other conditions of §9 stay.
+- Full run 1 (lab 42231693326, commit 272e1e7): baseline checks hold; custom gates pass on 26/33/34/36 and on 29 but A04@custom (image, as baseline A04); API 31 lost to a lab bug (device_alive), fixed. See SCORECARD.md.
