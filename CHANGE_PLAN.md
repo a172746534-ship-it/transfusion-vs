@@ -110,8 +110,9 @@ Every changed line must map to an item here. A location found later is added her
   - `CustomSchedulePropertyTest` (≥ 10,000 cases)
   - `CustomEngineTest` (start, duplicate, edit, stop, undo, the id collision across all three types, pre-alert routing, masker labels)
   - `CustomViewsTest` (views, sort, no record-keeping)
+  - `CustomNameFitTest` (the task name at font 2.0 on 360 dp, measured from the text layout; §8 Names)
 - **T2 `data/MigrationTest`:** a new test, v3 → v4 keeps everything.
-- **T3 New `screenshots/CustomScreenshots.kt`:** audit states: Home with custom, start empty / valid / Other dialog / edit, detail, the alarm single / several / with a transfusion and a round, the widget.
+- **T3 New `screenshots/CustomScreenshots.kt`:** audit states: Home with custom, start empty / valid / Other dialog / edit, detail, the alarm single / several / with a transfusion and a round, the widget. Its fake data is `sharedTest/.../screenshots/CustomFakes.kt`, shared with the emulator tests as `Fakes` and `TurnFakes` are.
 - **T4 androidTest:**
   - `TapBudget`: tasks 10–12
   - `UiChecks`: custom start, detail and alarm

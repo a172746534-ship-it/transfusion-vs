@@ -158,3 +158,16 @@ Monkey, leaks, rotation and process death are from APIs 26, 31, 33 and 36. Provi
 | Persona 1, no concrete finding | 2 | FAIL | 22 findings |
 | Persona 2, no concrete finding | 2 | FAIL | 23 findings |
 | Persona 3, no concrete finding | 1 | FAIL | 20 findings |
+
+## Custom timer gates (docs/CUSTOM_TIMER.md §8, added 2026-11-06)
+
+Pass or fail, worth no points, like M01. The 100-point math and the area weights don't change, so a
+score stays comparable to BASELINE.md. A gate passes on the same rule as area A: PASS or N/A on every
+API of the matrix, PASS on at least one.
+
+- **Reliability, for custom alarms:** A01–A14, A17–A23 and M01, as `<id>@custom` (`lab/reliability.py --kind both`). A15 and A16 check the app as a whole and run once.
+- **Tap budget:** tasks 10 (start, 4), 11 (Done, 1) and 12 (stop, 3) in `TapBudget`, with typing marked. Tasks 1–9 stay within budget.
+- **Unit:** CustomRulesTest, CustomSchedulePropertyTest (≥ 10,000 cases per rule), CustomViewsTest, CustomEngineTest (id collisions), CustomNameFitTest, MigrationTest v3 → v4.
+- **UI checks** for the custom screens, and **Robustness** for custom Done, undo, start and the widget.
+- **Screenshot regression:** docs/SCREENSHOT_REGRESSION.md.
+- **Scope audit:** a fresh subagent maps every changed line to CHANGE_PLAN.md.

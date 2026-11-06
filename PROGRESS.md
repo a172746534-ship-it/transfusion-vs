@@ -89,3 +89,7 @@ The maintainer approved merging and releasing without the loop's 100/100 conditi
 ## Custom timer (branch `custom-timer`, started 2026-11-06). Read this first after a restart.
 The request is docs/CUSTOM_TIMER.md, word for word: re-read it after any restart. main stays untouched until its section 9 is met.
 - Step 1: the first commit only saves the request and lets the lab run on this branch. Its full-matrix `[lab]` run, on app code identical to main (9c1e37e), is the baseline: BASELINE.md.
+- Step 2: CHANGE_PLAN.md, then the code at the planned places only (data, rules, engine source, UI, widget, shortcut, lab hook).
+- Step 3: docs/SCREENSHOT_REGRESSION.md. The audit set against the baseline: 133 screens identical, 49 Home screens differ only in the pinned area. The four Home references were re-recorded after that proof.
+- Step 4: tests. JVM: CustomRulesTest, CustomSchedulePropertyTest (12,000 cases per rule), CustomViewsTest, CustomEngineTest (id collisions), CustomNameFitTest, CustomScreenshots, and a MigrationTest v3 to v4. Emulator: TapBudget tasks 10-12, UiChecks, Robustness. Lab: `--kind both`, ids `<id>@custom`, gates in score.py.
+- Next: the API 34 fast loop, BASELINE.md once the baseline run finishes, the fresh design reviewer, the personas and the scope audit, then two full-matrix runs.

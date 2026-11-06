@@ -13,8 +13,11 @@ Taps are counted the way docs/DESIGN_OVERHAUL.md §2 says: every touch is 1, the
 | 7 | Suspected reaction → the steps | 2 | Home: ① icon ② the red bar. Alarm or Detail: ① the red bar. | 2 / 1 / 1 |
 | 8 | Mark "Transfusion stopped" | 3 | ① icon ② the red bar ③ Transfusion stopped — 7654812 | 3 |
 | 9 | One patient "can't turn" with a reason | 3 | ① Start round ② Can't turn ③ the reason | 3 |
+| 10 | Start a custom timer | 4 | ① icon ② Start custom, type the task name and the MRN ③ the interval | 3 + typing |
+| 11 | Acknowledge a custom alarm | 1 | ① Done ✓ (alarm screen or notification) | 1 |
+| 12 | Stop a custom timer | 3 | ① icon ② the patient's card ③ Stop timer (Undo, no dialog) | 3 |
 
-Tasks 4 and 5 type the MRN on the number pad, which opens by itself with the screen. That is the maintainer's decision (2026-10-31): some places in the hospital have no beds, and a list of numbers to pick from was clutter. No other task types anything.
+Tasks 4 and 5 type the MRN on the number pad, which opens by itself with the screen. That is the maintainer's decision (2026-10-31): some places in the hospital have no beds, and a list of numbers to pick from was clutter. Task 10 types the task name and the MRN, also the maintainer's decision (docs/CUSTOM_TIMER.md §3). No other task types anything.
 
 ## What changed, and why
 

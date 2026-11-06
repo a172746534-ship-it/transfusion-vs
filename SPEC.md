@@ -313,6 +313,49 @@ alarm behaviour as transfusions.
 
 ---
 
+# Feature 3: Custom timers — added 2026-11-06
+
+The full request is docs/CUSTOM_TIMER.md, the source of truth. The plan of every changed line is
+CHANGE_PLAN.md. Transfusions and repositioning are in daily use: nothing about them changes.
+
+## What it is
+A timer for anything that isn't a transfusion or a turning round (pain reassessment, IV site
+check). The nurse types a task name and the patient's MRN and taps an interval. It repeats until
+stopped. Every timer starts empty: no templates, no suggestions, no remembered name or interval.
+
+## Rules
+- **Start:** Home's third tile, "Start custom", or the third app shortcut. The task name (1–30
+  characters, one line, label "Task name — no patient names"), the MRN in `PatientField`, then an
+  interval: 15 min · 30 min · 1 h · 2 h · 4 h · 6 h · 8 h · 12 h · Other (15 min – 24 h, 5-min steps).
+  The interval buttons are the start buttons. Task 10: 3 taps + typing.
+- **Schedule:** elapsed time from the start (on the whole minute): start + n × interval. Daylight
+  saving and timezone changes never move it. A late Done never moves it. The next alarm always
+  exists, whatever the interval. Editing the name or MRN keeps the schedule; a new interval starts
+  from the last Done (or the start) and never rings in the past.
+- **An alarm:** rings → at the missed timeout the sound stops and Overdue shows, still
+  acknowledgeable → MISSED when the next alarm fires. Done = "Done ✓". Snooze only if it ends
+  before the next alarm, within the usual limit.
+- **Per patient:** several timers are fine; the same name twice for one MRN is not (case, spaces and
+  Unicode composition ignored). Starting a duplicate opens the existing one.
+- **Detail:** the task, the next alarm, "End of my shift", the day's alarms, Edit, Stop. No
+  transfusion content. Stop is quiet and pinned; while an alarm is open, Done takes its place.
+  Undo for 5 seconds, and "Undo last" on the card. No Restart.
+- **Alarm:** its own icon, caps line, chime and vibration; transfusion > round > custom. With a
+  transfusion or round in the same minute, their screen gains "Custom · N due".
+- **Privacy:** outside the app the MRN and any run of 5+ digits in the name are masked
+  ("•••4821"). The rest of the name shows as typed, also over the lock screen: the field's label is
+  the only guard (the maintainer's decision). Neither is ever logged.
+- **No record-keeping:** a stopped timer, with its MRN and name, is gone a day later.
+- **Settings:** none new. Tolerance, pre-alert, snooze and missed timeout are the transfusion ones.
+
+## Data
+Room v4 adds `custom_timer` and `custom_slot` by automatic migration (3 → 4). Nothing Custom goes
+into the transfusion, checkpoint or turn tables. Custom alarms have their own address,
+`tvs://alarm/CUSTOM/<kind>/<id>`, so the same number can be a checkpoint, a turn slot and a custom
+alarm at once.
+
+---
+
 # Design overhaul — added 2026-10-31
 
 The full brief is docs/DESIGN_OVERHAUL.md and the test loop is docs/TEST_LOOP.md; both are the source
@@ -446,3 +489,8 @@ The maintainer's decisions: some places in the hospital have no beds, so a patie
 - The MRN is typed on the number pad when Start opens, digits only (5 to 16), so a name can't be typed. Names are still never stored.
 - The phone keeps an MRN only as part of its plan, and it goes with the plan, a day after that plan finishes. `bedLabel` in the database now holds the MRN; a plan from an older version keeps its bed label, unmasked.
 - The database is in device-protected storage, so alarms can ring after a reboot before the first unlock. That keeps working, and it means MRNs live there too, encrypted by the device but readable before the first unlock by the app. Backup is off.
+
+## Custom timers (2026-11-06)
+- Built from docs/CUSTOM_TIMER.md and CHANGE_PLAN.md, as a third source on the same engine (`CustomSource`, pure rules in `CustomRules`).
+- An alarm due within 1 second rings at once, as for the other types. So the next alarm created is always the first one more than 1 second away: otherwise one due in that second could ring with nothing armed after it. Found by the property test.
+- Home's Start row has three tiles. At 360 and 412 dp the labels wrap to two lines, which makes the row 13 dp taller. On a 360 × 800 phone the sixth card's timeline dots now sit under the list's edge, while its MRN, time and state stay in view. Measured in docs/SCREENSHOT_REGRESSION.md.
