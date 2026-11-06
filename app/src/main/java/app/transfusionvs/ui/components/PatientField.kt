@@ -18,7 +18,7 @@ import app.transfusionvs.ui.theme.WardType
 
 /** The patient's MRN, on the number pad, ready to type as soon as the screen opens. Digits only, so a name can't get in. */
 @Composable
-fun PatientField(value: String, onValue: (String) -> Unit, autoFocus: Boolean = true) {
+fun PatientField(value: String, autoFocus: Boolean = true, onValue: (String) -> Unit) {
     val c = Ward.c
     val focus = remember { FocusRequester() }
     // Off on the custom timer's screen, where the task name comes first.

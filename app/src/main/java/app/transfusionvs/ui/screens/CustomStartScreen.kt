@@ -135,7 +135,7 @@ fun CustomStartContent(
             Panel {
                 CapsLabel("Which patient?")
                 if (changingPatient) {
-                    PatientField(mrn, { mrn = it }, autoFocus = false)
+                    PatientField(mrn, autoFocus = false) { mrn = it }
                 } else {
                     ChangeRow(editing?.bedLabel.orEmpty()) {
                         mrn = PatientInput.clean(editing?.bedLabel.orEmpty())
