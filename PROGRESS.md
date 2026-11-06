@@ -95,3 +95,10 @@ The request is docs/CUSTOM_TIMER.md, word for word: re-read it after any restart
 - Next: the API 34 fast loop, BASELINE.md once the baseline run finishes, the fresh design reviewer, the personas and the scope audit, then two full-matrix runs.
 - Maintainer, 2026-11-06: **one full-matrix run for now**, not two consecutive (docs/CUSTOM_TIMER.md §9 says two). The other conditions of §9 stay.
 - Full run 1 (lab 42231693326, commit 272e1e7): baseline checks hold; custom gates pass on 26/33/34/36 and on 29 but A04@custom (image, as baseline A04); API 31 lost to a lab bug (device_alive), fixed. See SCORECARD.md.
+- **Stopped by the maintainer ("انجز"), 2026-11-06.** Not merged, no tag. Merge only on an explicit go-ahead (docs/CUSTOM_TIMER.md §9).
+  - Last code: 739d90c. Build 42288270608 is green (all unit, property, migration and screenshot tests). Its full-matrix lab run, 42288270975, was left running on GitHub.
+  - Unmet at the stop:
+    - No full run with every gate green yet. Run 1: API 31 lost to the lab bug (since fixed); A04@custom fails on API 29's image, as A04 does in the baseline.
+    - Design review: last completed score 6.5/10 (round 2). Its fixes weren't re-reviewed: round 3 hit a usage limit.
+    - Personas: findings remain that the request itself requires (see docs/audit).
+    - The round-3 scope audit didn't finish.
