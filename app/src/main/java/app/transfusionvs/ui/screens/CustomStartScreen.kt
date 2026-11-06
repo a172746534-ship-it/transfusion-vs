@@ -155,7 +155,8 @@ fun CustomStartContent(
             if (editing == null) {
                 // While the keyboard is open the fields keep the room; its Done brings the buttons back.
                 if (!typing) {
-                    if (!ready) Text("Enter the task name and MRN first", color = c.ink, style = WardType.Lead)
+                    // Once both are valid it says what a tap does: there is no separate Start button.
+                    Text(if (ready) "How often? One tap starts it." else "Enter the task name and MRN first", color = c.ink, style = WardType.Lead)
                     IntervalButtons(selected = null, enabled = ready) { m ->
                         if (m == OTHER) showOther = true else onSubmit(CustomDraft(bed, name.trim(), m))
                     }
@@ -230,12 +231,12 @@ private fun OtherIntervalDialog(confirm: String, onConfirm: (Int) -> Unit, onDis
             Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s12), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(Labels.duration(minutes), color = c.ink, style = WardType.Hero)
                 Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    Step("− 1 h", Modifier.weight(1f)) { change(-60) }
-                    Step("+ 1 h", Modifier.weight(1f)) { change(60) }
+                    Step("− 1 h", Modifier.weight(1f), enabled = minutes > CustomRules.MIN_INTERVAL) { change(-60) }
+                    Step("+ 1 h", Modifier.weight(1f), enabled = minutes < CustomRules.MAX_INTERVAL) { change(60) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    Step("− ${CustomRules.OTHER_STEP} min", Modifier.weight(1f)) { change(-CustomRules.OTHER_STEP) }
-                    Step("+ ${CustomRules.OTHER_STEP} min", Modifier.weight(1f)) { change(CustomRules.OTHER_STEP) }
+                    Step("− ${CustomRules.OTHER_STEP} min", Modifier.weight(1f), enabled = minutes > CustomRules.MIN_INTERVAL) { change(-CustomRules.OTHER_STEP) }
+                    Step("+ ${CustomRules.OTHER_STEP} min", Modifier.weight(1f), enabled = minutes < CustomRules.MAX_INTERVAL) { change(CustomRules.OTHER_STEP) }
                 }
                 Text("From 15 min to 24 h.", color = c.muted, style = WardType.Body)
             }
@@ -249,8 +250,12 @@ private fun OtherIntervalDialog(confirm: String, onConfirm: (Int) -> Unit, onDis
     )
 }
 
+/** At the limit it looks and acts disabled, like the interval buttons before the fields are filled. */
 @Composable
-private fun Step(text: String, modifier: Modifier, onClick: () -> Unit) {
+private fun Step(text: String, modifier: Modifier, enabled: Boolean, onClick: () -> Unit) {
     val c = Ward.c
-    WardButton(text, onClick, modifier, fill = c.card, content = c.ink, edge = c.muted, minHeight = TvsSize.Touch, shape = TvsShape.Control, style = WardType.BodyBold)
+    WardButton(
+        text, onClick, modifier, fill = if (enabled) c.card else c.bg, content = if (enabled) c.ink else c.muted, edge = c.muted,
+        minHeight = TvsSize.Touch, shape = TvsShape.Control, style = WardType.BodyBold, enabled = enabled,
+    )
 }

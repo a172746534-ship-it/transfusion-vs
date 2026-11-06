@@ -90,6 +90,14 @@ class CustomViewsTest {
     }
 
     @Test
+    fun alarmsOfDifferentMinutes_theMostOverdueFirst() {
+        val now = at("11:05")
+        val due = item(slot(5, "11:00", CustomSlotStatus.RINGING, fired = "11:00"), id = 2, start = "07:00", name = "Due one")
+        val overdue = item(slot(6, "10:50", CustomSlotStatus.RINGING, fired = "10:50").copy(silenced = true), id = 3, start = "10:20", name = "Overdue one")
+        assertEquals(listOf("Overdue one", "Due one"), CustomRingBuilder.build(listOf(due, overdue), now, 2).map { it.name })
+    }
+
+    @Test
     fun customOnly_titlesTheScreen_andMaskingCoversTheName() {
         val now = at("10:00")
         val rings = CustomRingBuilder.build(listOf(item(slot(5, "10:00", CustomSlotStatus.RINGING, fired = "10:00"), name = "Drain 7654812")), now, 2)

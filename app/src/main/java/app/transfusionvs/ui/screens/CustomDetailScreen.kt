@@ -1,24 +1,30 @@
 package app.transfusionvs.ui.screens
 
+import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -72,6 +78,7 @@ fun CustomDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit, onEdit: 
  * One custom timer: the task, its next alarm, "End of my shift", the day's alarms, Edit and Stop.
  * Nothing about transfusions here: no steps, no End VS, no reaction bar.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CustomDetailContent(
     item: CustomTimerWithSlots?,
@@ -114,25 +121,26 @@ fun CustomDetailContent(
                 Panel {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            CapsLabel("Next")
+                            CapsLabel(if (open != null) "Now" else "Next")
                             StateText(view)
                         }
                         view.time?.let { Text(Labels.clock(it), color = c.ink, style = WardType.Hero, softWrap = false) }
                     }
                 }
+                // As on the turning plan's start screen: which one is on is always shown.
                 Panel {
-                    CapsLabel("End of my shift")
+                    CapsLabel("Stop")
                     val stop = t.stopAt
                     val shiftEnd = TurnGrid.endOfShift(now, ZoneId.systemDefault())
-                    ChoiceChip(
-                        if (stop != null) "Stops at ${Labels.clock(stop)}" else "End of my shift (${Labels.clock(shiftEnd)})",
-                        selected = stop != null,
-                        onClick = { onSetStop(t.id, if (stop != null) null else shiftEnd) },
-                    )
-                    Text(
-                        if (stop != null) "No alarm at or after it. Tap again to keep it running." else "No alarm at or after it.",
-                        color = c.muted, style = WardType.Body,
-                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                        ChoiceChip("No stop time", selected = stop == null, onClick = { if (stop != null) onSetStop(t.id, null) })
+                        ChoiceChip(
+                            "End of my shift (${Labels.clock(stop ?: shiftEnd)})",
+                            selected = stop != null,
+                            onClick = { onSetStop(t.id, if (stop != null) null else shiftEnd) },
+                        )
+                    }
+                    Text("No alarms at or after the stop time.", color = c.muted, style = WardType.Body)
                 }
             } else {
                 Panel { Text("This timer has stopped.", color = c.ink, style = WardType.Lead) }
@@ -147,19 +155,30 @@ fun CustomDetailContent(
                 if (rows.isEmpty()) Text("None yet.", color = c.muted, style = WardType.Body)
                 rows.forEach { s ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(Labels.clock(s.slotAt), style = WardType.Time, color = c.ink, softWrap = false, modifier = Modifier.width(TvsSize.TimeColumn))
+                        Text(Labels.clock(s.slotAt), style = WardType.Time, color = c.ink, softWrap = false, modifier = Modifier.widthIn(min = TvsSize.TimeColumn))
                         Spacer(Modifier.weight(1f))
                         StatusPill(CustomStatus.of(s, now, toleranceMin, missedTimeoutMin))
                     }
                 }
             }
 
-            if (running) SecondaryButton("Edit task, patient or interval", onEdit)
-            // With an alarm open, Done is the action in the thumb's place; stopping waits down here.
-            if (running && open != null) {
-                Spacer(Modifier.height(TvsSpace.s4))
-                SecondaryButton("Stop timer", { onStop(t.id) })
+            when {
+                // With an alarm open, Done is the action in the thumb's place; Edit and Stop share a row up here, both in view.
+                running && open != null -> Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                    SecondaryButton("Edit", onEdit, Modifier.weight(1f))
+                    SecondaryButton("Stop timer", { onStop(t.id) }, Modifier.weight(1f))
+                }
+                running -> SecondaryButton("Edit task, patient or interval", onEdit)
             }
+        }
+
+        // When Done empties the pinned place, Stop moves into it: a second tap meant for Done must not stop the timer.
+        val openNow = open != null
+        var stopAfter by remember { mutableLongStateOf(0L) }
+        var wasOpen by remember { mutableStateOf(openNow) }
+        LaunchedEffect(openNow) {
+            if (wasOpen && !openNow) stopAfter = SystemClock.uptimeMillis() + STOP_GUARD_MS
+            wasOpen = openNow
         }
 
         Column(
@@ -170,7 +189,11 @@ fun CustomDetailContent(
             when {
                 running && open != null -> PatientButton(Labels.clock(open.slotAt), Labels.DONE, { onDone(listOf(open.id)) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
                 // Quiet on purpose: it cancels the alarms, and nothing else on this screen is asking to be pressed.
-                running -> SecondaryButton("Stop timer", { onStop(t.id) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge)
+                running -> SecondaryButton(
+                    "Stop timer",
+                    { if (SystemClock.uptimeMillis() >= stopAfter) onStop(t.id) },
+                    Modifier.fillMaxWidth().testTag(PRIMARY_TAG), TvsSize.TouchLarge,
+                )
             }
         }
     }
@@ -178,3 +201,6 @@ fun CustomDetailContent(
 
 /** The day's alarms shown: the latest few, then the next one. */
 private const val ROWS = 8
+
+/** How long Stop ignores taps after taking Done's place: the alarm screen's first second, the same way. */
+private const val STOP_GUARD_MS = 1_000L

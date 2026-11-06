@@ -1023,6 +1023,8 @@ def t_dst_custom(name):
     state = hook("START_CUSTOM", ago=0, bed="7654812", name=CUSTOM_NAME, interval=60)
     due = first_due(state)
     # One elapsed hour later, across the gap: 01:58 summer time. Moving past it must ring it once.
+    # The screen sleeps first, as in A12: on a phone in use Android shows a heads-up instead.
+    sleep_screen()
     set_clock(dt.datetime(2027, 4, 30, 2, 0, 0))
     fired = wait_alarm(60)
     time.sleep(2)

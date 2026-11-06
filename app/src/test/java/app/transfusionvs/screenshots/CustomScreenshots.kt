@@ -49,6 +49,8 @@ class CustomScreenshots {
 
     private fun variant(tag: String, name: String, qualifiers: String, font: Float, night: Boolean = false, content: @Composable () -> Unit) {
         RuntimeEnvironment.setQualifiers(qualifiers)
+        // The real font scale too: a dialog is a window of its own and doesn't see the density below.
+        RuntimeEnvironment.setFontScale(font)
         captureRoboImage("build/audit/${name}__$tag.png", roborazziOptions = record) {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, font)) { TvsTheme(night = night) { content() } }

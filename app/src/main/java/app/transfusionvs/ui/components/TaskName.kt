@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -34,13 +36,18 @@ fun TaskNameField(value: String, onValue: (String) -> Unit, autoFocus: Boolean) 
     val focus = remember { FocusRequester() }
     if (autoFocus) LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     val count = value.trim().let { it.codePointCount(0, it.length) }
+    // At large font sizes the label can't fit on the box's border: it goes above the box, word for word.
+    val above = largeFont()
+    if (above) Text(LABEL, color = c.ink, style = WardType.Body)
     OutlinedTextField(
         value = value,
         onValueChange = { onValue(CustomName.clean(it)) },
-        modifier = Modifier.fillMaxWidth().focusRequester(focus),
-        singleLine = true,
+        modifier = Modifier.fillMaxWidth().focusRequester(focus).let { if (above) it.semantics { contentDescription = LABEL } else it },
+        // One line of text (line breaks are removed as typed), shown on as many as it needs: a long name is never hidden.
+        singleLine = false,
+        maxLines = 3,
         textStyle = WardType.Lead.copy(color = c.ink),
-        label = { Text("Task name — no patient names", style = WardType.Body) },
+        label = if (above) null else { { Text(LABEL, style = WardType.Body) } },
         supportingText = { Text("$count/${CustomName.MAX}", color = c.ink, style = WardType.Body) },
         keyboardOptions = KeyboardOptions(
             capitalization = KeyboardCapitalization.Sentences,
@@ -51,6 +58,8 @@ fun TaskNameField(value: String, onValue: (String) -> Unit, autoFocus: Boolean) 
         colors = wardFieldColors(),
     )
 }
+
+private const val LABEL = "Task name — no patient names"
 
 /**
  * A task name shown large: it shrinks to stay within two lines, never below body size, and takes a

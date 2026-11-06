@@ -494,3 +494,9 @@ The maintainer's decisions: some places in the hospital have no beds, so a patie
 - Built from docs/CUSTOM_TIMER.md and CHANGE_PLAN.md, as a third source on the same engine (`CustomSource`, pure rules in `CustomRules`).
 - An alarm due within 1 second rings at once, as for the other types. So the next alarm created is always the first one more than 1 second away: otherwise one due in that second could ring with nothing armed after it. Found by the property test.
 - Home's Start row has three tiles. At 360 and 412 dp the labels wrap to two lines, which makes the row 13 dp taller. On a 360 × 800 phone the sixth card's timeline dots now sit under the list's edge, while its MRN, time and state stay in view. Measured in docs/SCREENSHOT_REGRESSION.md.
+- After the first persona review (three fresh reviewers, tasks 10 to 12):
+  - Several custom alarms open at once are listed earliest due first: the most overdue first, then alarms of the same minute by the earliest start, as the request says. An overdue one is marked like the round button (red edge, "OVERDUE +n min").
+  - "Custom · N due" on a transfusion or round alarm names the patient when there is one, and says how late once overdue, like the round button above it.
+  - On a timer's screen, Stop ignores taps for one second after it takes Done's pinned place, so a second tap meant for Done can't stop the timer. With an alarm open, Edit and Stop share a row, both in view.
+  - After Undo, the alarm screen waits up to 2 seconds for the restored alarm before it may close. Undo removes its entry and puts the alarm back in two writes, and the screen could hear of the first before the second. The lab's A19 for custom alarms found this.
+

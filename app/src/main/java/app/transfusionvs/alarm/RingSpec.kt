@@ -41,7 +41,7 @@ data class RingSpec(
     val round: RoundUi? = null,
     /** Turning sound (null = the bundled chime). */
     val turnSoundUri: String? = null,
-    /** Custom timers sounding, oldest start first (they come after transfusions and the round). */
+    /** Custom timers sounding, earliest due first, then earliest start (they come after transfusions and the round). */
     val customs: List<CustomRing> = emptyList(),
 ) {
     /** For what shows outside the app: every bed label through [mask]. */
@@ -166,7 +166,7 @@ object RoundBuilder {
     }
 }
 
-// ---- Custom timers (one row per timer with an alarm open, oldest start first) ----
+// ---- Custom timers (one row per timer with an alarm open, earliest due first) ----
 
 /** A custom timer on the alarm: its own Done ✓ acknowledges its open alarm. */
 data class CustomRing(
@@ -190,8 +190,9 @@ data class CustomRing(
 
 object CustomRingBuilder {
 
+    /** The most overdue first; alarms of the same minute by the earliest start. */
     fun build(timers: List<CustomTimerWithSlots>, now: Long, snoozeMin: Int): List<CustomRing> =
-        timers.sortedBy { it.timer.startAt }.mapNotNull { t ->
+        timers.mapNotNull { t ->
             val s = t.slots.filter { it.status == CustomSlotStatus.RINGING }.minByOrNull { it.slotAt } ?: return@mapNotNull null
             CustomRing(
                 timerId = t.timer.id, slotId = s.id, bedLabel = t.timer.bedLabel, name = t.timer.name,
@@ -200,5 +201,5 @@ object CustomRingBuilder {
                 snoozedUntil = s.snoozeUntil?.takeIf { it > now },
                 canSnooze = CustomRules.canSnooze(t.timer, s, now, snoozeMin),
             )
-        }
+        }.sortedWith(compareBy<CustomRing>({ it.slotAt }, { it.startAt }))
 }
