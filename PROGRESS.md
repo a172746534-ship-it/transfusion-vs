@@ -93,3 +93,4 @@ The request is docs/CUSTOM_TIMER.md, word for word: re-read it after any restart
 - Step 3: docs/SCREENSHOT_REGRESSION.md. The audit set against the baseline: 133 screens identical, 49 Home screens differ only in the pinned area. The four Home references were re-recorded after that proof.
 - Step 4: tests. JVM: CustomRulesTest, CustomSchedulePropertyTest (12,000 cases per rule), CustomViewsTest, CustomEngineTest (id collisions), CustomNameFitTest, CustomScreenshots, and a MigrationTest v3 to v4. Emulator: TapBudget tasks 10-12, UiChecks, Robustness. Lab: `--kind both`, ids `<id>@custom`, gates in score.py.
 - Next: the API 34 fast loop, BASELINE.md once the baseline run finishes, the fresh design reviewer, the personas and the scope audit, then two full-matrix runs.
+- Maintainer, 2026-11-06: **one full-matrix run for now**, not two consecutive (docs/CUSTOM_TIMER.md §9 says two). The other conditions of §9 stay.

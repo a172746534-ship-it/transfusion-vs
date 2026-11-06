@@ -1146,7 +1146,7 @@ def t_custom_locked(name):
         up, _ = keyguard_up()
         log = run("adb logcat -d -s AlarmPlayer:I", 30)
         save(name, f"{lines}\n{log}\n{xml}")
-        good = fired and playing and len(ringing) == 2 and delta <= 60 and "2 custom timers due" in xml
+        good = fired and playing and len(ringing) == 2 and delta <= 60 and "2 timers due" in xml
         return good, f"fired within {delta:.0f}s; one alarm for {len(ringing)} timers; alarm stream={playing}; keyguard={up}"
     finally:
         try:

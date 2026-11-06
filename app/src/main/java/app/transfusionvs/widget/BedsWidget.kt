@@ -132,7 +132,8 @@ object BedsWidget {
         val canAck = bed.ackIds.isNotEmpty() && !bed.stoppedForReaction
         r.setViewVisibility(R.id.row_ack, if (canAck) View.VISIBLE else View.GONE)
         if (canAck) {
-            r.setTextViewText(R.id.row_ack, "${bed.bed} · ${bed.ackLabel}")
+            // A custom timer's Done names the task too: one patient can have two.
+            r.setTextViewText(R.id.row_ack, if (bed.type == BedType.CUSTOM) "${bed.bed} · ${bed.what} · ${bed.ackLabel}" else "${bed.bed} · ${bed.ackLabel}")
             // A custom alarm's ids are not checkpoint ids: its own acknowledge.
             r.setOnClickPendingIntent(
                 R.id.row_ack,

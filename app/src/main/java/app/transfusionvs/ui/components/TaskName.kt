@@ -22,6 +22,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import app.transfusionvs.schedule.CustomName
 import app.transfusionvs.ui.theme.Ward
 import app.transfusionvs.ui.theme.WardType
@@ -48,7 +49,7 @@ fun TaskNameField(value: String, onValue: (String) -> Unit, autoFocus: Boolean) 
         maxLines = 3,
         textStyle = WardType.Lead.copy(color = c.ink),
         label = if (above) null else { { Text(LABEL, style = WardType.Body) } },
-        supportingText = { Text("$count/${CustomName.MAX}", color = c.ink, style = WardType.Body) },
+        supportingText = { Text("$count/${CustomName.MAX}", color = c.ink, style = WardType.Body, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
         keyboardOptions = KeyboardOptions(
             capitalization = KeyboardCapitalization.Sentences,
             autoCorrectEnabled = false,

@@ -49,15 +49,16 @@ for cid in POINTS:
         if r["status"] != "PASS":
             print(f"- {cid} API {a} {r['status']}: {r['detail'][:230]}")
 
-print("Gates (same rule as area A: PASS or N/A on every API of the matrix, PASS on at least one):")
-passed = 0
+print("Gates:")
 for cid in GATES:
-    per = results.get(cid, {})
-    cells = [per[a]["status"] if a in per else "not run" for a in MATRIX]
-    ok = all(c in ("PASS", "N/A") for c in cells) and "PASS" in cells
-    passed += ok
-    print(" ", "PASS" if ok else "FAIL", cid, {a: r["status"] for a, r in sorted(per.items())}, next((r["detail"][:200] for r in per.values() if r["status"] != "PASS"), ""))
-print(f"Gates: {passed}/{len(GATES)}")
+    print(" ", cid, {a: r["status"] for a, r in sorted(results.get(cid, {}).items())}, next((r["detail"][:200] for r in results.get(cid, {}).values() if r["status"] != "PASS"), ""))
+
+# A gate passes on area A's rule: PASS or N/A on every API of the matrix, PASS on at least one.
+gate_ok = {}
+for cid in GATES:
+    cells = [results.get(cid, {})[a]["status"] if a in results.get(cid, {}) else "not run" for a in MATRIX]
+    gate_ok[cid] = all(c in ("PASS", "N/A") for c in cells) and "PASS" in cells
+print(f"Gates passing on the whole matrix: {sum(gate_ok.values())}/{len(GATES)}", "· failing:", [c for c, ok in gate_ok.items() if not ok])
 
 print("\n--- robustness per API ---")
 for rob in sorted(root.rglob("robustness")):

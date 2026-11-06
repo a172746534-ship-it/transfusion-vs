@@ -89,17 +89,17 @@ class CustomScreenshots {
     @Test fun home_only_custom() = shots("home_only_custom") { Home(listOf(CustomFakes.dressing, CustomFakes.drain), withOthers = false) }
 
     // ---- Start ----
-    @Test fun custom_start_empty() = shots("custom_start_empty") { CustomStartContent(editing = null, onSubmit = {}, onBack = noop) }
+    @Test fun custom_start_empty() = shots("custom_start_empty") { CustomStartContent(editing = null, now = Fakes.now, onSubmit = {}, onBack = noop) }
     @Test fun custom_start_valid() = shots("custom_start_valid") {
-        CustomStartContent(editing = null, onSubmit = {}, onBack = noop, initialName = "Check chest drain", initialMrn = "7654821")
+        CustomStartContent(editing = null, now = Fakes.now, onSubmit = {}, onBack = noop, initialName = "Check chest drain", initialMrn = "7654821")
     }
     @Test fun custom_start_other() = shots("custom_start_other") {
-        CustomStartContent(editing = null, onSubmit = {}, onBack = noop, initialName = "Check chest drain", initialMrn = "7654821", initialOther = true)
+        CustomStartContent(editing = null, now = Fakes.now, onSubmit = {}, onBack = noop, initialName = "Check chest drain", initialMrn = "7654821", initialOther = true)
     }
     @Test fun custom_start_long_name() = shots("custom_start_long_name") {
-        CustomStartContent(editing = null, onSubmit = {}, onBack = noop, initialName = CustomFakes.LONG_NAME, initialMrn = "7654824")
+        CustomStartContent(editing = null, now = Fakes.now, onSubmit = {}, onBack = noop, initialName = CustomFakes.LONG_NAME, initialMrn = "7654824")
     }
-    @Test fun custom_edit() = shots("custom_edit") { CustomStartContent(editing = CustomFakes.drain.timer, onSubmit = {}, onBack = noop) }
+    @Test fun custom_edit() = shots("custom_edit") { CustomStartContent(editing = CustomFakes.drain.timer, now = Fakes.now, onSubmit = {}, onBack = noop) }
 
     // ---- Detail ----
     @Test fun custom_detail_upcoming() = shots("custom_detail_upcoming") { Detail(CustomFakes.drain) }

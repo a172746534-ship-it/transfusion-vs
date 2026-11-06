@@ -4,8 +4,6 @@ import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -49,6 +47,7 @@ import app.transfusionvs.ui.components.StateText
 import app.transfusionvs.ui.components.StatusPill
 import app.transfusionvs.ui.components.UndoSlot
 import app.transfusionvs.ui.components.WardHeader
+import app.transfusionvs.ui.components.largeFont
 import app.transfusionvs.ui.components.moreBelow
 import app.transfusionvs.ui.components.rememberNow
 import app.transfusionvs.ui.theme.TvsSize
@@ -78,7 +77,6 @@ fun CustomDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit, onEdit: 
  * One custom timer: the task, its next alarm, "End of my shift", the day's alarms, Edit and Stop.
  * Nothing about transfusions here: no steps, no End VS, no reaction bar.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CustomDetailContent(
     item: CustomTimerWithSlots?,
@@ -96,7 +94,7 @@ fun CustomDetailContent(
     val running = t?.status == CustomTimerStatus.RUNNING
     Column(Modifier.fillMaxSize().background(c.bg)) {
         WardHeader(
-            caps = if (t == null || running) "Custom timer" else "Stopped",
+            caps = if (t == null || running) "Custom timer running" else "Custom timer stopped",
             title = t?.bedLabel ?: "",
             titleIsKey = true,
             onBack = onBack,
@@ -113,37 +111,68 @@ fun CustomDetailContent(
             Panel {
                 CapsLabel("What for")
                 Text(t.name, color = c.ink, style = WardType.Title)
-                Text("${Labels.every(t.intervalMin)} · started ${Labels.clock(t.startAt)}", color = c.muted, style = WardType.Body)
+                val stops = t.stopAt?.takeIf { running }?.let { " · stops ${Labels.clock(it)}" } ?: ""
+                Text("${Labels.every(t.intervalMin)} · started ${Labels.clock(t.startAt)}$stops", color = c.muted, style = WardType.Body)
             }
 
             if (running) {
                 val view = BedViews.of(item, now, missedTimeoutMin)
                 Panel {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            CapsLabel(if (open != null) "Now" else "Next")
-                            StateText(view)
-                        }
+                    val heading = if (open != null) "Now" else "Next"
+                    // At large font the time goes under the state, so neither has to wrap.
+                    if (largeFont()) {
+                        CapsLabel(heading)
+                        StateText(view)
                         view.time?.let { Text(Labels.clock(it), color = c.ink, style = WardType.Hero, softWrap = false) }
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                CapsLabel(heading)
+                                StateText(view)
+                            }
+                            view.time?.let { Text(Labels.clock(it), color = c.ink, style = WardType.Hero, softWrap = false) }
+                        }
                     }
                 }
-                // As on the turning plan's start screen: which one is on is always shown.
+                // Up here so they stay in view on a small phone. With an alarm open, Done is the action in the
+                // thumb's place, and Edit and Stop share this row.
+                if (open != null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+                        SecondaryButton("Edit", onEdit, Modifier.weight(1f))
+                        SecondaryButton("Stop timer", { onStop(t.id) }, Modifier.weight(1f))
+                    }
+                } else {
+                    SecondaryButton("Edit", onEdit)
+                }
+                // The one chip: a tap sets the stop time, a second clears it. The line below says which it is.
                 Panel {
-                    CapsLabel("Stop")
+                    CapsLabel("Auto-stop")
                     val stop = t.stopAt
                     val shiftEnd = TurnGrid.endOfShift(now, ZoneId.systemDefault())
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                        ChoiceChip("No stop time", selected = stop == null, onClick = { if (stop != null) onSetStop(t.id, null) })
-                        ChoiceChip(
-                            "End of my shift (${Labels.clock(stop ?: shiftEnd)})",
-                            selected = stop != null,
-                            onClick = { onSetStop(t.id, if (stop != null) null else shiftEnd) },
-                        )
-                    }
-                    Text("No alarms at or after the stop time.", color = c.muted, style = WardType.Body)
+                    ChoiceChip(
+                        "End of my shift (${Labels.clock(stop ?: shiftEnd)})",
+                        selected = stop != null,
+                        onClick = { onSetStop(t.id, if (stop != null) null else shiftEnd) },
+                    )
+                    Text(
+                        if (stop != null) "On: no alarm at or after ${Labels.clock(stop)}. Tap again to turn it off." else "Off: it rings until you stop it.",
+                        color = c.muted, style = WardType.Body,
+                    )
                 }
             } else {
-                Panel { Text("This timer has stopped.", color = c.ink, style = WardType.Lead) }
+                // When and how, for the next nurse.
+                val at = t.stoppedAt
+                val byStopTime = at != null && t.stopAt != null && at >= t.stopAt
+                Panel {
+                    Text(
+                        when {
+                            at == null -> "This timer has stopped."
+                            byStopTime -> "Stopped at its stop time, ${Labels.clock(t.stopAt!!)}."
+                            else -> "Stopped at ${Labels.clock(at)}."
+                        },
+                        color = c.ink, style = WardType.Lead,
+                    )
+                }
             }
 
             Panel {
@@ -160,15 +189,6 @@ fun CustomDetailContent(
                         StatusPill(CustomStatus.of(s, now, toleranceMin, missedTimeoutMin))
                     }
                 }
-            }
-
-            when {
-                // With an alarm open, Done is the action in the thumb's place; Edit and Stop share a row up here, both in view.
-                running && open != null -> Row(horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-                    SecondaryButton("Edit", onEdit, Modifier.weight(1f))
-                    SecondaryButton("Stop timer", { onStop(t.id) }, Modifier.weight(1f))
-                }
-                running -> SecondaryButton("Edit task, patient or interval", onEdit)
             }
         }
 

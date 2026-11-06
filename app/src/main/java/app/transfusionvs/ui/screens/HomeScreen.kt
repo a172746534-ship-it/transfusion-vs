@@ -244,7 +244,7 @@ fun HomeContent(
                 } else {
                     // A custom alarm's ids are not checkpoint ids: each type has its own acknowledge.
                     PatientButton(
-                        urgent.bed, urgent.ackLabel,
+                        urgent.bed, if (urgent.type == BedType.CUSTOM) "${urgent.what} · ${urgent.ackLabel}" else urgent.ackLabel,
                         { if (urgent.type == BedType.CUSTOM) onAcknowledgeCustom(urgent.ackIds) else onAcknowledge(urgent.ackIds) },
                         Modifier.fillMaxWidth().testTag(PRIMARY_TAG),
                     )

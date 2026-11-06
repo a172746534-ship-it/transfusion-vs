@@ -30,6 +30,7 @@ data class UndoAction(
         fun transfusion(id: Long) = "T$id"
         fun plan(id: Long) = "P$id"
         fun custom(id: Long) = "C$id"
+        fun isCustom(ownerKey: String) = ownerKey.startsWith("C")
     }
 }
 

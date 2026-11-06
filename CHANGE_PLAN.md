@@ -4,7 +4,7 @@ Every changed line must map to an item here. A location found later is added her
 
 ## 1. Data (§4 Data)
 - **D1 New `data/Custom.kt`:** `CustomTimer` (table `custom_timer`: id, bedLabel = MRN, name, intervalMin, startAt, anchorAt, fromAt, stopAt?, status RUNNING/STOPPED, stoppedAt?), `CustomSlot` (table `custom_slot`: id, timerId → CASCADE, slotAt, firedAt?, ackAt?, status PENDING/RINGING/ACKED/MISSED/CANCELLED, snoozeCount, snoozeUntil?, silenced), `CustomTimerWithSlots`, `CustomDraft`.
-- **D2 `data/Ward.kt`:** custom queries added to `WardDao`, so `Engine`'s constructor stays as it is (§5, trap 8).
+- **D2 `data/Ward.kt`:** custom queries added to `WardDao`, so `Engine`'s constructor stays as it is (§5, trap 8). `UndoAction.custom(id)` and `UndoAction.isCustom(ownerKey)` name a custom timer's undo entries.
 - **D3 `data/AppDatabase.kt`:**
   - entities + `CustomTimer`, `CustomSlot`
   - version 3 → 4, `AutoMigration(from = 3, to = 4)`
@@ -63,16 +63,16 @@ Every changed line must map to an item here. A location found later is added her
 - **U4 `ui/screens/HomeScreen.kt`:**
   - `HomeContent` gets new params with defaults (`custom`, `onStartCustom`, `onOpenCustom`, `onAcknowledgeCustom`)
   - custom views join the list
-  - `onOpen`, `ownerKey` and the primary's acknowledge become `when` (trap 2)
+  - `onOpen`, `ownerKey` and the primary's acknowledge become `when` (trap 2); a custom primary names the task too ("<task> · Done ✓"), since one patient can have two
   - empty state waits for the custom list (trap 7)
   - `StartActions`: third tile "Start custom", one row with equal heights (`IntrinsicSize.Min`), and stacked at large fonts
   - `HomeScreen` wiring
 - **U5 New `ui/screens/CustomStartScreen.kt`:**
   - task-name field (auto-focus, Next) and `PatientField(autoFocus = false)`
-  - 3 × 3 interval grid, pinned with `PRIMARY_TAG`, hidden while the keyboard is open, with the "Enter the task name and MRN first" line
-  - the "Other" dialog (± 1 h, ± 5 min, 15 min – 24 h, opens at 15 min)
-  - edit mode: MRN behind `ChangeRow`, buttons select, "Save changes", duplicate rename refused
-- **U6 New `ui/screens/CustomDetailScreen.kt`:** MRN header, task and interval, next alarm, "End of my shift" chip, the day's alarms, Edit. Pinned: Done when due, otherwise Stop. No transfusion content.
+  - 3 × 3 interval grid, pinned with `PRIMARY_TAG`, hidden while the keyboard is open, with the "Enter the task name and MRN first" line; once both are valid that line reads "How often for <MRN>? One tap starts it.", and each interval button shows when it would first ring (not at large font) (reviews 1 and 2)
+  - the "Other" dialog (± 1 h, ± 5 min, 15 min – 24 h, opens at 15 min); the steps look and act disabled at the limits
+  - edit mode: MRN behind `ChangeRow`, a "How often?" line, buttons select, "Save changes", duplicate rename refused
+- **U6 New `ui/screens/CustomDetailScreen.kt`:** MRN header, task and interval, the next alarm ("Now" while one is open; at large font the time under the state), then Edit (with an alarm open, Edit and Stop in one row); header "Custom timer running" / "Custom timer stopped", an "Auto-stop" panel with the "End of my shift" chip (a tap sets, a second clears) and a line saying whether it is on; "stops HH:MM" in the summary line; when stopped, when and how, the day's alarms. Pinned: Done when due, otherwise Stop. Stop ignores taps for 1 s after taking Done's place. No transfusion content.
 - **U7 `alarm/AlarmActivity.kt`:**
   - `AlarmScreen` collects custom rings and masks them
   - `nothingOpen` counts customs (trap 3)
@@ -80,6 +80,10 @@ Every changed line must map to an item here. A location found later is added her
   - new `CustomAlarm`: single and selectable, with no reaction bar
   - a "Custom · N due" button on the transfusion and round screens, only when customs are due
   - the snooze rule
+  - one custom alarm: "every 4 h · next 15:00"; several: the title "N timers due", each row with the single alarm's due / overdue / snoozed chip, and the bottom button naming the task as well as the patient
+  - several custom alarms listed earliest due first (alarms of the same minute by the earliest start, as §4 says); at large font the name on its own line (persona round 1)
+  - after a custom Undo, `AlarmScreen` waits up to 2 s for the restored alarm before closing. Undo removes its entry and puts the alarm back in two writes, and the custom ringing query (a relation over two tables) can arrive after the entry's deletion. Lab A19@custom found it. Only a custom Undo sets the wait, so transfusions and rounds behave as before.
+- **U5b New `ui/components/TaskName.kt`:** `TaskNameField` (the start and edit screens' name field: §4 Name) and `TaskNameText` (the alarm's large name: §8 Names). The field wraps instead of scrolling a long name out of view (still one line of text); at large font its label sits above the box, word for word.
 - **U8 `ui/MainActivity.kt`:**
   - routes `CustomStart`, `CustomDetail` and `CustomEdit`, with `encode`/`decode` (trap 6)
   - `ACTION_START_CUSTOM`
@@ -88,7 +92,7 @@ Every changed line must map to an item here. A location found later is added her
 - **U10 `widget/BedsWidget.kt`:**
   - custom views
   - mask labels include custom MRNs, and `masked` also masks `what` (no existing `what` holds 5 digits, so nothing changes for them)
-  - the row icon becomes `when` (trap 2), with a per-type acknowledge intent
+  - the row icon becomes `when` (trap 2), with a per-type acknowledge intent; a custom row's Done names the task too
 - **U11 Resources:**
   - new `ic_custom`, `ic_stat_custom`, `ic_shortcut_custom` (24 dp grid, 2.4 stroke, round caps)
   - new `raw/custom_chime.wav`, generated with Python's standard library
@@ -99,9 +103,9 @@ Every changed line must map to an item here. A location found later is added her
 - **L1 `app/src/debug/.../LabReceiver.kt`:** `lab.START_CUSTOM`; `ACK_ALL` also acknowledges custom alarms; the dump adds `customSlots`.
 - **L2 `lab/reliability.py`:**
   - `--kind` (transfusion, custom or both): the arrange, assert and row helpers read the kind
-  - custom variants of A19–A23 and M01
+  - custom variants of A13, A14, A20–A23 and M01: the cases written around a transfusion or a round. The others, A19 among them, run for custom alarms as they are, through the helpers.
   - custom results get ids `<id>@custom`
-- **L3 `lab/score.py`:** `@custom` ids become gates (no points).
+- **L3 `lab/score.py`:** `@custom` ids become gates (no points). The existing gate lines print as before; after them, one line says how many gates pass on area A's rule (PASS or N/A on every API, PASS on at least one).
 - **L4 `.github/workflows/lab.yml`, `lab/config.json`:** done in commit 87365cc (baseline).
 
 ## 6. Tests (§8). Existing tests are unchanged, except the four Home references.
@@ -112,12 +116,12 @@ Every changed line must map to an item here. A location found later is added her
   - `CustomViewsTest` (views, sort, no record-keeping)
   - `CustomNameFitTest` (the task name at font 2.0 on 360 dp, measured from the text layout; §8 Names)
   - `ui/CustomDetailGuardTest` (Stop ignores a tap for 1 s after taking Done's place; a deliberate tap stops)
-- **T2 `data/MigrationTest`:** a new test, v3 → v4 keeps everything.
+- **T2 `data/MigrationTest`:** new tests: v3 → v4 keeps everything; custom alarms parse from their own address.
 - **T3 New `screenshots/CustomScreenshots.kt`:** audit states: Home with custom, start empty / valid / Other dialog / edit, detail, the alarm single / several / with a transfusion and a round, the widget. Its fake data is `sharedTest/.../screenshots/CustomFakes.kt`, shared with the emulator tests as `Fakes` and `TurnFakes` are.
 - **T4 androidTest:**
   - `TapBudget`: tasks 10–12
-  - `UiChecks`: custom start, detail and alarm
-  - `Robustness`: custom widget masking
+  - `UiChecks`: custom start, edit, detail and alarm, and Home with custom cards
+  - `Robustness`: custom widget masking and Done from the widget; a double tap on Done and on an interval acts once; Undo of a custom Done restores the exact row
 - **T5 Screenshot references:** only `transfusion_home`, `transfusion_home_empty`, `repositioning_home` and `repositioning_home_only` are recorded again, after a pixel diff shows only the allowed regions. The proof goes in docs/SCREENSHOT_REGRESSION.md.
 
 ## 7. Docs

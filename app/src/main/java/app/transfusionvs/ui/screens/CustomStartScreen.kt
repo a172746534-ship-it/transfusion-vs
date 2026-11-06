@@ -44,7 +44,9 @@ import app.transfusionvs.data.CustomTimer
 import app.transfusionvs.schedule.CustomName
 import app.transfusionvs.schedule.CustomRules
 import app.transfusionvs.schedule.Labels
+import app.transfusionvs.schedule.MINUTE_MS
 import app.transfusionvs.schedule.PatientInput
+import app.transfusionvs.schedule.ScheduleCalculator
 import app.transfusionvs.ui.MainViewModel
 import app.transfusionvs.ui.PRIMARY_TAG
 import app.transfusionvs.ui.components.CapsLabel
@@ -57,6 +59,7 @@ import app.transfusionvs.ui.components.WardButton
 import app.transfusionvs.ui.components.WardHeader
 import app.transfusionvs.ui.components.largeFont
 import app.transfusionvs.ui.components.moreBelow
+import app.transfusionvs.ui.components.rememberNow
 import app.transfusionvs.ui.components.wardClick
 import app.transfusionvs.ui.theme.TvsShape
 import app.transfusionvs.ui.theme.TvsSize
@@ -102,8 +105,13 @@ fun CustomStartContent(
     initialName: String = "",
     initialMrn: String = "",
     initialOther: Boolean = false,
+    /** For screenshots: the clock. Otherwise the phone's, kept current. */
+    now: Long? = null,
 ) {
     val c = Ward.c
+    val live by rememberNow(15_000)
+    // A new timer's first alarm: one interval after the start, on the whole minute (as the engine does).
+    val start = ScheduleCalculator.truncateToMinute(now ?: live)
     var name by rememberSaveable { mutableStateOf(editing?.name ?: initialName) }
     // Editing keeps the patient unless asked: the title says who, and a slip here would move their alarms.
     var changingPatient by rememberSaveable { mutableStateOf(editing == null) }
@@ -118,7 +126,7 @@ fun CustomStartContent(
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
         WardHeader(
-            caps = if (typing && largeFont()) "" else if (editing == null) "New custom timer" else "Edit",
+            caps = if (typing && largeFont()) "" else if (editing == null) "New custom timer" else "Edit custom timer",
             title = if (editing == null) "Start custom" else "Edit ${editing.bedLabel}",
             onBack = onBack,
             icon = R.drawable.ic_custom,
@@ -155,14 +163,18 @@ fun CustomStartContent(
             if (editing == null) {
                 // While the keyboard is open the fields keep the room; its Done brings the buttons back.
                 if (!typing) {
-                    // Once both are valid it says what a tap does: there is no separate Start button.
-                    Text(if (ready) "How often? One tap starts it." else "Enter the task name and MRN first", color = c.ink, style = WardType.Lead)
-                    IntervalButtons(selected = null, enabled = ready) { m ->
+                    // Once both are valid it says what a tap does, and for whom: there is no separate Start button,
+                    // and at large font the MRN field may be out of view above.
+                    Text(if (ready) "How often for $bed? One tap starts it." else "Enter the task name and MRN first", color = c.ink, style = WardType.Lead)
+                    // Each button says when it would first ring; at large font there is no room for it.
+                    val firstAt: ((Int) -> Long)? = if (ready && !largeFont()) { m -> start + m * MINUTE_MS } else null
+                    IntervalButtons(selected = null, enabled = ready, firstAt = firstAt) { m ->
                         if (m == OTHER) showOther = true else onSubmit(CustomDraft(bed, name.trim(), m))
                     }
                 }
             } else {
                 if (!typing) {
+                    Text("How often?", color = c.ink, style = WardType.Lead)
                     IntervalButtons(selected = interval, enabled = true) { m -> if (m == OTHER) showOther = true else interval = m }
                 }
                 PrimaryButton("Save changes", onClick = { onSubmit(CustomDraft(bed, name.trim(), interval)) }, enabled = ready && interval > 0)
@@ -187,7 +199,7 @@ fun CustomStartContent(
  * with the current interval marked.
  */
 @Composable
-private fun IntervalButtons(selected: Int?, enabled: Boolean, onPick: (Int) -> Unit) {
+private fun IntervalButtons(selected: Int?, enabled: Boolean, firstAt: ((Int) -> Long)? = null, onPick: (Int) -> Unit) {
     val c = Ward.c
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
         (CustomRules.INTERVALS + OTHER).chunked(3).forEach { row ->
@@ -208,7 +220,10 @@ private fun IntervalButtons(selected: Int?, enabled: Boolean, onPick: (Int) -> U
                             .padding(horizontal = TvsSpace.s4, vertical = TvsSpace.s6),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(if (on) "✓ $label" else label, color = ink, style = WardType.BodyBold, textAlign = TextAlign.Center)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(if (on) "✓ $label" else label, color = ink, style = WardType.BodyBold, textAlign = TextAlign.Center)
+                            if (firstAt != null && m != OTHER) Text(Labels.clock(firstAt(m)), color = ink, style = WardType.Body, softWrap = false)
+                        }
                     }
                 }
             }

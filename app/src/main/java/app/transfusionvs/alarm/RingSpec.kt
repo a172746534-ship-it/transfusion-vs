@@ -182,6 +182,8 @@ data class CustomRing(
     val snoozedUntil: Long?,
     /** Snooze would end before its next alarm, and the snooze limit isn't reached. */
     val canSnooze: Boolean,
+    /** The series' next alarm after this one; null when the stop time comes first. */
+    val nextAt: Long? = null,
 ) {
     val title: String get() = "$name — $bedLabel"
 
@@ -200,6 +202,7 @@ object CustomRingBuilder {
                 audible = CustomRules.isAudible(s, now),
                 snoozedUntil = s.snoozeUntil?.takeIf { it > now },
                 canSnooze = CustomRules.canSnooze(t.timer, s, now, snoozeMin),
+                nextAt = CustomRules.next(t.timer, s.slotAt).takeIf { at -> t.timer.stopAt.let { it == null || at < it } },
             )
         }.sortedWith(compareBy<CustomRing>({ it.slotAt }, { it.startAt }))
 }

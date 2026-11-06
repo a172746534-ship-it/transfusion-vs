@@ -264,3 +264,6 @@ Also not fully done from that review, so they don't read as fixed:
 - **D-22:** snoozed dims the button and "No snoozes left" has its own outline, but there is no countdown ring.
 - **D-26:** the header is shorter, and End moves into the list when a check is due, but with a check due the list is still short on a small phone.
 - **D-33:** the chooser for many patients takes much less room, as one row and a peek, rather than becoming a sheet.
+
+## Custom timer reviewers (docs/CUSTOM_TIMER.md §8)
+- Round 1, 2026-11-06: docs/audit/custom-reviewers-round1.md. Three personas on tasks 10–12: 12 findings fixed, 6 kept because the request requires them, 4 on untouched screens left as suggestions.
