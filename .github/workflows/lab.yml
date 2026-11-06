@@ -7,7 +7,7 @@ name: Lab
 
 on:
   push:
-    branches: [design-overhaul]
+    branches: [design-overhaul, custom-timer]
 
 permissions:
   contents: read

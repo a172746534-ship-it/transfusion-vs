@@ -85,3 +85,7 @@ The maintainer ended the emulator testing: the MRN change was the last thing wan
 
 ## Released as v0.5.0 (maintainer's decision, 2026-10-31)
 The maintainer approved merging and releasing without the loop's 100/100 condition, knowing what SCORECARD.md lists as not proven. Colleagues should get it only after the maintainer has tried it on a real phone.
+
+## Custom timer (branch `custom-timer`, started 2026-11-06). Read this first after a restart.
+The request is docs/CUSTOM_TIMER.md, word for word: re-read it after any restart. main stays untouched until its section 9 is met.
+- Step 1: the first commit only saves the request and lets the lab run on this branch. Its full-matrix `[lab]` run, on app code identical to main (9c1e37e), is the baseline: BASELINE.md.
