@@ -102,3 +102,4 @@ The request is docs/CUSTOM_TIMER.md, word for word: re-read it after any restart
     - Design review: last completed score 6.5/10 (round 2). Its fixes weren't re-reviewed: round 3 hit a usage limit.
     - Personas: findings remain that the request itself requires (see docs/audit).
     - The round-3 scope audit didn't finish.
+- **Merged and released as v0.6.0, 2026-11-06,** on the maintainer's go-ahead ("ادمج", then "release it"). Merge 300b2c8, tag v0.6.0, release build 42292188348: TransfusionVS-103.apk, same signing key (b05c7470…). Update check (run 42293098792, on branch custom-timer): the published v0.6.0 over the published v0.5.0 on API 34 kept a running transfusion and turning plan, and their alarms rang (15-min check; 22:00 round). The maintainer says v0.5.0 was never handed out, so that check wasn't required. What the loop didn't meet is listed in the entries above.
