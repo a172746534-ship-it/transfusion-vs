@@ -1,5 +1,7 @@
 package app.transfusionvs.ui.screens
 
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import app.transfusionvs.schedule.Urgency
 import androidx.compose.foundation.shape.CircleShape
 import android.content.Intent
@@ -43,6 +45,7 @@ import app.transfusionvs.R
 import app.transfusionvs.alarm.AlarmActivity
 import app.transfusionvs.data.TransfusionWithCheckpoints
 import app.transfusionvs.data.TurnPlanWithSlots
+import app.transfusionvs.data.CustomTimerWithSlots
 import app.transfusionvs.data.UndoAction
 import app.transfusionvs.schedule.BedType
 import app.transfusionvs.schedule.BedView
@@ -79,10 +82,13 @@ fun HomeScreen(
     onReaction: () -> Unit,
     onSetup: () -> Unit,
     onSettings: () -> Unit,
+    onStartCustom: () -> Unit = {},
+    onOpenCustom: (Long) -> Unit = {},
 ) {
     val context = LocalContext.current
     val home by vm.home.collectAsStateWithLifecycle()
     val turns by vm.turns.collectAsStateWithLifecycle()
+    val customs by vm.customs.collectAsStateWithLifecycle()
     val ringing by vm.ringing.collectAsStateWithLifecycle()
     val undo by vm.undo.collectAsStateWithLifecycle()
     val anyTransfusion by vm.anyTransfusion.collectAsStateWithLifecycle()
@@ -114,6 +120,10 @@ fun HomeScreen(
         onOpenAlarm = openAlarm,
         onAcknowledge = vm::acknowledge,
         onUndo = vm::undo,
+        custom = customs,
+        onStartCustom = onStartCustom,
+        onOpenCustom = onOpenCustom,
+        onAcknowledgeCustom = vm::acknowledgeCustom,
     )
 }
 
@@ -144,10 +154,16 @@ fun HomeContent(
     onOpenAlarm: () -> Unit,
     onAcknowledge: (List<Long>) -> Unit,
     onUndo: (Long) -> Unit = {},
+    /** Running custom timers; null until loaded. */
+    custom: List<CustomTimerWithSlots>? = emptyList(),
+    onStartCustom: () -> Unit = {},
+    onOpenCustom: (Long) -> Unit = {},
+    onAcknowledgeCustom: (List<Long>) -> Unit = {},
 ) {
     val c = Ward.c
     val beds = BedViews.sorted(
-        home.orEmpty().map { BedViews.of(it, now) } + turns.orEmpty().map { BedViews.of(it, now, missedTimeoutMin) },
+        home.orEmpty().map { BedViews.of(it, now) } + turns.orEmpty().map { BedViews.of(it, now, missedTimeoutMin) } +
+            custom.orEmpty().map { BedViews.of(it, now, missedTimeoutMin) },
     )
     val live = undo.filter { it.expiresAt > now }
     val large = largeFont()
@@ -197,11 +213,17 @@ fun HomeContent(
                 HomeBed(
                     bed = bed,
                     undo = live.firstOrNull { it.ownerKey == bed.ownerKey() },
-                    onOpen = { if (bed.type == BedType.TRANSFUSION) onOpen(bed.id) else onOpenTurnPlan(bed.id) },
+                    onOpen = {
+                        when (bed.type) {
+                            BedType.TRANSFUSION -> onOpen(bed.id)
+                            BedType.TURN -> onOpenTurnPlan(bed.id)
+                            BedType.CUSTOM -> onOpenCustom(bed.id)
+                        }
+                    },
                     onUndo = onUndo,
                 )
             }
-            if (home != null && turns != null && beds.isEmpty()) {
+            if (home != null && turns != null && custom != null && beds.isEmpty()) {
                 item { EmptyCard("Take the baseline vital signs first, then start a transfusion below.") }
             }
         }
@@ -220,34 +242,45 @@ fun HomeContent(
                 if (urgent.roundOpen) {
                     PatientButton(urgent.bed, "Open round", onOpenAlarm, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
                 } else {
-                    PatientButton(urgent.bed, urgent.ackLabel, { onAcknowledge(urgent.ackIds) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG))
+                    // A custom alarm's ids are not checkpoint ids: each type has its own acknowledge.
+                    PatientButton(
+                        urgent.bed, urgent.ackLabel,
+                        { if (urgent.type == BedType.CUSTOM) onAcknowledgeCustom(urgent.ackIds) else onAcknowledge(urgent.ackIds) },
+                        Modifier.fillMaxWidth().testTag(PRIMARY_TAG),
+                    )
                 }
             }
             if (anyTransfusion) ReactionBar(onClick = onReaction, minHeight = TvsSize.Touch, quiet = true, short = large)
             // Always here, whatever the font size: the same place for the thumb.
-            StartActions(onStartTransfusion, onStartTurning, stacked = large, quiet = urgent != null)
+            StartActions(onStartTransfusion, onStartTurning, onStartCustom, stacked = large, quiet = urgent != null)
         }
     }
 }
 
-private fun BedView.ownerKey() = if (type == BedType.TRANSFUSION) UndoAction.transfusion(id) else UndoAction.plan(id)
+private fun BedView.ownerKey() = when (type) {
+    BedType.TRANSFUSION -> UndoAction.transfusion(id)
+    BedType.TURN -> UndoAction.plan(id)
+    BedType.CUSTOM -> UndoAction.custom(id)
+}
 
 /**
- * Start is one action with two kinds, side by side so neither costs an extra screen. It steps back when
- * a bed needs something: then that bed's action is the primary one.
+ * Start is one action with three kinds, side by side so none costs an extra screen. It steps back when
+ * a bed needs something: then that bed's action is the primary one. The three are always the same height.
  */
 @Composable
-private fun StartActions(onStartTransfusion: () -> Unit, onStartTurning: () -> Unit, stacked: Boolean, quiet: Boolean) {
+private fun StartActions(onStartTransfusion: () -> Unit, onStartTurning: () -> Unit, onStartCustom: () -> Unit, stacked: Boolean, quiet: Boolean) {
     val tagged = if (quiet) Modifier else Modifier.testTag(PRIMARY_TAG)
     if (stacked) {
         Column(Modifier.fillMaxWidth().then(tagged), verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
             StartTile("Start transfusion", R.drawable.ic_drop, onStartTransfusion, quiet, Modifier.fillMaxWidth())
             StartTile("Start turning", R.drawable.ic_turn, onStartTurning, quiet, Modifier.fillMaxWidth())
+            StartTile("Start custom", R.drawable.ic_custom, onStartCustom, quiet, Modifier.fillMaxWidth())
         }
     } else {
-        Row(Modifier.fillMaxWidth().then(tagged), horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
-            StartTile("Start transfusion", R.drawable.ic_drop, onStartTransfusion, quiet, Modifier.weight(1f))
-            StartTile("Start turning", R.drawable.ic_turn, onStartTurning, quiet, Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).then(tagged), horizontalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+            StartTile("Start transfusion", R.drawable.ic_drop, onStartTransfusion, quiet, Modifier.weight(1f).fillMaxHeight())
+            StartTile("Start turning", R.drawable.ic_turn, onStartTurning, quiet, Modifier.weight(1f).fillMaxHeight())
+            StartTile("Start custom", R.drawable.ic_custom, onStartCustom, quiet, Modifier.weight(1f).fillMaxHeight())
         }
     }
 }

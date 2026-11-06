@@ -23,6 +23,9 @@ object Notifications {
     private const val TAG_OVERDUE = "overdue"
     private const val TAG_PREALERT = "prealert"
     private const val TAG_TURN_OVERDUE = "overdue_turns"
+    // Custom alarms have tags of their own: their ids repeat the checkpoints' ids.
+    private const val TAG_CUSTOM_OVERDUE = "overdue_custom"
+    private const val TAG_CUSTOM_PREALERT = "prealert_custom"
 
     /** Three short pulses: overdue feels different from the alarm's long buzz and the ✓ double tap. */
     private val OVERDUE_PATTERN = longArrayOf(0, 180, 120, 180, 120, 180)
@@ -60,13 +63,20 @@ object Notifications {
     fun alarm(context: Context, spec: RingSpec?): Notification {
         val fullScreen = alarmScreen(context)
         val builder = NotificationCompat.Builder(context, CH_ALARM)
-            .setSmallIcon(if (spec?.turnOnly == true) R.drawable.ic_stat_turn else R.drawable.ic_stat_drop)
+            .setSmallIcon(
+                when {
+                    spec?.turnOnly == true -> R.drawable.ic_stat_turn
+                    spec?.customOnly == true -> R.drawable.ic_stat_custom
+                    else -> R.drawable.ic_stat_drop
+                },
+            )
             .setColor(navy(context))
             .setContentTitle(spec?.title ?: "Transfusion VS")
             .setContentText(
                 when {
                     spec == null -> "Checking alarms…"
                     spec.turnOnly -> spec.round?.beds.orEmpty().joinToString(" · ") { it.bedLabel }
+                    spec.customOnly -> spec.customs.joinToString(" · ") { if (spec.customs.size == 1) Labels.every(it.intervalMin) else it.bedLabel }
                     spec.beds.size == 1 -> spec.beds[0].subtitle
                     else -> spec.beds.joinToString(" · ") { it.shortLabel }
                 },
@@ -93,8 +103,17 @@ object Notifications {
                             if (spec.beds.isNotEmpty()) s.addLine(RingSpec.roundTitle(round))
                             round.beds.forEach { s.addLine("${it.bedLabel}: ${it.from.label} → ${it.suggested.label}") }
                         }
+                        spec.customs.forEach { s.addLine(it.title) }
                     },
                 )
+            } else if (spec.customs.size > 1) {
+                builder.setStyle(NotificationCompat.InboxStyle().also { s -> spec.customs.forEach { s.addLine(it.title) } })
+            }
+            // Custom alarms alone: Done ✓ each (room for two plus Snooze). With anything else, the screen.
+            if (spec.customOnly && spec.customs.size == 1) {
+                builder.addAction(0, Labels.DONE, ackCustomIntent(context, listOf(spec.customs[0].slotId)))
+            } else if (spec.customOnly && spec.customs.size == 2) {
+                spec.customs.forEach { builder.addAction(0, "✓ ${it.bedLabel}", ackCustomIntent(context, listOf(it.slotId))) }
             }
             // One ✓ per bed (the notification has room for two beds plus Snooze).
             if (spec.beds.size == 1) {
@@ -154,6 +173,52 @@ object Notifications {
             builder.addAction(0, "Remind me in 30 min", receiverIntent(context, AlarmReceiver.ACTION_REMIND, "tvs://remind"))
         }
         notifySafe(context, TAG_TURN_OVERDUE, 0, builder.build())
+    }
+
+    // ---- Custom timers overdue (past the missed timeout, still open until the next alarm) ----
+
+    /** One persistent "Overdue — •••4812" per custom timer, until it is done or its next alarm fires. */
+    fun syncCustomOverdue(context: Context, rows: List<CustomOverdue>) {
+        val nm = manager(context)
+        val keep = rows.map { it.timerId.toInt() }.toSet()
+        nm.activeNotifications
+            .filter { it.tag == TAG_CUSTOM_OVERDUE && it.id !in keep }
+            .forEach { nm.cancel(TAG_CUSTOM_OVERDUE, it.id) }
+        for (r in rows) {
+            val text = "${r.name} (${Labels.clock(r.slotAt)}) not done yet. Tap ✓ once it is done."
+            val n = NotificationCompat.Builder(context, CH_OVERDUE)
+                .setSmallIcon(R.drawable.ic_stat_custom)
+                .setColor(red(context))
+                .setContentTitle("Overdue — ${r.bedLabel}")
+                .setContentText(text)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                .setCategory(NotificationCompat.CATEGORY_REMINDER)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setLocalOnly(false)
+                .setContentIntent(openApp(context))
+                .setDeleteIntent(receiverIntent(context, AlarmReceiver.ACTION_REPOST, "tvs://repost/overdue-custom/${r.timerId}"))
+                .addAction(0, Labels.DONE, ackCustomIntent(context, listOf(r.slotId)))
+                .build()
+            notifySafe(context, TAG_CUSTOM_OVERDUE, r.timerId.toInt(), n)
+        }
+    }
+
+    fun customPreAlert(context: Context, bedLabel: String, name: String, at: Long, minutesBefore: Int, slotId: Long) {
+        val n = NotificationCompat.Builder(context, CH_PREALERT)
+            .setSmallIcon(R.drawable.ic_stat_custom)
+            .setColor(navy(context))
+            .setContentTitle("In $minutesBefore min: $name — $bedLabel")
+            .setContentText("Due at ${Labels.clock(at)}")
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setAutoCancel(true)
+            .setLocalOnly(false)
+            .setTimeoutAfter((at - System.currentTimeMillis()).coerceAtLeast(1_000))
+            .setContentIntent(openApp(context))
+            .build()
+        notifySafe(context, TAG_CUSTOM_PREALERT, slotId.toInt(), n)
     }
 
     // ---- Overdue (missed, not yet acknowledged) ----
@@ -227,6 +292,17 @@ object Notifications {
         )
     }
 
+    /** Done ✓ on custom alarms: its own action and address, since custom ids repeat the checkpoints' ids. */
+    fun ackCustomIntent(context: Context, slotIds: List<Long>): PendingIntent {
+        val intent = Intent(context, AlarmReceiver::class.java)
+            .setAction(AlarmReceiver.ACTION_ACK_CUSTOM)
+            .setData(Uri.parse("tvs://ack-custom/${slotIds.joinToString(",")}"))
+            .putExtra(AlarmReceiver.EXTRA_IDS, slotIds.toLongArray())
+        return PendingIntent.getBroadcast(
+            context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
+
     private fun receiverIntent(context: Context, action: String, data: String): PendingIntent =
         PendingIntent.getBroadcast(
             context, 0,
@@ -241,3 +317,6 @@ object Notifications {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 }
+
+/** A custom timer past its missed timeout, as the Overdue notification shows it (already masked). */
+data class CustomOverdue(val timerId: Long, val slotId: Long, val bedLabel: String, val name: String, val slotAt: Long)

@@ -17,10 +17,16 @@ class AlarmReceiver : BroadcastReceiver() {
             try {
                 when (intent.action) {
                     ACTION_ALARM -> {
-                        val (kind, id) = AlarmScheduler.parse(intent.data) ?: return@launch
-                        if (kind == AlarmKind.PREALERT.name) app.engine.onPreAlert(id) else app.engine.onAlarm()
+                        val parsed = AlarmScheduler.parse(intent.data) ?: return@launch
+                        when {
+                            // A custom alarm's id is not a checkpoint's: the same number can be both.
+                            parsed.kind == AlarmKind.PREALERT.name && parsed.custom -> app.engine.onCustomPreAlert(parsed.id)
+                            parsed.kind == AlarmKind.PREALERT.name -> app.engine.onPreAlert(parsed.id)
+                            else -> app.engine.onAlarm()
+                        }
                     }
                     ACTION_ACK -> app.engine.acknowledge(intent.getLongArrayExtra(EXTRA_IDS)?.toList().orEmpty())
+                    ACTION_ACK_CUSTOM -> app.engine.acknowledgeCustom(intent.getLongArrayExtra(EXTRA_IDS)?.toList().orEmpty())
                     ACTION_SNOOZE -> app.engine.snooze()
                     ACTION_REPOST -> app.engine.refreshNotifications()
                     ACTION_REMIND -> app.engine.remindTurns()
@@ -34,6 +40,7 @@ class AlarmReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_ALARM = "app.transfusionvs.action.ALARM"
         const val ACTION_ACK = "app.transfusionvs.action.ACK"
+        const val ACTION_ACK_CUSTOM = "app.transfusionvs.action.ACK_CUSTOM"
         const val ACTION_SNOOZE = "app.transfusionvs.action.SNOOZE"
         const val ACTION_REPOST = "app.transfusionvs.action.REPOST"
         const val ACTION_REMIND = "app.transfusionvs.action.REMIND"

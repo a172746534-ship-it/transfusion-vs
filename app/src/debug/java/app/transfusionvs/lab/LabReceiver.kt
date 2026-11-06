@@ -14,6 +14,7 @@ import android.os.Vibrator
 import app.transfusionvs.App
 import app.transfusionvs.alarm.AlarmService
 import app.transfusionvs.app
+import app.transfusionvs.data.CustomDraft
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.SkipReason
 import app.transfusionvs.schedule.TurnGrid
@@ -59,8 +60,15 @@ class LabReceiver : BroadcastReceiver() {
                             ),
                         )
                     }
+                    "lab.START_CUSTOM" -> app.engine.startCustom(
+                        CustomDraft(intent.getStringExtra("bed") ?: "7654801", intent.getStringExtra("name") ?: "Pain check", intent.getIntExtra("interval", 15)),
+                        startAt = now - intent.getIntExtra("ago", 0) * 60_000L,
+                    )
                     "lab.TEST_ALARM" -> app.engine.scheduleTest(intent.getIntExtra("seconds", 60) * 1000L)
-                    "lab.ACK_ALL" -> app.engine.acknowledge(rows(app, "SELECT id FROM checkpoint WHERE status IN ('RINGING','MISSED')").map { it.getLong("id") })
+                    "lab.ACK_ALL" -> {
+                        app.engine.acknowledge(rows(app, "SELECT id FROM checkpoint WHERE status IN ('RINGING','MISSED')").map { it.getLong("id") })
+                        app.engine.acknowledgeCustom(rows(app, "SELECT id FROM custom_slot WHERE status = 'RINGING'").map { it.getLong("id") })
+                    }
                     "lab.SNOOZE" -> app.engine.snooze()
                     "lab.START_ROUND" -> app.engine.startRound()
                     "lab.TURN_ALL" -> rows(app, "SELECT id FROM turn_slot WHERE status='RINGING'").forEach { app.engine.turned(it.getLong("id"), Position.LEFT_30) }
@@ -93,6 +101,8 @@ class LabReceiver : BroadcastReceiver() {
         .put("hasVibrator", app.getSystemService(Vibrator::class.java).hasVibrator())
         .put("policyAccess", app.getSystemService(NotificationManager::class.java).isNotificationPolicyAccessGranted)
         .put("checkpoints", JSONArray(rows(app, "SELECT c.id,c.type,c.status,c.scheduledAt,c.firedAt,c.ackAt,c.snoozeCount FROM checkpoint c JOIN transfusion t ON t.id=c.transfusionId WHERE c.status!='CANCELLED' AND c.type!='START' ORDER BY c.scheduledAt LIMIT 12")))
+        // Custom alarms, in the checkpoints' shape (scheduledAt), so the lab's helpers read either.
+        .put("customSlots", JSONArray(rows(app, "SELECT s.id,s.status,s.slotAt AS scheduledAt,s.firedAt,s.ackAt,s.snoozeCount,s.silenced FROM custom_slot s WHERE s.status!='CANCELLED' ORDER BY s.slotAt LIMIT 12")))
         .put("slots", JSONArray(rows(app, "SELECT s.id,s.status,s.slotAt,s.firedAt,s.ackAt,s.silenced,s.skipReason FROM turn_slot s JOIN turn_plan p ON p.id=s.planId WHERE s.status!='CANCELLED' ORDER BY s.slotAt LIMIT 12")))
 
     private fun rows(app: App, sql: String): List<JSONObject> {

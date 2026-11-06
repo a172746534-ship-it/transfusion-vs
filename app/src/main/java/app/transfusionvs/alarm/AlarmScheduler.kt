@@ -15,13 +15,14 @@ import app.transfusionvs.ui.MainActivity
  *   transfusion checkpoint: tvs://alarm/<kind>/<id>   (unchanged since v0.1, so alarms set by older
  *                                                     versions stay valid after an update)
  *   turn slot:              tvs://alarm/TURN/<kind>/<id>
+ *   custom timer's alarm:   tvs://alarm/CUSTOM/<kind>/<id>
  */
 class AlarmScheduler(private val context: Context) {
 
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
     fun set(request: AlarmRequest) {
-        val op = pendingIntent(request.kind.name, request.checkpointId, request.turn, create = true)!!
+        val op = pendingIntent(request.kind.name, request.checkpointId, request.turn, create = true, custom = request.custom)!!
         when (request.kind) {
             // The checkpoint and its snooze re-ring use setAlarmClock: the system never delays it
             // and leaves Doze to deliver it.
@@ -39,9 +40,11 @@ class AlarmScheduler(private val context: Context) {
 
     fun cancelTurn(slotId: Long) = cancel(slotId, turn = true)
 
-    private fun cancel(id: Long, turn: Boolean) {
+    fun cancelCustom(slotId: Long) = cancel(slotId, turn = false, custom = true)
+
+    private fun cancel(id: Long, turn: Boolean, custom: Boolean = false) {
         for (kind in AlarmKind.entries) {
-            pendingIntent(kind.name, id, turn, create = false)?.let {
+            pendingIntent(kind.name, id, turn, create = false, custom = custom)?.let {
                 alarmManager.cancel(it)
                 it.cancel()
             }
@@ -69,10 +72,18 @@ class AlarmScheduler(private val context: Context) {
         }
     }
 
-    private fun pendingIntent(kind: String, id: Long, turn: Boolean, create: Boolean): PendingIntent? {
+    private fun pendingIntent(kind: String, id: Long, turn: Boolean, create: Boolean, custom: Boolean = false): PendingIntent? {
         val intent = Intent(context, AlarmReceiver::class.java)
             .setAction(AlarmReceiver.ACTION_ALARM)
-            .setData(Uri.parse(if (turn) "tvs://alarm/TURN/$kind/$id" else "tvs://alarm/$kind/$id"))
+            .setData(
+                Uri.parse(
+                    when {
+                        custom -> "tvs://alarm/CUSTOM/$kind/$id"
+                        turn -> "tvs://alarm/TURN/$kind/$id"
+                        else -> "tvs://alarm/$kind/$id"
+                    },
+                ),
+            )
         val flags = PendingIntent.FLAG_IMMUTABLE or
             if (create) PendingIntent.FLAG_UPDATE_CURRENT else PendingIntent.FLAG_NO_CREATE
         return PendingIntent.getBroadcast(context, 0, intent, flags)
@@ -88,10 +99,11 @@ class AlarmScheduler(private val context: Context) {
             return when {
                 s.size == 2 -> Parsed(s[0], s[1].toLongOrNull() ?: return null, turn = false)
                 s.size == 3 && s[0] == "TURN" -> Parsed(s[1], s[2].toLongOrNull() ?: return null, turn = true)
+                s.size == 3 && s[0] == "CUSTOM" -> Parsed(s[1], s[2].toLongOrNull() ?: return null, turn = false, custom = true)
                 else -> null
             }
         }
     }
 
-    data class Parsed(val kind: String, val id: Long, val turn: Boolean)
+    data class Parsed(val kind: String, val id: Long, val turn: Boolean, val custom: Boolean = false)
 }

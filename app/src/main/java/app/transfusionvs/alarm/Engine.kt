@@ -8,6 +8,10 @@ import app.transfusionvs.data.CheckpointStatus.MISSED
 import app.transfusionvs.data.CheckpointStatus.PENDING
 import app.transfusionvs.data.CheckpointStatus.RINGING
 import app.transfusionvs.data.CheckpointType
+import app.transfusionvs.data.CustomDraft
+import app.transfusionvs.data.CustomSlotStatus
+import app.transfusionvs.data.CustomTimer
+import app.transfusionvs.data.CustomTimerStatus
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.Settings
 import app.transfusionvs.data.SkipReason
@@ -22,6 +26,8 @@ import app.transfusionvs.data.UndoAction
 import app.transfusionvs.data.WardDao
 import app.transfusionvs.schedule.ArmPlanner
 import app.transfusionvs.schedule.BedMask
+import app.transfusionvs.schedule.CustomName
+import app.transfusionvs.schedule.CustomRules
 import app.transfusionvs.schedule.Grouping
 import app.transfusionvs.schedule.MINUTE_MS
 import app.transfusionvs.schedule.Reconciler
@@ -56,6 +62,9 @@ class Engine(
 
     /** Repositioning: a second source on the same engine (same scheduler, service and notifications). */
     private val turns = TurnSource(turnDao, settings, scheduler)
+
+    /** Custom timers: a third source, the same way. */
+    private val customs = CustomSource(wardDao, settings, scheduler)
 
     private fun now() = System.currentTimeMillis()
 
@@ -178,6 +187,18 @@ class Engine(
                 turns.cancelOpen(step.id, includeRinging = true)
                 turnDao.deletePlan(step.id)
             }
+            is UndoStep.RestoreCustomSlot -> wardDao.customSlots(listOf(step.id)).firstOrNull()?.let {
+                wardDao.updateCustomSlots(
+                    listOf(it.copy(status = step.status, firedAt = step.firedAt, ackAt = step.ackAt, snoozeCount = step.snoozeCount, snoozeUntil = step.snoozeUntil, silenced = step.silenced)),
+                )
+            }
+            is UndoStep.RestoreCustomTimer -> wardDao.customTimer(step.id)?.let {
+                wardDao.updateCustomTimer(it.copy(status = step.status, stopAt = step.stopAt, stoppedAt = step.stoppedAt))
+            }
+            is UndoStep.DeleteCustomTimer -> {
+                customs.cancelOpen(step.id, includeRinging = true)
+                wardDao.deleteCustomTimer(step.id)
+            }
         }
     }
 
@@ -187,10 +208,13 @@ class Engine(
         mutex.withLock {
             val audible = dao.activeCheckpoints().filter { Grouping.isAudible(it, now) }
             val audibleTurns = turns.audible(now)
-            if (!canSnoozeCounts(audible.map { it.snoozeCount } + audibleTurns.map { it.snoozeCount })) return@withLock
+            val audibleCustom = customs.audible(now)
+            if (!canSnoozeCounts(audible.map { it.snoozeCount } + audibleTurns.map { it.snoozeCount } + audibleCustom.map { it.snoozeCount })) return@withLock
+            if (!customs.canSnooze(audibleCustom, now)) return@withLock
             val until = now + settings.snoozeMin * MINUTE_MS
             dao.updateCheckpoints(audible.map { it.copy(snoozeCount = it.snoozeCount + 1, snoozeUntil = until) })
             turns.snooze(audibleTurns, until)
+            customs.snooze(audibleCustom, until)
             armLocked(now)
         }
         syncRinging(canStartService = false)
@@ -340,6 +364,101 @@ class Engine(
             }
         }
         syncOverdue()
+    }
+
+    // ---- Custom timers (called from visible screens, the alarm's own buttons or a notification action) ----
+
+    /**
+     * Starts a timer, or, when this patient already has a running one with the same name, changes
+     * nothing and returns that one's id. Returns null when a new timer was started.
+     * [startAt] is for the lab only; a nurse's timer starts now.
+     */
+    suspend fun startCustom(draft: CustomDraft, startAt: Long = now()): Long? {
+        val now = now()
+        val existing = mutex.withLock {
+            val mrn = draft.bedLabel.trim()
+            val name = draft.name.trim()
+            wardDao.runningCustomFor(mrn).firstOrNull { CustomName.key(it.name) == CustomName.key(name) }?.id
+                ?: run {
+                    val start = ScheduleCalculator.truncateToMinute(minOf(startAt, now))
+                    val id = wardDao.insertCustomTimer(
+                        CustomTimer(bedLabel = mrn, name = name, intervalMin = draft.intervalMin, startAt = start, anchorAt = start, fromAt = start),
+                    )
+                    recordUndoLocked(UndoAction.custom(id), "$mrn · $name started", now, listOf(UndoStep.DeleteCustomTimer(id)))
+                    null
+                }
+        }
+        if (existing == null) update(canStartService = true)
+        return existing
+    }
+
+    /** Name or MRN only: the schedule stays. A new interval: from the last Done, never in the past. */
+    suspend fun editCustom(id: Long, draft: CustomDraft) {
+        val now = now()
+        mutex.withLock {
+            val t = wardDao.customTimer(id)
+            if (t != null && t.status == CustomTimerStatus.RUNNING) {
+                val renamed = t.copy(bedLabel = draft.bedLabel.trim(), name = draft.name.trim())
+                if (draft.intervalMin != t.intervalMin) {
+                    customs.cancelOpen(id, includeRinging = false)
+                    wardDao.updateCustomTimer(CustomRules.edited(renamed, wardDao.customSlotsFor(id), draft.intervalMin, now))
+                } else {
+                    wardDao.updateCustomTimer(renamed)
+                }
+            }
+        }
+        update(canStartService = true)
+    }
+
+    suspend fun stopCustom(id: Long) {
+        val now = now()
+        mutex.withLock {
+            wardDao.customTimer(id)?.let { t ->
+                val open = wardDao.customSlotsFor(id).filter { it.status == CustomSlotStatus.RINGING }
+                recordUndoLocked(UndoAction.custom(id), "${t.bedLabel} · ${t.name} stopped", now, listOf(UndoStep.of(t)) + open.map { UndoStep.of(it) })
+            }
+            customs.stop(id, now)
+        }
+        update(canStartService = true)
+    }
+
+    /** "End of my shift": no alarm at or after [stopAt]; null clears it. */
+    suspend fun setCustomStop(id: Long, stopAt: Long?) {
+        mutex.withLock {
+            wardDao.customTimer(id)?.takeIf { it.status == CustomTimerStatus.RUNNING }?.let { t ->
+                customs.cancelOpen(id, includeRinging = false)
+                wardDao.updateCustomTimer(t.copy(stopAt = stopAt))
+            }
+        }
+        update(canStartService = true)
+    }
+
+    /** "Done ✓" on custom alarms. Their ids are custom_slot ids, never checkpoint ids. */
+    suspend fun acknowledgeCustom(slotIds: List<Long>) {
+        if (slotIds.isEmpty()) return
+        val now = now()
+        var confirmed = false
+        mutex.withLock {
+            val before = wardDao.customSlots(slotIds).filter { it.status == CustomSlotStatus.RINGING }
+            confirmed = before.isNotEmpty()
+            for ((timerId, rows) in before.groupBy { it.timerId }) {
+                val t = wardDao.customTimer(timerId) ?: continue
+                recordUndoLocked(UndoAction.custom(timerId), "${t.bedLabel} · ${t.name} done", now, rows.map { UndoStep.of(it) })
+            }
+            customs.acknowledge(before, now)
+        }
+        if (confirmed) Haptics.confirmed(context)
+        syncRinging(canStartService = false)
+        syncOverdue()
+    }
+
+    suspend fun onCustomPreAlert(slotId: Long) {
+        val slot = wardDao.customSlots(listOf(slotId)).firstOrNull() ?: return
+        val timer = wardDao.customTimer(slot.timerId) ?: return
+        if (slot.status == CustomSlotStatus.PENDING && slot.slotAt > now()) {
+            val mask = masker()
+            Notifications.customPreAlert(context, mask(timer.bedLabel), mask(timer.name), slot.slotAt, settings.preAlertMin, slot.id)
+        }
     }
 
     /** Setup check → "Test alarm in …": a real alarm through the full path, excluded from stats. */
@@ -524,6 +643,9 @@ class Engine(
         // 4. Repositioning: same refresh, its own rules.
         turns.refresh(now)
 
+        // 5. Custom timers: same refresh, their own rules.
+        customs.refresh(now)
+
         closeFinishedTestsLocked(now)
         armLocked(now)
     }
@@ -544,6 +666,7 @@ class Engine(
         val plan = ArmPlanner.plan(dao.activeCheckpoints(), now, settings.preAlertMin, settings.missedTimeoutMin)
         plan.requests.forEach { scheduler.set(it) }
         turns.arm(now)
+        customs.arm(now)
     }
 
     private suspend fun closeFinishedTestsLocked(now: Long) {
@@ -561,7 +684,8 @@ class Engine(
         val ringing = dao.ringingWithBed()
         val audible = ringing.filter { it.snoozeUntil == null || it.snoozeUntil <= now }
         val audibleTurns = turns.audible(now)
-        if (audible.isEmpty() && audibleTurns.isEmpty()) {
+        val audibleCustom = customs.audible(now)
+        if (audible.isEmpty() && audibleTurns.isEmpty() && audibleCustom.isEmpty()) {
             AlarmService.stop(context)
             return
         }
@@ -570,13 +694,15 @@ class Engine(
         val round = if (audibleTurns.isEmpty()) null else RoundBuilder.build(turnDao.round(), now, ZoneId.systemDefault())
         val spec = RingSpec.build(
             audible,
-            canSnooze = canSnoozeCounts(audible.map { it.snoozeCount } + audibleTurns.map { it.snoozeCount }),
+            canSnooze = canSnoozeCounts(audible.map { it.snoozeCount } + audibleTurns.map { it.snoozeCount } + audibleCustom.map { it.snoozeCount }) &&
+                customs.canSnooze(audibleCustom, now),
             snoozeMin = settings.snoozeMin,
             soundOn = settings.soundOn,
             soundUri = settings.alarmSoundUri,
             missedTimeoutMin = settings.missedTimeoutMin,
             round = round,
             turnSoundUri = settings.turnSoundUri,
+            customs = if (audibleCustom.isEmpty()) emptyList() else CustomRingBuilder.build(wardDao.customRinging(), now, settings.snoozeMin),
         ).masked(masker())
         when {
             AlarmService.isRunning -> AlarmService.update(spec)
@@ -594,11 +720,12 @@ class Engine(
         val now = now()
         val round = RoundBuilder.build(turnDao.round(), now, ZoneId.systemDefault())
         Notifications.syncTurnOverdue(context, turns.overdueBeds(now).map(mask), canRemind = round?.canRemind == true)
+        Notifications.syncCustomOverdue(context, customs.overdue(now).map { (t, s) -> CustomOverdue(t.id, s.id, mask(t.bedLabel), mask(t.name), s.slotAt) })
         BedsWidget.refresh(context, dao, turnDao, settings)
     }
 
     /** Whatever leaves the app shows bed labels through this (see BedMask). */
-    private suspend fun masker() = BedMask.masker(dao.bedLabels() + turnDao.bedLabels())
+    private suspend fun masker() = BedMask.masker(dao.bedLabels() + turnDao.bedLabels() + wardDao.customBedLabels())
 
     private fun canSnoozeCounts(snoozeCounts: List<Int>) =
         snoozeCounts.isNotEmpty() && snoozeCounts.all { it < Settings.MAX_SNOOZES }

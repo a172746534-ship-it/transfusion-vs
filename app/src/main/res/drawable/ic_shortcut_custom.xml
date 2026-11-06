@@ -1,0 +1,18 @@
+<!-- Hourglass: the custom timer shortcut icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M6.5,3H17.5M6.5,21H17.5"
+        android:strokeWidth="2.4"
+        android:strokeColor="@color/drop"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M8,3.2C8,8.4 12,9.4 12,12C12,14.6 8,15.6 8,20.8M16,3.2C16,8.4 12,9.4 12,12C12,14.6 16,15.6 16,20.8"
+        android:strokeWidth="2.4"
+        android:strokeColor="@color/drop"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

@@ -2,10 +2,13 @@ package app.transfusionvs.alarm
 
 import app.transfusionvs.data.CheckpointType
 import app.transfusionvs.data.CheckpointWithBed
+import app.transfusionvs.data.CustomSlotStatus
+import app.transfusionvs.data.CustomTimerWithSlots
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.Settings
 import app.transfusionvs.data.TurnPlanWithSlots
 import app.transfusionvs.data.TurnSlotStatus
+import app.transfusionvs.schedule.CustomRules
 import app.transfusionvs.schedule.Labels
 import app.transfusionvs.schedule.TurnGrid
 import app.transfusionvs.schedule.TurnRules
@@ -38,19 +41,26 @@ data class RingSpec(
     val round: RoundUi? = null,
     /** Turning sound (null = the bundled chime). */
     val turnSoundUri: String? = null,
+    /** Custom timers sounding, oldest start first (they come after transfusions and the round). */
+    val customs: List<CustomRing> = emptyList(),
 ) {
     /** For what shows outside the app: every bed label through [mask]. */
     fun masked(mask: (String) -> String) = copy(
         beds = beds.map { it.copy(bedLabel = mask(it.bedLabel)) },
         round = round?.masked(mask),
+        customs = customs.map { it.masked(mask) },
     )
 
     /** Only turns are sounding: play the turning sound and vibration, not the transfusion alarm. */
     val turnOnly: Boolean get() = beds.isEmpty() && round != null
 
+    /** Only custom timers are sounding: their own chime and vibration. */
+    val customOnly: Boolean get() = beds.isEmpty() && round == null && customs.isNotEmpty()
+
     val title: String
         get() = when {
             beds.isEmpty() && round != null -> roundTitle(round)
+            customOnly -> if (customs.size == 1) customs[0].title else "${customs.size} custom timers due"
             beds.size == 1 -> beds[0].title
             else -> "${beds.size} patients due now"
         }
@@ -65,6 +75,7 @@ data class RingSpec(
             missedTimeoutMin: Int,
             round: RoundUi? = null,
             turnSoundUri: String? = null,
+            customs: List<CustomRing> = emptyList(),
         ) = RingSpec(
             beds = groupByBed(audible),
             canSnooze = canSnooze,
@@ -74,6 +85,7 @@ data class RingSpec(
             missedTimeoutMin = missedTimeoutMin,
             round = round,
             turnSoundUri = turnSoundUri,
+            customs = customs,
         )
 
         fun roundTitle(r: RoundUi) =
@@ -152,4 +164,41 @@ object RoundBuilder {
             canRemind = started && TurnGrid.canRemind(now, nextSlot) && open.none { it.second.remindAt != null },
         )
     }
+}
+
+// ---- Custom timers (one row per timer with an alarm open, oldest start first) ----
+
+/** A custom timer on the alarm: its own Done ✓ acknowledges its open alarm. */
+data class CustomRing(
+    val timerId: Long,
+    val slotId: Long,
+    val bedLabel: String,
+    val name: String,
+    val intervalMin: Int,
+    val slotAt: Long,
+    val startAt: Long,
+    /** Sounding (not silenced, not snoozed). */
+    val audible: Boolean,
+    val snoozedUntil: Long?,
+    /** Snooze would end before its next alarm, and the snooze limit isn't reached. */
+    val canSnooze: Boolean,
+) {
+    val title: String get() = "$name — $bedLabel"
+
+    fun masked(mask: (String) -> String) = copy(bedLabel = mask(bedLabel), name = mask(name))
+}
+
+object CustomRingBuilder {
+
+    fun build(timers: List<CustomTimerWithSlots>, now: Long, snoozeMin: Int): List<CustomRing> =
+        timers.sortedBy { it.timer.startAt }.mapNotNull { t ->
+            val s = t.slots.filter { it.status == CustomSlotStatus.RINGING }.minByOrNull { it.slotAt } ?: return@mapNotNull null
+            CustomRing(
+                timerId = t.timer.id, slotId = s.id, bedLabel = t.timer.bedLabel, name = t.timer.name,
+                intervalMin = t.timer.intervalMin, slotAt = s.slotAt, startAt = t.timer.startAt,
+                audible = CustomRules.isAudible(s, now),
+                snoozedUntil = s.snoozeUntil?.takeIf { it > now },
+                canSnooze = CustomRules.canSnooze(t.timer, s, now, snoozeMin),
+            )
+        }
 }

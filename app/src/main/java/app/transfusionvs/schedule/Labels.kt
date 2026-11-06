@@ -11,6 +11,12 @@ object Labels {
     /** The acknowledge action, the same words everywhere. The ✓ stays on the last word's line. */
     const val ACK = "Measured & documented\u00A0✓"
 
+    /** A custom timer's acknowledge. */
+    const val DONE = "Done\u00A0✓"
+
+    /** "every 4 h", "every 1 h 30 min". */
+    fun every(minutes: Int): String = "every ${duration(minutes)}"
+
     fun title(type: CheckpointType, offsetMin: Int): String = when (type) {
         CheckpointType.START -> "Start"
         CheckpointType.M15 -> "15-min check"

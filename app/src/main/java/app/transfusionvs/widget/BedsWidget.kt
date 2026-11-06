@@ -50,24 +50,27 @@ object BedsWidget {
             val ids = manager.getAppWidgetIds(ComponentName(context, BedsWidgetProvider::class.java))
             if (ids.isEmpty()) return
             val night = nightNow(settings, context.resources.configuration)
-            manager.updateAppWidget(ids, build(context, beds(dao, turnDao, settings), System.currentTimeMillis(), night))
+            manager.updateAppWidget(ids, build(context, beds(context, dao, turnDao, settings), System.currentTimeMillis(), night))
         }
     }
 
-    private suspend fun beds(dao: TvsDao, turnDao: TurnDao, settings: Settings): List<BedView> {
+    private suspend fun beds(context: Context, dao: TvsDao, turnDao: TurnDao, settings: Settings): List<BedView> {
         val now = System.currentTimeMillis()
+        val wardDao = context.app.db.wardDao()
         return masked(
             BedViews.sorted(
-                dao.homeOnce().map { BedViews.of(it, now) } + turnDao.homeOnce().map { BedViews.of(it, now, settings.missedTimeoutMin) },
+                dao.homeOnce().map { BedViews.of(it, now) } + turnDao.homeOnce().map { BedViews.of(it, now, settings.missedTimeoutMin) } +
+                    wardDao.customHomeOnce().map { BedViews.of(it, now, settings.missedTimeoutMin) },
             ).filter { !it.idle },
-            dao.bedLabels() + turnDao.bedLabels(),
+            dao.bedLabels() + turnDao.bedLabels() + wardDao.customBedLabels(),
         )
     }
 
     /** The widget is outside the app and shows on the home screen: bed labels go through the mask. */
     fun masked(beds: List<BedView>, active: Collection<String>): List<BedView> {
         val mask = BedMask.masker(active)
-        return beds.map { it.copy(bed = mask(it.bed)) }
+        // A custom timer's name can hold a number too.
+        return beds.map { it.copy(bed = mask(it.bed), what = mask(it.what)) }
     }
 
     /** Also used by the emulator test that renders the widget to an image. */
@@ -102,6 +105,7 @@ object BedsWidget {
         val typeColor = when (bed.type) {
             BedType.TRANSFUSION -> if (night) R.color.widget_type_tx_night else R.color.widget_type_tx
             BedType.TURN -> if (night) R.color.widget_type_rp_night else R.color.widget_type_rp
+            BedType.CUSTOM -> if (night) R.color.widget_muted_night else R.color.widget_muted
         }
         r.setInt(R.id.row_icon, "setColorFilter", context.getColor(typeColor))
         r.setInt(R.id.row_ack, "setBackgroundResource", if (night) R.drawable.widget_action_night else R.drawable.widget_action)
@@ -113,7 +117,14 @@ object BedsWidget {
             else -> ""
         }
         r.setTextViewText(R.id.row_time, mark + (bed.time?.let { Labels.clock(it) } ?: "—"))
-        r.setImageViewResource(R.id.row_icon, if (bed.type == BedType.TRANSFUSION) R.drawable.ic_drop else R.drawable.ic_turn)
+        r.setImageViewResource(
+            R.id.row_icon,
+            when (bed.type) {
+                BedType.TRANSFUSION -> R.drawable.ic_drop
+                BedType.TURN -> R.drawable.ic_turn
+                BedType.CUSTOM -> R.drawable.ic_custom
+            },
+        )
         r.setTextViewText(R.id.row_bed, bed.bed)
         r.setTextViewText(R.id.row_what, stateWord(bed) + bed.what)
         val alert = bed.stoppedForReaction || bed.urgency == Urgency.OVERDUE
@@ -122,7 +133,11 @@ object BedsWidget {
         r.setViewVisibility(R.id.row_ack, if (canAck) View.VISIBLE else View.GONE)
         if (canAck) {
             r.setTextViewText(R.id.row_ack, "${bed.bed} · ${bed.ackLabel}")
-            r.setOnClickPendingIntent(R.id.row_ack, Notifications.ackIntent(context, bed.ackIds))
+            // A custom alarm's ids are not checkpoint ids: its own acknowledge.
+            r.setOnClickPendingIntent(
+                R.id.row_ack,
+                if (bed.type == BedType.CUSTOM) Notifications.ackCustomIntent(context, bed.ackIds) else Notifications.ackIntent(context, bed.ackIds),
+            )
         }
         r.setOnClickPendingIntent(R.id.row_root, if (bed.roundOpen) Notifications.alarmScreen(context) else Notifications.openApp(context))
         return r

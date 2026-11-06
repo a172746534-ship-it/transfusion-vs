@@ -6,6 +6,8 @@ import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -27,6 +29,7 @@ data class UndoAction(
         const val ROUND = "ROUND"
         fun transfusion(id: Long) = "T$id"
         fun plan(id: Long) = "P$id"
+        fun custom(id: Long) = "C$id"
     }
 }
 
@@ -60,4 +63,85 @@ interface WardDao {
 
     @Query("DELETE FROM undo_action WHERE expiresAt <= :now")
     suspend fun deleteExpiredUndo(now: Long)
+
+    // ---- Custom timers ----
+
+    @Insert
+    suspend fun insertCustomTimer(t: CustomTimer): Long
+
+    @Update
+    suspend fun updateCustomTimer(t: CustomTimer)
+
+    @Query("SELECT * FROM custom_timer WHERE id = :id")
+    suspend fun customTimer(id: Long): CustomTimer?
+
+    @Query("SELECT * FROM custom_timer")
+    suspend fun allCustomTimers(): List<CustomTimer>
+
+    @Query("SELECT * FROM custom_timer WHERE status = 'RUNNING' AND bedLabel = :mrn")
+    suspend fun runningCustomFor(mrn: String): List<CustomTimer>
+
+    /** Undoing a start. Its alarms go too (CASCADE). */
+    @Query("DELETE FROM custom_timer WHERE id = :id")
+    suspend fun deleteCustomTimer(id: Long)
+
+    @Insert
+    suspend fun insertCustomSlots(rows: List<CustomSlot>)
+
+    @Update
+    suspend fun updateCustomSlots(rows: List<CustomSlot>)
+
+    @Query("DELETE FROM custom_slot WHERE id IN (:ids)")
+    suspend fun deleteCustomSlots(ids: List<Long>)
+
+    @Query("SELECT * FROM custom_slot WHERE timerId = :timerId ORDER BY slotAt")
+    suspend fun customSlotsFor(timerId: Long): List<CustomSlot>
+
+    @Query("SELECT * FROM custom_slot WHERE id IN (:ids)")
+    suspend fun customSlots(ids: List<Long>): List<CustomSlot>
+
+    @Query("SELECT * FROM custom_slot WHERE status = 'RINGING'")
+    suspend fun ringingCustomSlots(): List<CustomSlot>
+
+    /** Home: running timers only (a stopped one leaves Home at once). */
+    @Transaction
+    @Query("SELECT * FROM custom_timer WHERE status = 'RUNNING' ORDER BY startAt")
+    fun observeCustomHome(): Flow<List<CustomTimerWithSlots>>
+
+    /** Once, for the home-screen widget. */
+    @Transaction
+    @Query("SELECT * FROM custom_timer WHERE status = 'RUNNING' ORDER BY startAt")
+    suspend fun customHomeOnce(): List<CustomTimerWithSlots>
+
+    @Transaction
+    @Query("SELECT * FROM custom_timer WHERE id = :id")
+    fun observeCustomTimer(id: Long): Flow<CustomTimerWithSlots?>
+
+    /** Timers with an alarm open (for the alarm screen), oldest start first. */
+    @Transaction
+    @Query("SELECT * FROM custom_timer WHERE id IN (SELECT timerId FROM custom_slot WHERE status = 'RINGING') ORDER BY startAt")
+    fun observeCustomRinging(): Flow<List<CustomTimerWithSlots>>
+
+    @Transaction
+    @Query("SELECT * FROM custom_timer WHERE id IN (SELECT timerId FROM custom_slot WHERE status = 'RINGING') ORDER BY startAt")
+    suspend fun customRinging(): List<CustomTimerWithSlots>
+
+    @Query("SELECT bedLabel FROM custom_timer")
+    suspend fun customBedLabels(): List<String>
+
+    @Query("SELECT bedLabel FROM custom_timer")
+    fun observeCustomBedLabels(): Flow<List<String>>
+
+    // ---- Housekeeping: nothing is kept long-term (Cerner is the record) ----
+
+    @Query(
+        """
+        DELETE FROM custom_timer WHERE status = 'STOPPED' AND stoppedAt IS NOT NULL AND stoppedAt < :cutoff
+          AND id NOT IN (SELECT timerId FROM custom_slot WHERE status = 'RINGING')
+        """,
+    )
+    suspend fun deleteStoppedCustomBefore(cutoff: Long)
+
+    @Query("DELETE FROM custom_slot WHERE status IN ('ACKED', 'MISSED', 'CANCELLED') AND slotAt < :cutoff")
+    suspend fun deleteOldCustomSlots(cutoff: Long)
 }

@@ -4,15 +4,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.transfusionvs.App
 import app.transfusionvs.data.CheckpointWithBed
+import app.transfusionvs.data.CustomDraft
+import app.transfusionvs.data.CustomTimerWithSlots
 import app.transfusionvs.data.TransfusionWithCheckpoints
 import app.transfusionvs.data.TurnPlanWithSlots
 import app.transfusionvs.data.UndoAction
 import app.transfusionvs.ui.screens.TurnPlanDraft
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Marks a screen's primary action for the emulator UI checks (bottom third, exactly one). */
 const val PRIMARY_TAG = "primary"
@@ -65,6 +69,38 @@ class MainViewModel(private val app: App) : ViewModel() {
 
     fun restartTurnPlan(id: Long) {
         app.scope.launch { app.engine.restartTurnPlan(id) }
+    }
+
+    // ---- Custom timers ----
+
+    /** Running custom timers; null until the first load. */
+    val customs: StateFlow<List<CustomTimerWithSlots>?> =
+        wardDao.observeCustomHome().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun customTimer(id: Long): Flow<CustomTimerWithSlots?> = wardDao.observeCustomTimer(id)
+
+    /** [onResult] gets the id of an existing timer with the same name for this patient, or null when a new one started. */
+    fun startCustom(draft: CustomDraft, onResult: (Long?) -> Unit) {
+        app.scope.launch {
+            val existing = app.engine.startCustom(draft)
+            withContext(Dispatchers.Main) { onResult(existing) }
+        }
+    }
+
+    fun editCustom(id: Long, draft: CustomDraft) {
+        app.scope.launch { app.engine.editCustom(id, draft) }
+    }
+
+    fun stopCustom(id: Long) {
+        app.scope.launch { app.engine.stopCustom(id) }
+    }
+
+    fun setCustomStop(id: Long, stopAt: Long?) {
+        app.scope.launch { app.engine.setCustomStop(id, stopAt) }
+    }
+
+    fun acknowledgeCustom(slotIds: List<Long>) {
+        app.scope.launch { app.engine.acknowledgeCustom(slotIds) }
     }
 
     // ---- Undo ----
