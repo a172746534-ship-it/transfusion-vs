@@ -24,6 +24,10 @@ POINTS = {
 }
 # Must pass to merge; worth no points, the 100 stay as the spec split them (docs/MRN_ADDON.md).
 GATES = ["M01_mrn_masked_outside_the_app"]
+# Custom timers (docs/CUSTOM_TIMER.md §8): the same cases for custom alarms, as gates. A15 and A16
+# check the app as a whole and run once.
+GATES += [f"{cid}@custom" for cid in POINTS if cid not in ("A15_permissions_revoked_warns", "A16_alarm_volume_zero_warns")]
+GATES += ["M01_mrn_masked_outside_the_app@custom"]
 results = {}
 for path in root.rglob("reliability/results.json"):
     for r in json.loads(path.read_text(encoding="utf-8")):
@@ -45,9 +49,15 @@ for cid in POINTS:
         if r["status"] != "PASS":
             print(f"- {cid} API {a} {r['status']}: {r['detail'][:230]}")
 
-print("Gates:")
+print("Gates (same rule as area A: PASS or N/A on every API of the matrix, PASS on at least one):")
+passed = 0
 for cid in GATES:
-    print(" ", cid, {a: r["status"] for a, r in sorted(results.get(cid, {}).items())}, next((r["detail"][:200] for r in results.get(cid, {}).values() if r["status"] != "PASS"), ""))
+    per = results.get(cid, {})
+    cells = [per[a]["status"] if a in per else "not run" for a in MATRIX]
+    ok = all(c in ("PASS", "N/A") for c in cells) and "PASS" in cells
+    passed += ok
+    print(" ", "PASS" if ok else "FAIL", cid, {a: r["status"] for a, r in sorted(per.items())}, next((r["detail"][:200] for r in per.values() if r["status"] != "PASS"), ""))
+print(f"Gates: {passed}/{len(GATES)}")
 
 print("\n--- robustness per API ---")
 for rob in sorted(root.rglob("robustness")):

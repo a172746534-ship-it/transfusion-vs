@@ -37,6 +37,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import androidx.compose.ui.test.performImeAction
+import app.transfusionvs.data.CustomDraft
+import app.transfusionvs.data.CustomSlot
+import app.transfusionvs.data.CustomSlotStatus
+import app.transfusionvs.data.CustomTimer
+import app.transfusionvs.data.CustomTimerStatus
+import app.transfusionvs.schedule.ScheduleCalculator
 
 /**
  * Drives the nine core tasks of docs/DESIGN_OVERHAUL.md §3 through the real activities and counts
@@ -254,5 +261,45 @@ class TapBudget {
         report(9, 3)
         rule.waitUntil(10_000) { runBlocking { app.db.turnDao().ringingSlots().isEmpty() } }
         assertEquals(TurnSlotStatus.SKIPPED, runBlocking { app.db.turnDao().allPlans().flatMap { app.db.turnDao().slotsFor(it.id) } }.first().status)
+    }
+
+    // ---- Custom timers (docs/CUSTOM_TIMER.md §8): tasks 10–12 ----
+
+    private fun customRinging(bed: String, name: String) = runBlocking {
+        val slot = ScheduleCalculator.truncateToMinute(now)
+        val start = slot - 60 * 60_000L
+        val id = app.db.wardDao().insertCustomTimer(CustomTimer(bedLabel = bed, name = name, intervalMin = 60, startAt = start, anchorAt = start, fromAt = start))
+        app.db.wardDao().insertCustomSlots(listOf(CustomSlot(timerId = id, slotAt = slot, firedAt = slot, status = CustomSlotStatus.RINGING)))
+    }
+
+    /** Task name and MRN are typed (typing excluded, as the prompt says); the keyboard's Done is part of typing. */
+    @Test fun task10_startCustom() {
+        home()
+        tap("Start custom")
+        val fields = rule.onAllNodes(hasSetTextAction())
+        fields[0].performTextInput("Check drain")
+        fields[1].performTextInput("7654810")
+        fields[1].performImeAction()
+        rule.waitForIdle()
+        tap("1 h")
+        report(10, 4, typing = true)
+        rule.waitUntil(10_000) { runBlocking { app.db.wardDao().allCustomTimers().any { it.bedLabel == "7654810" && it.intervalMin == 60 && it.name == "Check drain" } } }
+    }
+
+    @Test fun task11_doneOnCustomAlarm() {
+        customRinging("7654811", "Check drain")
+        alarm("Done")
+        tap("Done")
+        report(11, 1)
+        rule.waitUntil(10_000) { runBlocking { app.db.wardDao().ringingCustomSlots().isEmpty() } }
+    }
+
+    @Test fun task12_stopCustom() {
+        runBlocking { app.engine.startCustom(CustomDraft("7654812", "Check drain", 60)) }
+        home("7654812")
+        tap("7654812")
+        tap("Stop timer")
+        report(12, 3)
+        rule.waitUntil(10_000) { runBlocking { app.db.wardDao().allCustomTimers().all { it.status == CustomTimerStatus.STOPPED } } }
     }
 }

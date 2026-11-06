@@ -23,6 +23,8 @@ import app.transfusionvs.data.TurnSlot
 import app.transfusionvs.data.TurnSlotStatus
 import app.transfusionvs.schedule.MINUTE_MS
 import app.transfusionvs.schedule.ScheduleCalculator
+import app.transfusionvs.schedule.TurnGrid
+import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -50,6 +52,9 @@ class CustomEngineTest {
     private lateinit var engine: Engine
     private val now get() = System.currentTimeMillis()
     private val minute get() = ScheduleCalculator.truncateToMinute(now)
+
+    /** The next slot on the turning grid: a pending turn slot anywhere else is rebuilt by the turn source. */
+    private val grid get() = TurnGrid.nextSlotAfter(now, 120, ZoneId.systemDefault())
 
     @Before
     fun open() {
@@ -308,7 +313,7 @@ class CustomEngineTest {
     fun collision_snoozeWritesOnlyWhatIsSounding() = runBlocking {
         val later = minute + 30 * MINUTE_MS
         checkpoint(500, CheckpointStatus.PENDING, later)
-        turnSlot(500, TurnSlotStatus.PENDING, later)
+        turnSlot(500, TurnSlotStatus.PENDING, grid)
         customSlot(500, CustomSlotStatus.RINGING, minute)
         engine.rearm()
         val c0 = cp(500); val t0 = ts(500)
@@ -363,7 +368,7 @@ class CustomEngineTest {
     fun collision_cancelTouchesOnlyItsOwnAddress() = runBlocking {
         val later = minute + 30 * MINUTE_MS
         checkpoint(500, CheckpointStatus.PENDING, later)
-        turnSlot(500, TurnSlotStatus.PENDING, later)
+        turnSlot(500, TurnSlotStatus.PENDING, grid)
         customSlot(500, CustomSlotStatus.PENDING, later)
         engine.rearm()
         val scheduler = AlarmScheduler(context)
