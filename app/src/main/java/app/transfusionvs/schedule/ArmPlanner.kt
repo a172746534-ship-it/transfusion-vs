@@ -21,8 +21,11 @@ enum class AlarmKind {
     REMIND,
 }
 
-/** [turn] = a repositioning slot (its own PendingIntent space); otherwise a transfusion checkpoint. */
-data class AlarmRequest(val kind: AlarmKind, val checkpointId: Long, val at: Long, val turn: Boolean = false)
+/**
+ * [turn] = a repositioning slot, [custom] = a custom timer's alarm (each its own PendingIntent space,
+ * since ids repeat across tables); otherwise a transfusion checkpoint.
+ */
+data class AlarmRequest(val kind: AlarmKind, val checkpointId: Long, val at: Long, val turn: Boolean = false, val custom: Boolean = false)
 
 /**
  * @param ringNow something is overdue or should be sounding right now; the engine answers with

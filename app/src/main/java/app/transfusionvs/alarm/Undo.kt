@@ -2,6 +2,10 @@ package app.transfusionvs.alarm
 
 import app.transfusionvs.data.Checkpoint
 import app.transfusionvs.data.CheckpointStatus
+import app.transfusionvs.data.CustomSlot
+import app.transfusionvs.data.CustomSlotStatus
+import app.transfusionvs.data.CustomTimer
+import app.transfusionvs.data.CustomTimerStatus
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.SkipReason
 import app.transfusionvs.data.Transfusion
@@ -41,6 +45,17 @@ sealed interface UndoStep {
     data class DeleteCheckpoint(val id: Long) : UndoStep
     data class DeleteTransfusion(val id: Long) : UndoStep
     data class DeletePlan(val id: Long) : UndoStep
+    data class RestoreCustomSlot(
+        val id: Long,
+        val status: CustomSlotStatus,
+        val firedAt: Long?,
+        val ackAt: Long?,
+        val snoozeCount: Int,
+        val snoozeUntil: Long?,
+        val silenced: Boolean,
+    ) : UndoStep
+    data class RestoreCustomTimer(val id: Long, val status: CustomTimerStatus, val stopAt: Long?, val stoppedAt: Long?) : UndoStep
+    data class DeleteCustomTimer(val id: Long) : UndoStep
 
     companion object {
         fun of(c: Checkpoint) = RestoreCheckpoint(c.id, c.status, c.firedAt, c.ackAt, c.snoozeCount, c.snoozeUntil)
@@ -49,6 +64,8 @@ sealed interface UndoStep {
         )
         fun of(t: Transfusion) = RestoreTransfusion(t.id, t.status, t.endAt)
         fun of(p: TurnPlan) = RestorePlan(p.id, p.status, p.stopAt, p.currentPosition)
+        fun of(s: CustomSlot) = RestoreCustomSlot(s.id, s.status, s.firedAt, s.ackAt, s.snoozeCount, s.snoozeUntil, s.silenced)
+        fun of(t: CustomTimer) = RestoreCustomTimer(t.id, t.status, t.stopAt, t.stoppedAt)
     }
 }
 
@@ -72,6 +89,9 @@ object UndoCodec {
             is UndoStep.DeleteCheckpoint -> listOf("DC", s.id)
             is UndoStep.DeleteTransfusion -> listOf("DT", s.id)
             is UndoStep.DeletePlan -> listOf("DP", s.id)
+            is UndoStep.RestoreCustomSlot -> listOf("KS", s.id, s.status.name, s.firedAt.enc(), s.ackAt.enc(), s.snoozeCount, s.snoozeUntil.enc(), s.silenced)
+            is UndoStep.RestoreCustomTimer -> listOf("KT", s.id, s.status.name, s.stopAt.enc(), s.stoppedAt.enc())
+            is UndoStep.DeleteCustomTimer -> listOf("DK", s.id)
         }.joinToString("\t")
     }
 
@@ -88,6 +108,9 @@ object UndoCodec {
             "DC" -> UndoStep.DeleteCheckpoint(f[1].toLong())
             "DT" -> UndoStep.DeleteTransfusion(f[1].toLong())
             "DP" -> UndoStep.DeletePlan(f[1].toLong())
+            "KS" -> UndoStep.RestoreCustomSlot(f[1].toLong(), enumValueOf(f[2]), f[3].long(), f[4].long(), f[5].toInt(), f[6].long(), f[7].toBoolean())
+            "KT" -> UndoStep.RestoreCustomTimer(f[1].toLong(), enumValueOf(f[2]), f[3].long(), f[4].long())
+            "DK" -> UndoStep.DeleteCustomTimer(f[1].toLong())
             else -> error("unknown undo step: ${f[0]}")
         }
     }.toList()

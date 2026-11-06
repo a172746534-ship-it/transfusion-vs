@@ -29,6 +29,8 @@ import app.transfusionvs.ui.components.UndoState
 import app.transfusionvs.ui.components.rememberNight
 import app.transfusionvs.ui.components.rememberNow
 import app.transfusionvs.ui.screens.BedChoice
+import app.transfusionvs.ui.screens.CustomDetailScreen
+import app.transfusionvs.ui.screens.CustomStartScreen
 import app.transfusionvs.ui.screens.DetailScreen
 import app.transfusionvs.ui.screens.HomeScreen
 import app.transfusionvs.ui.screens.ReactionScreen
@@ -92,6 +94,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val ACTION_START_TRANSFUSION = "app.transfusionvs.action.START_TRANSFUSION"
         const val ACTION_START_TURNING = "app.transfusionvs.action.START_TURNING"
+        const val ACTION_START_CUSTOM = "app.transfusionvs.action.START_CUSTOM"
     }
 }
 
@@ -108,6 +111,9 @@ private sealed interface Route {
     data class Edit(val id: Long) : Route
     /** [id] = the bed to stop, or null to choose among running beds. */
     data class Reaction(val id: Long?) : Route
+    data object CustomStart : Route
+    data class CustomDetail(val id: Long) : Route
+    data class CustomEdit(val id: Long) : Route
 }
 
 private fun encode(r: Route): String = when (r) {
@@ -121,6 +127,9 @@ private fun encode(r: Route): String = when (r) {
     is Route.Detail -> "detail:${r.id}"
     is Route.Edit -> "edit:${r.id}"
     is Route.Reaction -> "reaction:${r.id ?: ""}"
+    Route.CustomStart -> "customstart"
+    is Route.CustomDetail -> "customdetail:${r.id}"
+    is Route.CustomEdit -> "customedit:${r.id}"
 }
 
 private fun decode(s: String): Route {
@@ -135,6 +144,9 @@ private fun decode(s: String): Route {
         "detail" -> arg?.let { Route.Detail(it) } ?: Route.Home
         "edit" -> arg?.let { Route.Edit(it) } ?: Route.Home
         "reaction" -> Route.Reaction(arg)
+        "customstart" -> Route.CustomStart
+        "customdetail" -> arg?.let { Route.CustomDetail(it) } ?: Route.Home
+        "customedit" -> arg?.let { Route.CustomEdit(it) } ?: Route.Home
         else -> Route.Home
     }
 }
@@ -156,6 +168,7 @@ private fun AppNavigation(firstRun: Boolean, shortcut: String?, onShortcutUsed: 
         when (shortcut) {
             MainActivity.ACTION_START_TRANSFUSION -> stack = listOf(Route.Home, Route.Start)
             MainActivity.ACTION_START_TURNING -> stack = listOf(Route.Home, Route.TurnStart)
+            MainActivity.ACTION_START_CUSTOM -> stack = listOf(Route.Home, Route.CustomStart)
         }
         if (shortcut != null) onShortcutUsed()
     }
@@ -177,8 +190,27 @@ private fun AppNavigation(firstRun: Boolean, shortcut: String?, onShortcutUsed: 
                 onReaction = { push(Route.Reaction(null)) },
                 onSetup = { push(Route.Setup) },
                 onSettings = { push(Route.Settings) },
+                onStartCustom = { push(Route.CustomStart) },
+                onOpenCustom = { push(Route.CustomDetail(it)) },
             )
             Route.Setup -> SetupScreen(onBack = ::pop)
+            Route.CustomStart -> CustomStartScreen(
+                vm, editing = null,
+                // A duplicate name for this patient opens the timer that already runs.
+                onStarted = { existing -> stack = if (existing == null) listOf(Route.Home) else listOf(Route.Home, Route.CustomDetail(existing)) },
+                onBack = ::pop,
+            )
+            is Route.CustomDetail -> CustomDetailScreen(
+                vm, r.id,
+                onBack = ::pop,
+                onEdit = { push(Route.CustomEdit(r.id)) },
+                onStopped = ::home,
+            )
+            is Route.CustomEdit -> {
+                val flow = remember(r.id) { vm.customTimer(r.id) }
+                val item by flow.collectAsStateWithLifecycle(initialValue = null)
+                item?.timer?.let { timer -> CustomStartScreen(vm, editing = timer, onStarted = { pop() }, onBack = ::pop) }
+            }
             Route.Settings -> SettingsScreen(onBack = ::pop, onSetup = { push(Route.Setup) })
             Route.Start -> StartScreen(vm, editing = null, onDone = ::home, onBack = ::pop)
             Route.TurnStart -> TurnStartScreen(

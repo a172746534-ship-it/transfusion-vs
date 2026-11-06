@@ -86,6 +86,7 @@ import app.transfusionvs.ui.components.PositionChange
 import app.transfusionvs.ui.components.Rail
 import app.transfusionvs.ui.components.PatientButton
 import app.transfusionvs.ui.components.ReactionBar
+import app.transfusionvs.ui.components.TaskNameText
 import app.transfusionvs.ui.components.iconRes
 import app.transfusionvs.ui.components.UNDO_BAR_MS
 import app.transfusionvs.ui.components.WardButton
@@ -194,6 +195,8 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
     val undo by app.db.wardDao().observeUndo().collectAsStateWithLifecycle(initialValue = null)
     val txLabels by app.db.dao().observeBedLabels().collectAsStateWithLifecycle(initialValue = emptyList())
     val planLabels by app.db.turnDao().observeBedLabels().collectAsStateWithLifecycle(initialValue = emptyList())
+    val customRows by app.db.wardDao().observeCustomRinging().collectAsStateWithLifecycle(initialValue = null)
+    val customLabels by app.db.wardDao().observeCustomBedLabels().collectAsStateWithLifecycle(initialValue = emptyList())
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -204,20 +207,30 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
     }
     // Over the lock screen the MRN is masked; the whole of it needs an unlocked phone.
     val locked = remember(now) { context.getSystemService(KeyguardManager::class.java).isKeyguardLocked }
-    val mask: (String) -> String = if (locked) BedMask.masker(txLabels + planLabels) else { label -> label }
-    val nothingOpen = rows?.isEmpty() == true && plans?.isEmpty() == true
+    val mask: (String) -> String = if (locked) BedMask.masker(txLabels + planLabels + customLabels) else { label -> label }
+    val nothingOpen = rows?.isEmpty() == true && plans?.isEmpty() == true && customRows?.isEmpty() == true
     val justDone = undo?.firstOrNull()?.takeIf { System.currentTimeMillis() - it.at < UNDO_BAR_MS }
+    // Undo removes its entry and puts the alarm back in two writes; for a custom alarm the screen can
+    // hear of the first before the second. Right after a custom Undo it waits for the alarm to come back.
+    var undoneAt by remember { mutableLongStateOf(0L) }
     // Closes itself once nothing is open, after giving the last action its moment for Undo.
     LaunchedEffect(nothingOpen, undo == null, justDone?.id) {
         if (nothingOpen && undo != null) {
-            if (justDone != null) delay(UNDO_BAR_MS - (System.currentTimeMillis() - justDone.at))
+            if (justDone != null) {
+                delay(UNDO_BAR_MS - (System.currentTimeMillis() - justDone.at))
+            } else {
+                delay((undoneAt + UNDO_SETTLE_MS - System.currentTimeMillis()).coerceAtLeast(0))
+            }
             onAllDone()
         }
     }
     if (nothingOpen) {
         DoneContent(
             justDone?.let { it.copy(label = mask(it.label)) },
-            onUndo = { id -> app.scope.launch { app.engine.undo(id) } },
+            onUndo = { id ->
+                if (justDone != null && UndoAction.isCustom(justDone.ownerKey)) undoneAt = System.currentTimeMillis()
+                app.scope.launch { app.engine.undo(id) }
+            },
             closesIn = justDone?.let { ((UNDO_BAR_MS - (now - it.at) + 999) / 1000).toInt().coerceAtLeast(1) },
         )
         return
@@ -237,6 +250,8 @@ private fun AlarmScreen(onAllDone: () -> Unit) {
         onCantTurn = { slotId, reason -> app.scope.launch { app.engine.cantTurn(slotId, reason) } },
         onSnoozeRound = { app.scope.launch { app.engine.snooze() } },
         onRemind = { app.scope.launch { app.engine.remindTurns() } },
+        customs = CustomRingBuilder.build(customRows.orEmpty(), now, app.settings.snoozeMin).map { it.masked(mask) },
+        onAcknowledgeCustom = { ids -> app.scope.launch { app.engine.acknowledgeCustom(ids) } },
     )
 }
 
@@ -289,10 +304,14 @@ fun AlarmContent(
     onRemind: () -> Unit = {},
     /** For screenshots: which beds start with "Other position" / "Can't turn" open. */
     initiallyOpen: Map<Long, RoundChoice> = emptyMap(),
+    /** Custom timers with an alarm open, earliest due first: after the transfusion and the round. */
+    customs: List<CustomRing> = emptyList(),
+    onAcknowledgeCustom: (List<Long>) -> Unit = {},
 ) {
     val c = Ward.c
     var showReaction by rememberSaveable { mutableStateOf(false) }
     var roundFirst by rememberSaveable { mutableStateOf(false) }
+    var customFirst by rememberSaveable { mutableStateOf(false) }
     // Back never dismisses the alarm (acknowledge or snooze); it only closes the reaction view.
     BackHandler { showReaction = false }
 
@@ -301,6 +320,9 @@ fun AlarmContent(
     val canSnooze = audible.isNotEmpty() && audible.all { it.snoozeCount < Settings.MAX_SNOOZES }
     val snoozedUntil = rows.mapNotNull { it.snoozeUntil }.filter { it > now }.minOrNull()
     val isTest = beds.isNotEmpty() && beds.all { it.isTest }
+    // A custom alarm whose snooze would pass its next alarm keeps the snooze from being offered.
+    val customBlocksSnooze = customs.any { it.audible && !it.canSnooze }
+    val showCustom = customFirst && customs.isNotEmpty()
 
     if (showReaction) {
         // Works over the lock screen too: no unlock needed in an emergency.
@@ -319,22 +341,45 @@ fun AlarmContent(
         when {
             // A transfusion goes first; a round due in the same minute takes over once it is done, or
             // right away from its own button if that is what the nurse is doing.
-            beds.isNotEmpty() && !(roundFirst && round != null) -> TransfusionAlarm(
-                beds, rows, isTest, canSnooze, snoozedUntil, snoozeMin, overdueAfterMin, round, onAcknowledge, onSnooze,
+            beds.isNotEmpty() && !(roundFirst && round != null) && !showCustom -> TransfusionAlarm(
+                beds, rows, isTest, canSnooze && !customBlocksSnooze, snoozedUntil, snoozeMin, overdueAfterMin, round, onAcknowledge, onSnooze,
                 onReaction = { showReaction = true },
                 onStartRound = {
                     onStartRound()
                     roundFirst = true
                 },
                 now = now,
+                customDue = customs.size,
+                customOverdue = customs.any { (now - it.slotAt) / MINUTE_MS >= overdueAfterMin },
+                onOpenCustom = { customFirst = true },
             )
-            round != null && round.beds.isNotEmpty() -> RoundAlarm(
-                round, snoozeMin, initiallyOpen, onStartRound, onAllTurned, onTurned, onCantTurn, onSnoozeRound, onRemind,
+            round != null && round.beds.isNotEmpty() && !showCustom -> RoundAlarm(
+                if (customBlocksSnooze) round.copy(canSnooze = false) else round,
+                snoozeMin, initiallyOpen, onStartRound, onAllTurned, onTurned, onCantTurn, onSnoozeRound, onRemind,
                 stillRinging = beds.takeIf { it.isNotEmpty() }?.joinToString(", ") { it.title },
                 onBackToTransfusion = { roundFirst = false },
                 now = now,
                 overdueAfterMin = overdueAfterMin,
+                customDue = customs.size,
+                customOverdue = customs.any { (now - it.slotAt) / MINUTE_MS >= overdueAfterMin },
+                onOpenCustom = { customFirst = true },
             )
+            customs.isNotEmpty() -> {
+                val audibleCustom = customs.filter { it.audible }
+                val othersOk = (audible.isEmpty() || audible.all { it.snoozeCount < Settings.MAX_SNOOZES }) &&
+                    (round == null || round.started || round.canSnooze)
+                CustomAlarm(
+                    customs, now, snoozeMin, overdueAfterMin,
+                    canSnooze = audibleCustom.isNotEmpty() && !customBlocksSnooze && othersOk,
+                    onDone = onAcknowledgeCustom, onSnooze = onSnooze,
+                    stillDue = when {
+                        beds.isNotEmpty() -> beds.joinToString(", ") { it.title }
+                        round != null && round.beds.isNotEmpty() -> RingSpec.roundTitle(round)
+                        else -> null
+                    },
+                    onBack = { customFirst = false },
+                )
+            }
         }
     }
 }
@@ -453,6 +498,9 @@ private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
     onReaction: () -> Unit,
     onStartRound: () -> Unit,
     now: Long,
+    customDue: Int = 0,
+    customOverdue: Boolean = false,
+    onOpenCustom: () -> Unit = {},
 ) {
     val c = Ward.c
     val scroll = rememberScrollState()
@@ -497,6 +545,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.TransfusionAlarm(
                 fill = c.alarmBg, content = c.alarmInk, edge = if (overdue) c.alarmDanger else c.alarmInk, style = WardType.BodyBold, icon = R.drawable.ic_turn,
             )
         }
+        if (customDue > 0) CustomDueButton(customDue, customOverdue, onOpenCustom)
         if (!isTest) {
             ReactionBar(onClick = onReaction)
             // Apart from Snooze: a thumb aiming for one mustn't land on the other.
@@ -553,6 +602,9 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
     onBackToTransfusion: () -> Unit = {},
     now: Long,
     overdueAfterMin: Int,
+    customDue: Int = 0,
+    customOverdue: Boolean = false,
+    onOpenCustom: () -> Unit = {},
 ) {
     val c = Ward.c
     val open = remember { mutableStateMapOf<Long, RoundChoice>().apply { putAll(initiallyOpen) } }
@@ -610,6 +662,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RoundAlarm(
     }
     Spacer(Modifier.size(TvsSpace.s8))
     Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s8)) {
+        if (customDue > 0) CustomDueButton(customDue, customOverdue, onOpenCustom)
         if (round.started) {
             val others = round.beds.count { it.slotId !in open.keys }
             val waiting = "${open.size} above still waiting for your answer"
@@ -696,8 +749,109 @@ private fun RoundBedRow(
     }
 }
 
+/**
+ * On the transfusion and round screens, only while custom alarms are due: they come after. Once one is
+ * overdue its edge is red, as on the round's button.
+ */
+@Composable
+private fun CustomDueButton(count: Int, overdue: Boolean, onClick: () -> Unit) {
+    val c = Ward.c
+    WardButton(
+        "Custom · $count due", onClick, Modifier.fillMaxWidth(),
+        fill = c.alarmBg, content = c.alarmInk, edge = if (overdue) c.alarmDanger else c.alarmInk, style = WardType.BodyBold, icon = R.drawable.ic_custom,
+    )
+}
+
+/**
+ * Custom timers due: the task name large, the patient and time, the interval, Snooze and one big Done.
+ * With several, the cards choose who the button below confirms, earliest due first. No reaction bar:
+ * that belongs to transfusions.
+ */
+@Composable
+private fun androidx.compose.foundation.layout.ColumnScope.CustomAlarm(
+    customs: List<CustomRing>,
+    now: Long,
+    snoozeMin: Int,
+    overdueAfterMin: Int,
+    canSnooze: Boolean,
+    onDone: (List<Long>) -> Unit,
+    onSnooze: () -> Unit,
+    stillDue: String?,
+    onBack: () -> Unit,
+) {
+    val c = Ward.c
+    val scroll = rememberScrollState()
+    var chosen by rememberSaveable { mutableStateOf<Long?>(null) }
+    val target = customs.firstOrNull { it.timerId == chosen } ?: customs[0]
+    val snoozedUntil = customs.mapNotNull { it.snoozedUntil }.minOrNull()
+    Column(
+        Modifier.weight(1f).moreBelow(scroll.canScrollForward).verticalScroll(scroll),
+        verticalArrangement = Arrangement.spacedBy(TvsSpace.s12),
+    ) {
+        AlarmCaps(R.drawable.ic_custom, "Custom timer")
+        if (stillDue != null) AlarmSecondary("Still due: $stillDue", onBack, style = WardType.BodyBold)
+        if (customs.size == 1) {
+            val r = customs[0]
+            AlarmState(r.slotAt, now, r.snoozedUntil, overdueAfterMin)
+            TaskNameText(r.name, c.alarmInk, WardType.AlarmTitle, Modifier.fillMaxWidth())
+            KeyNumbers(r.bedLabel, Labels.clock(r.slotAt), dueCaption = true)
+            // After Done, when it comes back.
+            Text(
+                Labels.every(r.intervalMin) + (r.nextAt?.let { " · next ${Labels.clock(it)}" } ?: ""),
+                color = c.alarmInk, style = WardType.Lead,
+            )
+        } else {
+            if (snoozedUntil != null) AlarmState(customs.minOf { it.slotAt }, now, snoozedUntil, overdueAfterMin)
+            Text("${customs.size} timers due", color = c.alarmInk, style = WardType.AlarmTitle)
+            customs.forEach { r -> CustomRow(r, r == target, now, overdueAfterMin) { chosen = r.timerId } }
+        }
+    }
+    Spacer(Modifier.size(TvsSpace.s8))
+    Column(verticalArrangement = Arrangement.spacedBy(TvsSpace.s12)) {
+        SnoozeSlot(canSnooze, snoozedUntil, snoozeMin, onSnooze)
+        // The bottom slot always means done.
+        if (customs.size == 1) {
+            AlarmPrimary(Labels.DONE, { onDone(listOf(customs[0].slotId)) }, quiet = snoozedUntil != null)
+        } else {
+            PatientButton(
+                target.bedLabel, "${target.name} · ${Labels.DONE}", { onDone(listOf(target.slotId)) }, Modifier.fillMaxWidth().testTag(PRIMARY_TAG),
+                fill = c.alarmAction, content = c.alarmOnAction, key = WardType.AlarmKeySmall, minHeight = TvsSize.AckHuge,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CustomRow(r: CustomRing, isTarget: Boolean, now: Long, overdueAfterMin: Int, onChoose: () -> Unit) {
+    val c = Ward.c
+    Column(
+        Modifier.fillMaxWidth().background(c.alarmTint, TvsShape.Card)
+            .border(if (isTarget) TvsSize.EdgeStrong else TvsSize.Edge, if (isTarget) c.alarmAction else c.alarmEdge, TvsShape.Card)
+            .semantics { selected = isTarget }
+            .wardClick(role = Role.RadioButton, onClick = onChoose)
+            .padding(horizontal = TvsSpace.s12, vertical = TvsSpace.s6),
+    ) {
+        KeyNumbers(r.bedLabel, Labels.clock(r.slotAt), WardType.AlarmKeySmall, WardType.AlarmKeySmall, dueCaption = true)
+        AlarmState(r.slotAt, now, r.snoozedUntil, overdueAfterMin)
+        val hint = if (isTarget) "Button below ↓" else "Tap to choose"
+        // At large font sizes the name gets the whole width, so a word is never broken.
+        if (largeFont()) {
+            Text(r.name, color = c.alarmMuted, style = WardType.Lead)
+            Text(hint, color = c.alarmInk, style = WardType.BodyBold, modifier = Modifier.align(Alignment.End))
+        } else {
+            Row {
+                Text(r.name, color = c.alarmMuted, style = WardType.Lead, modifier = Modifier.weight(1f))
+                Text(hint, color = c.alarmInk, style = WardType.BodyBold)
+            }
+        }
+    }
+}
+
 @Composable
 private fun AlarmChip(text: String, icon: Int? = null, onClick: () -> Unit) {
     val c = Ward.c
     WardButton(text, onClick, fill = c.alarmBg, content = c.alarmInk, edge = c.alarmInk, style = WardType.BodyBold, shape = TvsShape.Control, icon = icon)
 }
+
+/** After a custom Undo, how long the alarm screen waits for the restored alarm before it may close. */
+private const val UNDO_SETTLE_MS = 2_000L

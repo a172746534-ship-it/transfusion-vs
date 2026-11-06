@@ -37,12 +37,31 @@ import app.transfusionvs.ui.theme.WardType
 
 // The Home building blocks, shared by both features so they are one product.
 
-fun BedType.icon(): Int = if (this == BedType.TRANSFUSION) R.drawable.ic_drop else R.drawable.ic_turn
-fun BedType.tag(): String = if (this == BedType.TRANSFUSION) "VS" else "TURN"
-fun BedType.spoken(): String = if (this == BedType.TRANSFUSION) "Transfusion" else "Turning"
+fun BedType.icon(): Int = when (this) {
+    BedType.TRANSFUSION -> R.drawable.ic_drop
+    BedType.TURN -> R.drawable.ic_turn
+    BedType.CUSTOM -> R.drawable.ic_custom
+}
 
+fun BedType.tag(): String = when (this) {
+    BedType.TRANSFUSION -> "VS"
+    BedType.TURN -> "TURN"
+    BedType.CUSTOM -> "CUSTOM"
+}
+
+fun BedType.spoken(): String = when (this) {
+    BedType.TRANSFUSION -> "Transfusion"
+    BedType.TURN -> "Turning"
+    BedType.CUSTOM -> "Custom timer"
+}
+
+/** Custom timers take no colour of their own: the existing muted ink. */
 @Composable
-fun BedType.color(): Color = if (this == BedType.TRANSFUSION) Ward.c.typeTx else Ward.c.typeRp
+fun BedType.color(): Color = when (this) {
+    BedType.TRANSFUSION -> Ward.c.typeTx
+    BedType.TURN -> Ward.c.typeRp
+    BedType.CUSTOM -> Ward.c.muted
+}
 
 /** Past this, what is due and how urgent no longer fit side by side. */
 private const val LONG_WHAT = 28

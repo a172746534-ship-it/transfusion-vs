@@ -37,6 +37,13 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import androidx.compose.ui.test.performImeAction
+import app.transfusionvs.data.CustomSlot
+import app.transfusionvs.data.CustomSlotStatus
+import app.transfusionvs.data.CustomTimer
+import app.transfusionvs.schedule.ScheduleCalculator
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 
 /**
  * Double taps and rapid repeats are idempotent, undo restores the exact previous state, and a due
@@ -181,5 +188,86 @@ class Robustness {
         instrumentation.runOnMainSync { ack.performClick() }
         rule.waitUntil(10_000) { row(id).ackAt != null }
         pass("widget_ack")
+    }
+
+    // ---- Custom timers ----
+
+    private fun customRinging(bed: String, name: String): Long = runBlocking {
+        val slot = ScheduleCalculator.truncateToMinute(now)
+        val start = slot - 60 * 60_000L
+        val id = app.db.wardDao().insertCustomTimer(CustomTimer(bedLabel = bed, name = name, intervalMin = 60, startAt = start, anchorAt = start, fromAt = start))
+        app.db.wardDao().insertCustomSlots(listOf(CustomSlot(timerId = id, slotAt = slot, firedAt = slot, status = CustomSlotStatus.RINGING)))
+        app.db.wardDao().customSlotsFor(id).single().id
+    }
+
+    private fun customRow(id: Long): CustomSlot = runBlocking { app.db.wardDao().customSlots(listOf(id)).single() }
+
+    @Test fun doubleTapOnCustomDoneAcknowledgesOnce() {
+        val id = customRinging("7654831", "Check drain")
+        ActivityScenario.launch(AlarmActivity::class.java)
+        val n = node("Done")
+        n.performClick()
+        runCatching { n.performClick() }
+        rule.waitUntil(10_000) { customRow(id).status == CustomSlotStatus.ACKED }
+        assertEquals("one Done, one undo entry", 1, runBlocking { app.db.wardDao().undoAll() }.size)
+        pass("double_tap_custom_done")
+    }
+
+    @Test fun doubleTapOnAnIntervalStartsOnce() {
+        ActivityScenario.launch(MainActivity::class.java)
+        node("Start custom").performClick()
+        rule.waitForIdle()
+        val fields = rule.onAllNodes(hasSetTextAction())
+        fields[0].performTextInput("Check drain")
+        fields[1].performTextInput("7654832")
+        fields[1].performImeAction()
+        val n = node("30 min")
+        n.performClick()
+        runCatching { n.performClick() }
+        rule.waitUntil(10_000) { runBlocking { app.db.wardDao().allCustomTimers().isNotEmpty() } }
+        Thread.sleep(1_500)
+        assertEquals(1, runBlocking { app.db.wardDao().allCustomTimers().size })
+        pass("double_tap_custom_start")
+    }
+
+    @Test fun undoOnCustomDoneRestoresTheExactPreviousState() {
+        val id = customRinging("7654833", "Check drain")
+        ActivityScenario.launch(AlarmActivity::class.java)
+        node("Done")
+        val before = customRow(id)
+        node("Done").performClick()
+        rule.waitUntil(10_000) { customRow(id).status == CustomSlotStatus.ACKED }
+        node("Undo").performClick()
+        rule.waitUntil(10_000) { customRow(id).status == CustomSlotStatus.RINGING }
+        assertEquals(before, customRow(id))
+        pass("undo_custom_exact")
+    }
+
+    /** The widget masks a custom timer's MRN, and a number typed into its name too. */
+    @Test fun widgetMasksACustomMrnAndName() {
+        customRinging("7654821", "Drain 7654822")
+        val wardDao = app.db.wardDao()
+        val beds = runBlocking { BedsWidget.masked(wardDao.customHomeOnce().map { BedViews.of(it, now, 10) }, wardDao.customBedLabels()) }
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        lateinit var view: View
+        instrumentation.runOnMainSync { view = BedsWidget.build(target, beds, now).apply(target, FrameLayout(target)) }
+        assertEquals("•••4821", view.findViewById<TextView>(R.id.row_bed).text.toString())
+        val what = view.findViewById<TextView>(R.id.row_what).text.toString()
+        assertFalse(what, what.contains("7654822") || what.contains("7654821"))
+        assertTrue(what, what.contains("Drain"))
+        pass("widget_custom_masked")
+    }
+
+    @Test fun widgetDoneAcknowledgesACustomAlarm() {
+        val id = customRinging("7654834", "Check drain")
+        val beds = runBlocking { app.db.wardDao().customHomeOnce() }.map { BedViews.of(it, now, 10) }
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        lateinit var view: View
+        instrumentation.runOnMainSync { view = BedsWidget.build(target, beds, now).apply(target, FrameLayout(target)) }
+        val ack = view.findViewById<View>(R.id.row_ack)
+        assertNotNull(ack)
+        instrumentation.runOnMainSync { ack.performClick() }
+        rule.waitUntil(10_000) { customRow(id).status == CustomSlotStatus.ACKED }
+        pass("widget_custom_done")
     }
 }

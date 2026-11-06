@@ -158,3 +158,26 @@ Monkey, leaks, rotation and process death are from APIs 26, 31, 33 and 36. Provi
 | Persona 1, no concrete finding | 2 | FAIL | 22 findings |
 | Persona 2, no concrete finding | 2 | FAIL | 23 findings |
 | Persona 3, no concrete finding | 1 | FAIL | 20 findings |
+
+## Custom timer gates (docs/CUSTOM_TIMER.md §8, added 2026-11-06)
+
+Pass or fail, worth no points, like M01. The 100-point math and the area weights don't change, so a
+score stays comparable to BASELINE.md. A gate passes on the same rule as area A: PASS or N/A on every
+API of the matrix, PASS on at least one.
+
+- **Reliability, for custom alarms:** A01–A14, A17–A23 and M01, as `<id>@custom` (`lab/reliability.py --kind both`). A15 and A16 check the app as a whole and run once.
+- **Tap budget:** tasks 10 (start, 4), 11 (Done, 1) and 12 (stop, 3) in `TapBudget`, with typing marked. Tasks 1–9 stay within budget.
+- **Unit:** CustomRulesTest, CustomSchedulePropertyTest (≥ 10,000 cases per rule), CustomViewsTest, CustomEngineTest (id collisions), CustomNameFitTest, MigrationTest v3 → v4.
+- **UI checks** for the custom screens, and **Robustness** for custom Done, undo, start and the widget.
+- **Screenshot regression:** docs/SCREENSHOT_REGRESSION.md.
+- **Scope audit:** a fresh subagent maps every changed line to CHANGE_PLAN.md.
+
+### Custom timer, full run 1: lab 42231693326, commit 272e1e7 (2026-11-06)
+- **Area A: 11/25, as in the baseline.** Every check that passed in BASELINE.md still passes: A01–A03 and A05–A11, on all six APIs.
+- **Custom gates (`@custom`):** PASS on API 26, 33, 34 and 36. API 29 too, except A04@custom: that image never enters do-not-disturb (zen_mode stays 0), exactly as for the transfusion A04 there in the baseline. The alarm fired on time and played on the alarm stream.
+- **API 31 was lost to the lab after A11b** ("adb reboot" timed out; every case after it says "device not found"). The lab's `device_alive()` took "adb: device … not found" for alive, so `revive()` never ran. This is the same thing that lost API 34 in the baseline. Fixed in the lab (CHANGE_PLAN L2).
+- **Tap budget:** tasks 1–12 within budget on every API that ran (10: 3, 11: 1, 12: 3), also at 360 dp.
+  - Exception: API 34's 360 dp run stopped at task 11 with "Process crashed". The trace is `CalledFromWrongThreadException` inside `androidx.compose.ui.test.TestMonotonicFrameClock`: the test clock ran a frame on Room's `arch_disk_io` thread. The shipped app has no test clock. It hit once; task 11 passed in every other run.
+- **Robustness:** every new custom check passes on every API that ran.
+  - Exception: the existing `undoOnAlarmRestoresTheExactPreviousState` failed once on API 26. The test asserts the undo list is empty as soon as the row is back to RINGING, but `Engine.undo` restores the row and then deletes the entry: two writes, unchanged from main. The entry it saw is the one being deleted.
+- **UI checks:** back to baseline counts (TRUNCATED 0; MIDWORD 1 at f2.0; SPACING 8–9). Monkey: 0 crashes, 0 ANR. Leaks: 0.

@@ -141,4 +141,45 @@ class MigrationTest {
         assertEquals(71L, turn.id)
         assertTrue(turn.turn)
     }
+
+    /** The update from v3 (v0.5.0, what phones have today) keeps all three tables' rows and adds custom timers. */
+    @Test
+    fun updatingFromV3KeepsEverythingAndAddsCustomTimers() = runBlocking {
+        val context: Context = RuntimeEnvironment.getApplication()
+        create(context, 3)
+
+        val room = Room.databaseBuilder(context, AppDatabase::class.java, name).build()
+        try {
+            assertEquals("Bed 12", room.dao().runningTransfusions().single().bedLabel)
+            assertEquals(listOf(70L, 71L), room.dao().checkpointsFor(7).map { it.id })
+            assertEquals(CheckpointStatus.PENDING, room.dao().checkpointsFor(7)[1].status)
+            assertEquals(1801000L, room.dao().checkpointsFor(7)[1].scheduledAt)
+            assertEquals("Bed 9", room.turnDao().allPlans().single().bedLabel)
+            assertEquals(TurnSlotStatus.PENDING, room.turnDao().slotsFor(3).single().status)
+
+            assertTrue(room.wardDao().allCustomTimers().isEmpty())
+            val timer = room.wardDao().insertCustomTimer(
+                CustomTimer(bedLabel = "7654812", name = "Check drain", intervalMin = 60, startAt = 0, anchorAt = 0, fromAt = 0),
+            )
+            room.wardDao().insertCustomSlots(listOf(CustomSlot(timerId = timer, slotAt = 3_600_000)))
+            assertEquals(CustomSlotStatus.PENDING, room.wardDao().customSlotsFor(timer).single().status)
+            // Deleting a timer takes its alarms with it.
+            room.wardDao().deleteCustomTimer(timer)
+            assertTrue(room.wardDao().customSlotsFor(timer).isEmpty())
+        } finally {
+            room.close()
+        }
+    }
+
+    /** Custom alarms have their own address, so the same number can be a checkpoint too. */
+    @Test
+    fun customAlarmsHaveTheirOwnAddress() {
+        val custom = AlarmScheduler.parse(Uri.parse("tvs://alarm/CUSTOM/CHECKPOINT/71"))!!
+        assertEquals("CHECKPOINT", custom.kind)
+        assertEquals(71L, custom.id)
+        assertTrue(custom.custom)
+        assertFalse(custom.turn)
+        assertFalse(AlarmScheduler.parse(Uri.parse("tvs://alarm/CHECKPOINT/71"))!!.custom)
+        assertFalse(AlarmScheduler.parse(Uri.parse("tvs://alarm/TURN/CHECKPOINT/71"))!!.custom)
+    }
 }

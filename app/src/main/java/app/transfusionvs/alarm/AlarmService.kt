@@ -27,6 +27,7 @@ class AlarmService : Service() {
 
     private var player: AlarmPlayer? = null
     private var playingTurn = false
+    private var playingCustom = false
     private var wakeLock: PowerManager.WakeLock? = null
 
     /** Opening the sound file reads the disk, so playback runs on its own thread, in order. */
@@ -60,17 +61,19 @@ class AlarmService : Service() {
     private fun show(spec: RingSpec) {
         Notifications.notifyAlarm(this, spec)
         // A transfusion joining a ringing round (or the reverse) switches to that type's sound.
-        if (player != null && playingTurn != spec.turnOnly) {
+        if (player != null && (playingTurn != spec.turnOnly || playingCustom != spec.customOnly)) {
             player?.let { old -> audio.post { old.stop() } }
             player = null
         }
         if (player == null) {
             if (wakeLock == null) acquireWakeLock(spec.missedTimeoutMin)
             playingTurn = spec.turnOnly
-            val uri = if (spec.turnOnly) spec.turnSoundUri else spec.soundUri
+            playingCustom = spec.customOnly
+            // Custom timers have no sound setting: always their bundled chime.
+            val uri = if (spec.turnOnly) spec.turnSoundUri else if (spec.customOnly) null else spec.soundUri
             val next = AlarmPlayer(this)
             player = next
-            audio.post { next.start(spec.soundOn, uri, spec.turnOnly) }
+            audio.post { next.start(spec.soundOn, uri, spec.turnOnly, spec.customOnly) }
         }
     }
 

@@ -27,6 +27,10 @@ args = None
 api = 0
 out = None
 results = []
+# "transfusion" or "custom": what arrange_transfusion() starts and which rows the helpers read.
+# Custom results get the id "<id>@custom" (docs/CUSTOM_TIMER.md §8).
+KIND = "transfusion"
+CUSTOM_NAME = "Check drain"
 
 
 def run(cmd, timeout=120, check=False):
@@ -272,18 +276,27 @@ def vibrating():
     return bool(m and "null" not in m.group(1)), raw[:1200]
 
 
+def rows_key():
+    """Custom alarms are dumped in the checkpoints' shape (scheduledAt), under their own key."""
+    return "customSlots" if KIND == "custom" else "checkpoints"
+
+
 def first_due(state):
-    rows = [c for c in state["checkpoints"] if c["status"] == "PENDING"]
+    rows = [c for c in state[rows_key()] if c["status"] == "PENDING"]
     return rows[0] if rows else None
 
 
 def fired_row(state, cid):
-    return next((c for c in state["checkpoints"] if c["id"] == cid), None)
+    return next((c for c in state[rows_key()] if c["id"] == cid), None)
 
 
-def arrange_transfusion(ago=13, bed="7654812", dur=120):
-    """T0 = now - ago min, so the 15-min check is between 1 and 2 min away."""
-    state = hook("START_TRANSFUSION", ago=ago, bed=bed, dur=dur)
+def arrange_transfusion(ago=13, bed="7654812", dur=120, name=CUSTOM_NAME):
+    """T0 = now - ago min, so the 15-min check is between 1 and 2 min away. Custom: a 15-min timer
+    started then (on the whole minute), so its first alarm is the same 1 to 2 min away."""
+    if KIND == "custom":
+        state = hook("START_CUSTOM", ago=ago, bed=bed, name=name, interval=15)
+    else:
+        state = hook("START_TRANSFUSION", ago=ago, bed=bed, dur=dur)
     due = first_due(state)
     if not due:
         raise RuntimeError(f"no pending checkpoint: {state}")
@@ -722,12 +735,17 @@ def ringing_alarm(name):
 ACK = "Measured &amp; documented"
 
 
+def ack():
+    """The alarm's acknowledge button: "Done ✓" on a custom alarm."""
+    return "Done" if KIND == "custom" else ACK
+
+
 @test("A17_pocket_guard_first_second")
 def t_guard_second(name):
     due, ok, msg = ringing_alarm(name)
     if not ok:
         return False, msg
-    xy = centre_of(ACK)
+    xy = centre_of(ack())
     if not xy:
         return False, "acknowledge button not found"
     run("adb logcat -c")
@@ -756,7 +774,7 @@ def t_guard_prox(name):
     due, ok, msg = ringing_alarm(name)
     if not ok:
         return False, msg
-    xy = centre_of(ACK)
+    xy = centre_of(ack())
     if not xy:
         return False, "acknowledge button not found"
     run("adb logcat -c")
@@ -784,7 +802,7 @@ def t_undo(name):
     _, before = row_status(due["id"])
     keys = ("status", "firedAt", "ackAt", "snoozeCount")
     time.sleep(2)
-    xy = centre_of(ACK)
+    xy = centre_of(ack())
     sh(f"input tap {xy[0]} {xy[1]}")
     time.sleep(1.5)
     screenshot(name + "_done")
@@ -798,7 +816,7 @@ def t_undo(name):
     playing, _ = audio_alarm_playing()
 
     # Again, this time from the bed's card on Home, after the alarm has closed.
-    xy = centre_of(ACK)
+    xy = centre_of(ack())
     sh(f"input tap {xy[0]} {xy[1]}")
     time.sleep(7)
     skip_first_run()
@@ -962,11 +980,230 @@ def t_round(name):
             set_clock(dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
 
 
+# ---------------------------------------------------------------- custom variants (docs/CUSTOM_TIMER.md §8)
+# The cases above run for custom alarms as they are, through arrange_transfusion(), first_due(),
+# fired_row() and ack(). These are the ones written around a transfusion or a round.
+
+CUSTOM = {}
+
+
+def custom_variant(tid):
+    def wrap(fn):
+        CUSTOM[tid] = fn
+        return fn
+    return wrap
+
+
+@custom_variant("A13_timezone_change")
+def t_tz_custom(name):
+    original = sh("getprop persist.sys.timezone").strip()
+    due = arrange_transfusion(ago=0)
+    sh("service call alarm 3 s16 Asia/Kathmandu")  # +05:45: elapsed time, so the alarm must not move
+    time.sleep(6)
+    zone = sh("getprop persist.sys.timezone").strip()
+    after = first_due(hook("NOOP"))
+    sh(f"service call alarm 3 s16 {original or 'GMT'}")
+    save(name, f"zone={zone}\nbefore={due}\nafter={after}")
+    if zone != "Asia/Kathmandu":
+        return False, f"timezone did not change on this image: {zone}"
+    same = bool(after) and after["scheduledAt"] == due["scheduledAt"]
+    return same, f"custom alarm unchanged by the timezone change: {same}"
+
+
+@custom_variant("A14_egypt_dst")
+def t_dst_custom(name):
+    original = sh("getprop persist.sys.timezone").strip()
+    # Egypt: last Friday of April, 00:00 jumps to 01:00. 30 Apr 2027 is such a Friday.
+    sh("service call alarm 3 s16 Africa/Cairo")
+    time.sleep(2)
+    set_clock(dt.datetime(2027, 4, 29, 23, 58, 0))
+    time.sleep(2)
+    offset_before = sh("date +%z").strip()
+    started = now_device() // 60_000 * 60_000
+    state = hook("START_CUSTOM", ago=0, bed="7654812", name=CUSTOM_NAME, interval=60)
+    due = first_due(state)
+    # One elapsed hour later, across the gap: 01:58 summer time. Moving past it must ring it once.
+    # The screen sleeps first, as in A12: on a phone in use Android shows a heads-up instead.
+    sleep_screen()
+    set_clock(dt.datetime(2027, 4, 30, 2, 0, 0))
+    fired = wait_alarm(60)
+    time.sleep(2)
+    offset_after = sh("date +%z").strip()
+    state = hook("NOOP")
+    rows = state["customSlots"]
+    ringing = [r for r in rows if r["status"] == "RINGING"]
+    save(name, f"{offset_before} {offset_after} started={started} {rows}")
+    hook("ACK_ALL")
+    sh(f"service call alarm 3 s16 {original or 'GMT'}")
+    set_clock(dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
+    if offset_before != "+0200":
+        raise NA(f"cairo offset before transition is {offset_before}")
+    if offset_after != "+0300":
+        raise NA(f"this image's tzdata has no Egypt DST rule (offset {offset_after} on 30 Apr 2027); the rule is covered by CustomSchedulePropertyTest on the JVM")
+    elapsed = (due["scheduledAt"] - started) / 60_000 if due else None
+    good = fired and elapsed == 60 and len(ringing) == 1 and ringing[0]["id"] == due["id"]
+    return good, f"first alarm {elapsed} min after the start across the gap; rang={fired}; ringing now={len(ringing)}"
+
+
+@custom_variant("A20_collision_same_minute_one_screen")
+def t_collision_custom(name):
+    t = device_time()
+    set_clock(t.replace(minute=59, second=0))
+    hook("START_PLAN", interval=60, bed="7654802")
+    state = hook("START_TRANSFUSION", ago=14, bed="7654812", dur=120)
+    tr_due = next(c for c in state["checkpoints"] if c["status"] == "PENDING")
+    state = hook("START_CUSTOM", ago=14, bed="7654813", name=CUSTOM_NAME, interval=15)
+    due = first_due(state)
+    same = due["scheduledAt"] // 60_000 == tr_due["scheduledAt"] // 60_000
+    sleep_screen()
+    ok, msg, state = assert_fired(due, name, timeout_extra=40)
+    xml = sh("uiautomator dump /sdcard/lab.xml >/dev/null 2>&1; cat /sdcard/lab.xml")
+    save(name, xml)
+    tr_row = next((c for c in state["checkpoints"] if c["id"] == tr_due["id"]), None) if state else None
+    # One screen: the transfusion first, the round, and the custom alarm behind its "Custom · 1 due" button.
+    one = ("7654812" in xml or "•••4812" in xml) and "Start round" in xml and "Custom" in xml
+    set_clock(dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
+    both = bool(tr_row and tr_row["status"] == "RINGING")
+    return ok and same and one and both, f"{msg}; same minute={same}; transfusion ringing too={both}; all three on one screen={one}"
+
+
+@custom_variant("A21_missed_timeout_overdue_notification")
+def t_missed_custom(name):
+    due = arrange_transfusion()
+    sleep_screen()
+    ok, msg, _ = assert_fired(due, name)
+    if not ok:
+        return False, msg
+    hook("SET_MISSED_TIMEOUT", min=5)
+    # Past the 5-min timeout, before the next alarm (15 min): the sound stops, it stays open as Overdue.
+    t = device_time()
+    set_clock(t + dt.timedelta(minutes=8))
+    time.sleep(20)
+    row = fired_row(hook("NOOP"), due["id"])
+    notif = sh("dumpsys notification --noredact")
+    overdue = "Overdue" in notif
+    playing, _ = audio_alarm_playing()
+    screenshot(name + "_overdue")
+    # The next alarm fires: this one closes as MISSED.
+    set_clock(t + dt.timedelta(minutes=16))
+    time.sleep(20)
+    closed = fired_row(hook("NOOP"), due["id"])
+    save(name, f"{row}\n{closed}\n{notif[:6000]}")
+    hook("ACK_ALL")
+    set_clock(dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
+    silenced = bool(row and row["status"] == "RINGING" and row["silenced"])
+    missed = bool(closed and closed["status"] == "MISSED")
+    return silenced and overdue and not playing and missed, f"after the timeout: open and silent={silenced}, Overdue notification={overdue}, sound stopped={not playing}; at the next alarm: {closed and closed['status']}"
+
+
+@custom_variant("A22_notification_action_ack_syncs")
+def t_notif_action_custom(name):
+    due = arrange_transfusion()
+    sh(f"am start -W -n {HOME}")
+    wait_s = max(1, (due["scheduledAt"] - now_device()) / 1000) + 70
+    if not wait_ringing(wait_s):
+        screenshot(name)
+        diagnose(name)
+        return False, f"no alarm sound within {wait_s:.0f}s"
+    screenshot(name + "_heads_up")
+    sh("input keyevent KEYCODE_HOME")
+    time.sleep(1)
+    sh("cmd statusbar expand-notifications")
+    time.sleep(2)
+    xml = sh("uiautomator dump /sdcard/lab.xml >/dev/null 2>&1; cat /sdcard/lab.xml")
+    screenshot(name + "_shade")
+    save(name, xml)
+    m = re.search(r'text="([^"]*(?:DONE|Done)[^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+    if not m:
+        sh("cmd statusbar collapse")
+        return False, "notification Done button not found in the shade"
+    x, y = (int(m.group(2)) + int(m.group(4))) // 2, (int(m.group(3)) + int(m.group(5))) // 2
+    sh(f"input tap {x} {y}")
+    time.sleep(4)
+    sh("cmd statusbar collapse")
+    row = fired_row(hook("NOOP"), due["id"])
+    return bool(row and row["status"] == "ACKED"), f"tapped '{m.group(1)}'; row={row and row['status']}"
+
+
+@custom_variant("A23_round_alarm_locked_own_sound")
+def t_custom_locked(name):
+    """Two custom timers due in the same minute, phone locked: one alarm, its own sound, both listed."""
+    set_pin()
+    try:
+        t = device_time()
+        set_clock(t.replace(minute=59, second=0))
+        hook("START_CUSTOM", ago=14, bed="7654802", name="Blood sugar", interval=15)
+        state = hook("START_CUSTOM", ago=14, bed="7654803", name=CUSTOM_NAME, interval=15)
+        sleep_screen()
+        fired = wait_alarm(90)
+        time.sleep(3)
+        screenshot(name)
+        playing, lines = audio_alarm_playing()
+        xml = sh("uiautomator dump /sdcard/lab.xml >/dev/null 2>&1; cat /sdcard/lab.xml")
+        state = hook("NOOP")
+        ringing = [s for s in state["customSlots"] if s["status"] == "RINGING"]
+        delta = max(abs(r["firedAt"] - r["scheduledAt"]) for r in ringing) / 1000 if ringing else 9999
+        up, _ = keyguard_up()
+        log = run("adb logcat -d -s AlarmPlayer:I", 30)
+        save(name, f"{lines}\n{log}\n{xml}")
+        good = fired and playing and len(ringing) == 2 and delta <= 60 and "2 timers due" in xml
+        return good, f"fired within {delta:.0f}s; one alarm for {len(ringing)} timers; alarm stream={playing}; keyguard={up}"
+    finally:
+        try:
+            hook("ACK_ALL")
+        finally:
+            unlock()
+            clear_pin()
+            set_clock(dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
+
+
+@custom_variant("M01_mrn_masked_outside_the_app")
+def t_mrn_custom(name):
+    """The MRN and a 7-digit number typed into the task name: masked outside the app, never logged."""
+    mrn, shown, secret = "7654821", "•••4821", "7654822"
+    typed = f"Drain {secret}"
+    run("adb logcat -c")
+    set_pin()
+    try:
+        due = arrange_transfusion(bed=mrn, name=typed)
+        sleep_screen()
+        ok, msg, _ = assert_fired(due, name)
+        if not ok:
+            return False, msg
+        notif = sh("dumpsys notification --noredact")
+        over_lock = dump_xml()
+        screenshot(name + "_over_lock")
+        n_ok = shown in notif and mrn not in notif and secret not in notif and typed not in notif
+        a_ok = shown in over_lock and mrn not in over_lock and secret not in over_lock
+        hook("ACK_ALL")
+        time.sleep(7)
+        unlock()
+        sh(f"am start -W -n {HOME}")
+        time.sleep(3)
+        sh("input keyevent KEYCODE_BACK")  # first-run Setup
+        time.sleep(2)
+        sh(f"am start -W -n {HOME}")
+        time.sleep(2)
+        inside = dump_xml()
+        screenshot(name + "_inside")
+        i_ok = mrn in inside
+        log_hits = [l for l in run("adb logcat -d", 60).splitlines() if mrn in l or secret in l]
+        save(name, f"NOTIFICATION\n{notif[:6000]}\n\nOVER LOCK\n{over_lock}\n\nINSIDE\n{inside}\n\nLOG HITS\n" + "\n".join(log_hits))
+        return n_ok and a_ok and i_ok and not log_hits, f"notification masked (MRN and name)={n_ok}; alarm over keyguard masked={a_ok}; full value inside the unlocked app={i_ok}; logcat hits={len(log_hits)}"
+    finally:
+        clear_pin()
+
+
+# A15 and A16 check the app as a whole, not one type: they run once.
+WHOLE_APP = {"A15_permissions_revoked_warns", "A16_alarm_volume_zero_warns"}
+
+
 # ---------------------------------------------------------------- driver
 
 def device_alive():
     try:
-        return "device" in run("adb get-state", 20)
+        # Exactly "device": a lost emulator answers "adb: device 'emulator-5554' not found", which holds the word too.
+        return run("adb get-state", 20).strip() == "device"
     except subprocess.TimeoutExpired:
         return False
 
@@ -992,11 +1229,12 @@ def revive():
 
 
 def main():
-    global args, api, out
+    global args, api, out, KIND
     p = argparse.ArgumentParser()
     p.add_argument("--apk", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--only", default="")
+    p.add_argument("--kind", choices=("transfusion", "custom", "both"), default="both")
     args = p.parse_args()
     out = pathlib.Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -1010,7 +1248,12 @@ def main():
     sh("settings put global auto_time 0")
     sh("settings put global auto_time_zone 0")
     sh("settings put global window_animation_scale 0")
-    for tid, fn in TESTS:
+    kinds = ("transfusion", "custom") if args.kind == "both" else (args.kind,)
+    plan = [(k, tid, fn) for k in kinds for tid, fn in TESTS if not (k == "custom" and tid in WHOLE_APP)]
+    for kind, base_id, base_fn in plan:
+        KIND = kind
+        tid = base_id if kind == "transfusion" else f"{base_id}@custom"
+        fn = base_fn if kind == "transfusion" else CUSTOM.get(base_id, base_fn)
         if args.only and not re.search(args.only, tid):
             continue
         started = time.time()

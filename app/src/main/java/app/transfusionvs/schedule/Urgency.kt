@@ -3,6 +3,9 @@ package app.transfusionvs.schedule
 import app.transfusionvs.data.Checkpoint
 import app.transfusionvs.data.CheckpointStatus
 import app.transfusionvs.data.CheckpointType
+import app.transfusionvs.data.CustomSlotStatus
+import app.transfusionvs.data.CustomTimerStatus
+import app.transfusionvs.data.CustomTimerWithSlots
 import app.transfusionvs.data.Position
 import app.transfusionvs.data.TransfusionStatus
 import app.transfusionvs.data.TransfusionWithCheckpoints
@@ -15,7 +18,7 @@ import app.transfusionvs.data.TurnSlotStatus
 
 enum class Urgency { CALM, SOON, NOW, OVERDUE }
 
-enum class BedType { TRANSFUSION, TURN }
+enum class BedType { TRANSFUSION, TURN, CUSTOM }
 
 /** Where the rail stands: [done] dots behind, the current one next, [progress] of the way to it. */
 data class RailState(val total: Int, val done: Int, val progress: Float)
@@ -176,6 +179,40 @@ object BedViews {
         }
     }
 
+    /** A custom timer: its open alarm, or its next one. No rail: the series has no end to show. */
+    fun of(item: CustomTimerWithSlots, now: Long, missedTimeoutMin: Int): BedView {
+        val t = item.timer
+        val open = item.slots.filter { it.status == CustomSlotStatus.RINGING }.sortedBy { it.slotAt }
+        val next = item.slots.filter { it.status == CustomSlotStatus.PENDING && it.slotAt > now }.minByOrNull { it.slotAt }
+        val base = BedView(
+            BedType.CUSTOM, t.id, t.bedLabel, null, t.name, Urgency.CALM, "", RailState(0, 0, 0f),
+            running = t.status == CustomTimerStatus.RUNNING, ackLabel = Labels.DONE,
+        )
+        return when {
+            t.status == CustomTimerStatus.STOPPED -> base.copy(stateText = "Stopped", idle = true)
+            open.isNotEmpty() -> {
+                val s = open.first()
+                val overdue = CustomRules.isOverdue(s, now, missedTimeoutMin)
+                val snoozedUntil = s.snoozeUntil?.takeIf { it > now }
+                base.copy(
+                    time = s.slotAt,
+                    urgency = if (overdue) Urgency.OVERDUE else Urgency.NOW,
+                    stateText = when {
+                        overdue -> lateText(s.slotAt, now)
+                        snoozedUntil != null -> "SNOOZED · ${Labels.clock(snoozedUntil)}"
+                        else -> dueText(s.slotAt, now)
+                    },
+                    ackIds = open.map { it.id },
+                )
+            }
+            next != null -> {
+                val (u, text) = upcoming(next.slotAt, now)
+                base.copy(time = next.slotAt, urgency = u, stateText = text)
+            }
+            else -> base.copy(stateText = "No alarm due")
+        }
+    }
+
     private fun rank(b: BedView) = when {
         b.stoppedForReaction -> 0
         b.idle -> 5
@@ -187,7 +224,8 @@ object BedViews {
 
     /** Most urgent first, then soonest. */
     fun sorted(beds: List<BedView>): List<BedView> =
-        beds.sortedWith(compareBy<BedView> { rank(it) }.thenBy { it.time ?: Long.MAX_VALUE }.thenBy { it.bed })
+        // At an equal rank and time a custom timer comes after the others; their own order doesn't change.
+        beds.sortedWith(compareBy<BedView> { rank(it) }.thenBy { it.time ?: Long.MAX_VALUE }.thenBy { it.type == BedType.CUSTOM }.thenBy { it.bed })
 
     /** "1 overdue · 1 due", "All on time", "All quiet". The next time is on the first card. */
     fun summary(beds: List<BedView>): String {

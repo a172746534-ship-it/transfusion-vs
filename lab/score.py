@@ -24,6 +24,10 @@ POINTS = {
 }
 # Must pass to merge; worth no points, the 100 stay as the spec split them (docs/MRN_ADDON.md).
 GATES = ["M01_mrn_masked_outside_the_app"]
+# Custom timers (docs/CUSTOM_TIMER.md §8): the same cases for custom alarms, as gates. A15 and A16
+# check the app as a whole and run once.
+GATES += [f"{cid}@custom" for cid in POINTS if cid not in ("A15_permissions_revoked_warns", "A16_alarm_volume_zero_warns")]
+GATES += ["M01_mrn_masked_outside_the_app@custom"]
 results = {}
 for path in root.rglob("reliability/results.json"):
     for r in json.loads(path.read_text(encoding="utf-8")):
@@ -48,6 +52,13 @@ for cid in POINTS:
 print("Gates:")
 for cid in GATES:
     print(" ", cid, {a: r["status"] for a, r in sorted(results.get(cid, {}).items())}, next((r["detail"][:200] for r in results.get(cid, {}).values() if r["status"] != "PASS"), ""))
+
+# A gate passes on area A's rule: PASS or N/A on every API of the matrix, PASS on at least one.
+gate_ok = {}
+for cid in GATES:
+    cells = [results.get(cid, {})[a]["status"] if a in results.get(cid, {}) else "not run" for a in MATRIX]
+    gate_ok[cid] = all(c in ("PASS", "N/A") for c in cells) and "PASS" in cells
+print(f"Gates passing on the whole matrix: {sum(gate_ok.values())}/{len(GATES)}", "· failing:", [c for c, ok in gate_ok.items() if not ok])
 
 print("\n--- robustness per API ---")
 for rob in sorted(root.rglob("robustness")):

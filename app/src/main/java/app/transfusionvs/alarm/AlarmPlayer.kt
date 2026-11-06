@@ -26,10 +26,13 @@ class AlarmPlayer(private val context: Context) {
     private var vibrator: Vibrator? = null
     private var focus: AudioFocusRequest? = null
 
-    /** [turn]: a turning round has its own chime and vibration; transfusions keep the alarm sound. */
-    fun start(soundOn: Boolean, soundUri: String?, turn: Boolean = false) {
-        if (soundOn) startSound(soundUri, turn)
-        startVibration(turn)
+    /**
+     * [turn]: a turning round has its own chime and vibration; [custom]: so does a custom timer;
+     * transfusions keep the alarm sound.
+     */
+    fun start(soundOn: Boolean, soundUri: String?, turn: Boolean = false, custom: Boolean = false) {
+        if (soundOn) startSound(soundUri, turn, custom)
+        startVibration(turn, custom)
     }
 
     fun stop() {
@@ -42,7 +45,7 @@ class AlarmPlayer(private val context: Context) {
         focus = null
     }
 
-    private fun startSound(customUri: String?, turn: Boolean) {
+    private fun startSound(customUri: String?, turn: Boolean, custom: Boolean = false) {
         val audio = context.getSystemService(AudioManager::class.java)
         focus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
             .setAudioAttributes(alarmAttributes)
@@ -55,7 +58,8 @@ class AlarmPlayer(private val context: Context) {
             customUri?.let(Uri::parse),
             Uri.parse("android.resource://${context.packageName}/${R.raw.turn_chime}"),
         )
-        val candidates = if (turn) turnCandidates else listOfNotNull(
+        val customCandidates = listOf(Uri.parse("android.resource://${context.packageName}/${R.raw.custom_chime}"))
+        val candidates = if (custom) customCandidates else if (turn) turnCandidates else listOfNotNull(
             customUri?.let(Uri::parse),
             runCatching { RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_ALARM) }.getOrNull(),
             android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI,
@@ -77,7 +81,7 @@ class AlarmPlayer(private val context: Context) {
         }
     }
 
-    private fun startVibration(turn: Boolean) {
+    private fun startVibration(turn: Boolean, custom: Boolean = false) {
         val v = if (Build.VERSION.SDK_INT >= 31) {
             context.getSystemService(VibratorManager::class.java).defaultVibrator
         } else {
@@ -86,8 +90,12 @@ class AlarmPlayer(private val context: Context) {
         }
         if (v == null || !v.hasVibrator()) return
         vibrator = v
-        // Repeat until stopped. Turns: a double pulse; transfusions: one long buzz.
-        val timings = if (turn) longArrayOf(0, 250, 150, 250, 1100) else longArrayOf(0, 800, 600)
+        // Repeat until stopped. Turns: a double pulse; custom timers: long-short; transfusions: one long buzz.
+        val timings = when {
+            custom -> longArrayOf(0, 600, 200, 200, 1000)
+            turn -> longArrayOf(0, 250, 150, 250, 1100)
+            else -> longArrayOf(0, 800, 600)
+        }
         val pattern = VibrationEffect.createWaveform(timings, 0)
         if (Build.VERSION.SDK_INT >= 33) {
             v.vibrate(pattern, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ALARM))

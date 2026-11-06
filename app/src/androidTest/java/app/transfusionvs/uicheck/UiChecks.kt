@@ -39,6 +39,9 @@ import app.transfusionvs.ui.theme.TvsTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import app.transfusionvs.screenshots.CustomFakes
+import app.transfusionvs.ui.screens.CustomDetailContent
+import app.transfusionvs.ui.screens.CustomStartContent
 
 /**
  * The fixed thresholds of docs/TEST_LOOP.md §4, measured on the real screens on an emulator (run
@@ -229,4 +232,37 @@ class UiChecks {
         )
     }
     @Test fun homeRinging() = check("home_ringing", primary = true) { Home(tx = listOf(ringingBed())) }
+
+    // ---- Custom timers ----
+
+    @Test fun homeWithCustom() = check("home_custom", primary = true) {
+        HomeContent(
+            home = Fakes.home.take(2), turns = TurnFakes.home.take(2), ringing = false, setupProblems = 0, now = Fakes.now,
+            onStartTransfusion = noop, onStartTurning = noop, onOpen = {}, onOpenTurnPlan = {}, onReaction = noop, onSetup = noop, onSettings = noop,
+            onOpenAlarm = noop, onAcknowledge = {}, custom = CustomFakes.home,
+        )
+    }
+    @Test fun customStartEmpty() = check("custom_start_empty", primary = true) { CustomStartContent(editing = null, onSubmit = {}, onBack = noop) }
+    @Test fun customStartValid() = check("custom_start_valid", primary = true) {
+        CustomStartContent(editing = null, onSubmit = {}, onBack = noop, initialName = CustomFakes.LONG_NAME, initialMrn = "7654824")
+    }
+    @Test fun customEdit() = check("custom_edit", primary = true) { CustomStartContent(editing = CustomFakes.drain.timer, onSubmit = {}, onBack = noop) }
+    @Test fun customDetail() = check("custom_detail", primary = true) {
+        CustomDetailContent(item = CustomFakes.drain, now = Fakes.now, toleranceMin = 15, missedTimeoutMin = 10, onBack = noop, onEdit = noop, onStop = {}, onSetStop = { _, _ -> }, onDone = {})
+    }
+    @Test fun customDetailRinging() = check("custom_detail_ringing", primary = true) {
+        CustomDetailContent(item = CustomFakes.dressing, now = Fakes.now, toleranceMin = 15, missedTimeoutMin = 10, onBack = noop, onEdit = noop, onStop = {}, onSetStop = { _, _ -> }, onDone = {})
+    }
+    @Test fun customAlarm() = check("custom_alarm", alarm = true, primary = true) {
+        AlarmContent(rows = emptyList(), now = Fakes.now, snoozeMin = 2, onAcknowledge = {}, onSnooze = noop, onStopForReaction = {}, customs = CustomFakes.rings(CustomFakes.dressing))
+    }
+    @Test fun customAlarmSeveral() = check("custom_alarm_several", alarm = true, primary = true) {
+        AlarmContent(rows = emptyList(), now = Fakes.now, snoozeMin = 2, onAcknowledge = {}, onSnooze = noop, onStopForReaction = {}, customs = CustomFakes.rings(CustomFakes.sugar, CustomFakes.dressing, CustomFakes.ivSite))
+    }
+    @Test fun customAlarmWithTransfusion() = check("custom_alarm_with_transfusion", alarm = true, primary = true) {
+        AlarmContent(
+            rows = listOf(Fakes.ringing(Fakes.bed14, CheckpointType.M15, 15)), now = Fakes.now, snoozeMin = 2,
+            onAcknowledge = {}, onSnooze = noop, onStopForReaction = {}, customs = CustomFakes.rings(CustomFakes.sugar),
+        )
+    }
 }

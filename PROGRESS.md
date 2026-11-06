@@ -85,3 +85,20 @@ The maintainer ended the emulator testing: the MRN change was the last thing wan
 
 ## Released as v0.5.0 (maintainer's decision, 2026-10-31)
 The maintainer approved merging and releasing without the loop's 100/100 condition, knowing what SCORECARD.md lists as not proven. Colleagues should get it only after the maintainer has tried it on a real phone.
+
+## Custom timer (branch `custom-timer`, started 2026-11-06). Read this first after a restart.
+The request is docs/CUSTOM_TIMER.md, word for word: re-read it after any restart. main stays untouched until its section 9 is met.
+- Step 1: the first commit only saves the request and lets the lab run on this branch. Its full-matrix `[lab]` run, on app code identical to main (9c1e37e), is the baseline: BASELINE.md.
+- Step 2: CHANGE_PLAN.md, then the code at the planned places only (data, rules, engine source, UI, widget, shortcut, lab hook).
+- Step 3: docs/SCREENSHOT_REGRESSION.md. The audit set against the baseline: 133 screens identical, 49 Home screens differ only in the pinned area. The four Home references were re-recorded after that proof.
+- Step 4: tests. JVM: CustomRulesTest, CustomSchedulePropertyTest (12,000 cases per rule), CustomViewsTest, CustomEngineTest (id collisions), CustomNameFitTest, CustomScreenshots, and a MigrationTest v3 to v4. Emulator: TapBudget tasks 10-12, UiChecks, Robustness. Lab: `--kind both`, ids `<id>@custom`, gates in score.py.
+- Next: the API 34 fast loop, BASELINE.md once the baseline run finishes, the fresh design reviewer, the personas and the scope audit, then two full-matrix runs.
+- Maintainer, 2026-11-06: **one full-matrix run for now**, not two consecutive (docs/CUSTOM_TIMER.md §9 says two). The other conditions of §9 stay.
+- Full run 1 (lab 42231693326, commit 272e1e7): baseline checks hold; custom gates pass on 26/33/34/36 and on 29 but A04@custom (image, as baseline A04); API 31 lost to a lab bug (device_alive), fixed. See SCORECARD.md.
+- **Stopped by the maintainer ("انجز"), 2026-11-06.** Not merged, no tag. Merge only on an explicit go-ahead (docs/CUSTOM_TIMER.md §9).
+  - Last code: 739d90c. Build 42288270608 is green (all unit, property, migration and screenshot tests). Its full-matrix lab run, 42288270975, was left running on GitHub.
+  - Unmet at the stop:
+    - No full run with every gate green yet. Run 1: API 31 lost to the lab bug (since fixed); A04@custom fails on API 29's image, as A04 does in the baseline.
+    - Design review: last completed score 6.5/10 (round 2). Its fixes weren't re-reviewed: round 3 hit a usage limit.
+    - Personas: findings remain that the request itself requires (see docs/audit).
+    - The round-3 scope audit didn't finish.

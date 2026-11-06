@@ -20,4 +20,14 @@
             android:targetClass="app.transfusionvs.ui.MainActivity"
             android:targetPackage="app.transfusionvs" />
     </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_custom"
+        android:shortcutId="start_custom"
+        android:shortcutShortLabel="@string/shortcut_custom">
+        <intent
+            android:action="app.transfusionvs.action.START_CUSTOM"
+            android:targetClass="app.transfusionvs.ui.MainActivity"
+            android:targetPackage="app.transfusionvs" />
+    </shortcut>
 </shortcuts>
