@@ -26,6 +26,9 @@ object CustomRules {
     /** Finished alarms are kept this long (the phone keeps nothing long-term). */
     const val KEEP_MS = 24 * 60 * MINUTE_MS
 
+    /** An alarm due this soon rings now: the system may wake us a moment early. */
+    const val EARLY_MS = 1_000L
+
     /** The first alarm of the series after both [after] and the timer's [CustomTimer.fromAt]. */
     fun next(timer: CustomTimer, after: Long): Long {
         val from = maxOf(after, timer.fromAt)
@@ -38,15 +41,15 @@ object CustomRules {
     fun missAt(timer: CustomTimer, slot: CustomSlot): Long = next(timer, slot.slotAt)
 
     /**
-     * New rows up to and including the first future alarm, so there is always a next one armed,
-     * whatever the interval. Alarms that passed while the phone was off are created already MISSED
+     * New rows up to and including the first alarm after [EARLY_MS] from now, so there is always a
+     * next one armed, whatever the interval. Alarms that passed while the phone was off are created already MISSED
      * when the one after them has fired too. Nothing at or after the stop time, nothing older than a day.
      */
     fun materialize(timer: CustomTimer, existing: List<CustomSlot>, now: Long): List<CustomSlot> {
         if (timer.status != CustomTimerStatus.RUNNING) return emptyList()
         val last = existing.maxOfOrNull { it.slotAt }
         // The next alarm is already there.
-        if (last != null && last > now) return emptyList()
+        if (last != null && last > now + EARLY_MS) return emptyList()
         val have = existing.map { it.slotAt }.toSet()
         val out = mutableListOf<CustomSlot>()
         var at = next(timer, maxOf(last ?: timer.fromAt, now - KEEP_MS))
@@ -57,7 +60,7 @@ object CustomRules {
                 val closed = next(timer, at) <= now
                 out += CustomSlot(timerId = timer.id, slotAt = at, status = if (closed) CustomSlotStatus.MISSED else CustomSlotStatus.PENDING)
             }
-            if (at > now) break
+            if (at > now + EARLY_MS) break
             at = next(timer, at)
         }
         return out
@@ -66,7 +69,7 @@ object CustomRules {
     /** One refresh step at [now]: returns only the alarms that changed. */
     fun step(timer: CustomTimer, slots: List<CustomSlot>, now: Long, missedTimeoutMin: Int): List<CustomSlot> =
         slots.mapNotNull { s ->
-            val open = s.status == CustomSlotStatus.RINGING || (s.status == CustomSlotStatus.PENDING && s.slotAt <= now + 1_000)
+            val open = s.status == CustomSlotStatus.RINGING || (s.status == CustomSlotStatus.PENDING && s.slotAt <= now + EARLY_MS)
             if (!open) return@mapNotNull null
             val changed = when {
                 // The next alarm fired: this one closes as MISSED (a late Done was possible until now).
