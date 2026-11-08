@@ -14,13 +14,15 @@ Unqualified names (BASELINE, CHANGE_PLAN, PORT_DIFF, SCORECARD, AUDIT, INSTALL_A
   are left out, and the text from "Change request:" on is word for word.
 - Step 2 started: `.github/workflows/desktop-reference.yml` (tag v0.6.0, `testDebugUnitTest`, ktlint
   1.8.0). Actions are pinned to commit SHAs.
-
 - Step 2 done. Baseline run 42461704759 (3 min 18 s): 241 reference JVM tests, all PASSED; ktlint 1.8.0
   6442 errors in 89 files; 262 audit PNGs. BASELINE.md written from its artifact `reference-baseline`.
 
+- Step 3 done: CHANGE_PLAN.md (locations, versions, decisions, the three port classes, New words, the port map,
+  new tests, lab rows W01–W57 and U01–U12, traceability).
+
 ## In progress
-- Step 3: CHANGE_PLAN.md, before any code.
+- Step 0, the spike (`desktop/spike/`, `desktop-spike.yml`, `[spike]`), on windows-2022 and windows-2025.
 
 ## Next, in order
-1. Step 0, the spike, on windows-2022 and windows-2025.
+1. Spike results into CHANGE_PLAN §12; a "no" changes the architecture before Step A.
 2. Steps A to E, then the loop.
