@@ -77,18 +77,9 @@ jobs:
         continue-on-error: true
         with:
           gradle-version: "9.6.1"
-      - name: Gradle 9.6.1 from services.gradle.org, checksum verified (only if setup-gradle failed)
+      - name: Gradle 9.6.1 directly, retried over two hosts, SHA-256 pinned (only if setup-gradle failed)
         if: steps.setupgradle.outcome == 'failure'
-        run: |
-          $zip = "$env:RUNNER_TEMP\gradle-9.6.1-bin.zip"
-          Invoke-WebRequest -UseBasicParsing https://services.gradle.org/distributions/gradle-9.6.1-bin.zip -OutFile $zip
-          $c = (Invoke-WebRequest -UseBasicParsing https://services.gradle.org/distributions/gradle-9.6.1-bin.zip.sha256).Content
-          if ($c -is [byte[]]) { $c = [Text.Encoding]::ASCII.GetString($c) }
-          $want = $c.Trim().ToLower(); $got = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-          Write-Host "gradle zip sha256 $got (published $want)"
-          if ($got -ne $want) { throw "Gradle checksum mismatch" }
-          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP -Force
-          "$env:RUNNER_TEMP\gradle-9.6.1\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+        run: ./desktop/scripts/install-gradle.ps1
 
       - name: Build the spike app image
         run: gradle --no-daemon -p desktop/spike :win:createDistributable
