@@ -64,7 +64,11 @@ switch ($Phase) {
         $devcon = Get-ChildItem $d -Recurse -Filter 'devcon*.exe' | Where-Object { $_.Name -match 'x64|amd64' -or $_.FullName -match 'x64' } | Select-Object -First 1
         $certs = Get-ChildItem $d -Recurse -Include *.cer, *.crt
         foreach ($c in $certs) { certutil -f -addstore TrustedPublisher $c.FullName | Out-Null; certutil -f -addstore Root $c.FullName | Out-Null }
-        $o = if ($devcon -and $inf) { & $devcon.FullName install $inf.FullName '*Scream' 2>&1 | Out-String } else { "no devcon/inf: devcon=$devcon inf=$inf" }
+        $o = if ($devcon -and $inf) {
+            # A driver prompt would block forever on a runner: give it 90 s, then give up.
+            $p = Start-Process -FilePath $devcon.FullName -ArgumentList 'install', "`"$($inf.FullName)`"", '*Scream' -PassThru -NoNewWindow -RedirectStandardOutput (Join-Path $out 'devcon.txt')
+            if (-not $p.WaitForExit(90000)) { $p | Stop-Process -Force; "devcon timed out after 90 s (a driver prompt?)" } else { "devcon exit $($p.ExitCode): " + (Get-Content (Join-Path $out 'devcon.txt') -Raw) }
+        } else { "no devcon/inf: devcon=$devcon inf=$inf" }
         Write-Result 'audio-device' 'INFO' "Scream 4.0 (MS-PL): $o"
     } catch { Write-Result 'audio-device' 'INFO' "Scream failed: $_" }
     Restart-Service Audiosrv -Force -ErrorAction SilentlyContinue

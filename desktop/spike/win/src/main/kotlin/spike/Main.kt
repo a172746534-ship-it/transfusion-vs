@@ -22,7 +22,6 @@ import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.awtEventOrNull
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -265,7 +264,7 @@ private fun ApplicationScope.AlarmWindow() {
                 awaitPointerEventScope {
                     while (true) {
                         val e = awaitPointerEvent(PointerEventPass.Initial)
-                        if (e.type == PointerEventType.Press) Log.i("ALARM press clickCount=${e.awtEventOrNull?.clickCount} at=${e.changes.first().position}")
+                        if (e.type == PointerEventType.Press) Log.i("ALARM press clickCount=${(e.nativeEvent as? java.awt.event.MouseEvent)?.clickCount} at=${e.changes.first().position}")
                     }
                 }
             },
