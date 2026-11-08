@@ -73,8 +73,22 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6
+        id: setupgradle
+        continue-on-error: true
         with:
           gradle-version: "9.6.1"
+      - name: Gradle 9.6.1 from services.gradle.org, checksum verified (only if setup-gradle failed)
+        if: steps.setupgradle.outcome == 'failure'
+        run: |
+          $zip = "$env:RUNNER_TEMP\gradle-9.6.1-bin.zip"
+          Invoke-WebRequest -UseBasicParsing https://services.gradle.org/distributions/gradle-9.6.1-bin.zip -OutFile $zip
+          $c = (Invoke-WebRequest -UseBasicParsing https://services.gradle.org/distributions/gradle-9.6.1-bin.zip.sha256).Content
+          if ($c -is [byte[]]) { $c = [Text.Encoding]::ASCII.GetString($c) }
+          $want = $c.Trim().ToLower(); $got = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          Write-Host "gradle zip sha256 $got (published $want)"
+          if ($got -ne $want) { throw "Gradle checksum mismatch" }
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP -Force
+          "$env:RUNNER_TEMP\gradle-9.6.1\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
 
       - name: Build the spike app image
         run: gradle --no-daemon -p desktop/spike :win:createDistributable
@@ -84,6 +98,7 @@ jobs:
         run: gradle --no-daemon -p desktop/spike :room:test :probe:test --continue
 
       - name: "Item 2: MSIs 1.0.0, 1.0.1, 1.0.2 from the custom WiX template (one app image)"
+        id: msi
         run: |
           $img = 'desktop\spike\win\build\compose\binaries\main\app\TransfusionVS'
           New-Item -ItemType Directory -Force $env:SPIKE_OUT | Out-Null
@@ -91,60 +106,60 @@ jobs:
           ./desktop/spike/ps/build-msi.ps1 -Image (Resolve-Path $img).Path -Out $env:SPIKE_MSI
 
       - name: "Phase env (audio device attempt)"
-        if: always()
+        if: ${{ !cancelled() }}
         timeout-minutes: 8
         run: ./desktop/spike/ps/run-spike.ps1 -Phase env
       - name: Phase install
-        if: always()
+        if: ${{ !cancelled() && steps.msi.outcome == 'success' }}
         timeout-minutes: 5
         run: ./desktop/spike/ps/run-spike.ps1 -Phase install
       - name: "Phase launch (standard user, tasks, power, modules, hidden window, Core Audio)"
-        if: always()
+        if: ${{ !cancelled() && steps.msi.outcome == 'success' }}
         timeout-minutes: 5
         run: ./desktop/spike/ps/run-spike.ps1 -Phase launch
       - name: "Phase clock (the only step that moves the clock; try/finally, <= 2 h, <= 10 min)"
-        if: always()
+        if: ${{ !cancelled() && steps.msi.outcome == 'success' }}
         timeout-minutes: 10
         run: ./desktop/spike/ps/run-spike.ps1 -Phase clock
       - name: Phase shutdown reason
-        if: always()
+        if: ${{ !cancelled() && steps.msi.outcome == 'success' }}
         timeout-minutes: 3
         run: ./desktop/spike/ps/run-spike.ps1 -Phase shutdown
       - name: Phase alarm window
-        if: always()
+        if: ${{ !cancelled() && steps.msi.outcome == 'success' }}
         timeout-minutes: 8
         run: ./desktop/spike/ps/run-spike.ps1 -Phase alarm
       - name: Phase render API
-        if: always()
+        if: ${{ !cancelled() && steps.msi.outcome == 'success' }}
         timeout-minutes: 5
         run: ./desktop/spike/ps/run-spike.ps1 -Phase render
       - name: Phase IT modes
-        if: always()
+        if: ${{ !cancelled() && steps.msi.outcome == 'success' }}
         timeout-minutes: 5
         run: ./desktop/spike/ps/run-spike.ps1 -Phase itmodes
       - name: Phase crash file
-        if: always()
+        if: ${{ !cancelled() && steps.msi.outcome == 'success' }}
         timeout-minutes: 5
         run: ./desktop/spike/ps/run-spike.ps1 -Phase crash
       - name: "Phase restart, ping, takeover"
-        if: always()
+        if: ${{ !cancelled() && steps.msi.outcome == 'success' }}
         timeout-minutes: 8
         run: ./desktop/spike/ps/run-spike.ps1 -Phase restart
       - name: Phase upgrade
-        if: always()
+        if: ${{ !cancelled() && steps.msi.outcome == 'success' }}
         timeout-minutes: 8
         run: ./desktop/spike/ps/run-spike.ps1 -Phase upgrade
       - name: Phase failed installs
-        if: always()
+        if: ${{ !cancelled() && steps.msi.outcome == 'success' }}
         timeout-minutes: 10
         run: ./desktop/spike/ps/run-spike.ps1 -Phase failure
       - name: Phase uninstall
-        if: always()
+        if: ${{ !cancelled() && steps.msi.outcome == 'success' }}
         timeout-minutes: 5
         run: ./desktop/spike/ps/run-spike.ps1 -Phase uninstall
 
       - name: Summary
-        if: always()
+        if: ${{ !cancelled() }}
         run: Get-Content "$env:SPIKE_OUT\results.md" -ErrorAction SilentlyContinue
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
