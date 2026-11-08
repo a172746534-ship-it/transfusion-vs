@@ -1,0 +1,122 @@
+name: Desktop reference baseline
+
+# The reference for the desktop port (docs/DESKTOP_APP.md §7): tag v0.6.0's JVM tests and ktlint 1.8.0.
+# desktop/docs/BASELINE.md is written from this run's artifact; the audit set in it is the visual reference.
+# Runs only when this file changes or the commit message has [baseline].
+
+on:
+  push:
+    branches: [desktop]
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - id: check
+        env:
+          MSG: ${{ github.event.head_commit.message }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          run=false
+          case "$MSG" in *"[baseline]"*) run=true ;; esac
+          if [ "$run" = false ]; then
+            if [ -n "$BEFORE" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+              base="$BEFORE"
+            else
+              base=$(git merge-base origin/main HEAD)
+            fi
+            if git diff --name-only "$base" HEAD | grep -qx '.github/workflows/desktop-reference.yml'; then run=true; fi
+          fi
+          echo "run=$run" | tee -a "$GITHUB_OUTPUT"
+
+  reference:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: v0.6.0
+
+      - name: The checkout is the reference (300b2c8)
+        run: |
+          git rev-parse HEAD
+          test "$(git rev-parse HEAD)" = 300b2c86ed085066fbde7704cc22503be530b045
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6
+        with:
+          gradle-version: "9.6.1"
+
+      # Results are read from the XML; a failing test is recorded, not hidden.
+      - name: Reference JVM tests (testDebugUnitTest)
+        continue-on-error: true
+        run: gradle --no-daemon --stacktrace testDebugUnitTest --continue
+
+      - name: ktlint 1.8.0 (the reference's sources, report only)
+        continue-on-error: true
+        run: |
+          curl -sSLo ktlint https://github.com/pinterest/ktlint/releases/download/1.8.0/ktlint
+          chmod +x ktlint
+          ./ktlint --version
+          mkdir -p ktlint-report
+          ./ktlint "app/src/**/*.kt" --reporter=json,output=ktlint-report/ktlint.json > ktlint-report/ktlint.txt 2>&1 || true
+          tail -5 ktlint-report/ktlint.txt
+
+      - name: Summary (every test class, method and result; ktlint counts per file)
+        if: always()
+        run: |
+          mkdir -p summary
+          python3 - <<'PY'
+          import glob, json, os, xml.etree.ElementTree as ET
+          rows = []
+          for f in sorted(glob.glob("app/build/test-results/testDebugUnitTest/*.xml")):
+              for tc in ET.parse(f).getroot().iter("testcase"):
+                  if tc.find("failure") is not None: r = "FAILED"
+                  elif tc.find("error") is not None: r = "ERROR"
+                  elif tc.find("skipped") is not None: r = "SKIPPED"
+                  else: r = "PASSED"
+                  rows.append((tc.get("classname"), tc.get("name"), r, tc.get("time")))
+          with open("summary/tests.tsv", "w") as out:
+              out.write("class\tmethod\tresult\ttime_s\n")
+              for row in rows: out.write("\t".join(row) + "\n")
+          counts = {}
+          for _, _, r, _ in rows: counts[r] = counts.get(r, 0) + 1
+          print("tests:", len(rows), counts)
+          kt = {}
+          if os.path.exists("ktlint-report/ktlint.json"):
+              for entry in json.load(open("ktlint-report/ktlint.json")):
+                  kt[os.path.relpath(entry["file"])] = len(entry["errors"])
+          with open("summary/ktlint-per-file.tsv", "w") as out:
+              out.write("file\terrors\n")
+              for k in sorted(kt): out.write(f"{k}\t{kt[k]}\n")
+          main = sum(v for k, v in kt.items() if "/src/main/" in k)
+          print("ktlint errors: total", sum(kt.values()), "| app/src/main", main, "| files with errors", len(kt))
+          PY
+          git rev-parse HEAD > summary/reference-commit.txt
+          ls app/build/audit 2>/dev/null | wc -l | xargs echo "audit PNGs:" | tee summary/audit-count.txt
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: reference-baseline
+          retention-days: 90
+          path: |
+            app/build/test-results/
+            app/build/audit/
+            ktlint-report/
+            summary/
+          if-no-files-found: warn
