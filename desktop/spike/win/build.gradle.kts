@@ -49,7 +49,9 @@ compose.desktop {
             "-Dfile.encoding=UTF-8",
         )
         nativeDistributions {
-            targetFormats(TargetFormat.Msi)
+            // App image only: the MSI is built by WiX 3.14 directly (CHANGE_PLAN §3.12); an Msi target here would make
+            // Compose download WiX 3.11 for its own packaging.
+            targetFormats(TargetFormat.AppImage)
             packageName = "TransfusionVS"
             packageVersion = appVersion
             modules("java.desktop", "jdk.localedata", "jdk.unsupported", "java.naming", "java.sql")

@@ -8,7 +8,10 @@ foreach ($c in @($env:WIX, 'C:\Program Files (x86)\WiX Toolset v3.14', 'C:\Progr
 if (-not $wix) {
     Write-Host "WiX 3.x not on this image: downloading wix314-binaries.zip (MS-RL) from the WiX GitHub releases"
     $zip = Join-Path $env:RUNNER_TEMP 'wix314.zip'
-    Invoke-WebRequest -Uri 'https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip' -OutFile $zip
+    for ($i = 1; $i -le 6; $i++) {
+        try { Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip' -OutFile $zip; break }
+        catch { Write-Host "WiX download attempt $i failed: $($_.Exception.Message)"; Start-Sleep -Seconds (15 * $i) }
+    }
     $wix = Join-Path $env:RUNNER_TEMP 'wix314'
     Expand-Archive $zip -DestinationPath $wix -Force
 }
