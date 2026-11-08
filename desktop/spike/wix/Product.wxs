@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spike only (deleted before the final full run): the per-machine MSI shape of CHANGE_PLAN §3.12. -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+  <Product Id="*" Name="A S" Language="1033" Version="$(var.Version)" Manufacturer="A S" UpgradeCode="DBB2B4D6-ABFD-4341-9ABD-D112DB76EBAE">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64" Description="A S (spike)" />
+    <!-- Upgrades by hand (not MajorUpgrade) so the stop and the rollback can sit between InstallInitialize and
+         RemoveExistingProducts with explicit sequence numbers. -->
+    <Upgrade Id="DBB2B4D6-ABFD-4341-9ABD-D112DB76EBAE">
+      <UpgradeVersion Minimum="0.0.0" IncludeMinimum="yes" Maximum="$(var.Version)" IncludeMaximum="yes" Property="WIX_UPGRADE_DETECTED" />
+      <UpgradeVersion Minimum="$(var.Version)" IncludeMinimum="no" OnlyDetect="yes" Property="WIX_DOWNGRADE_DETECTED" />
+    </Upgrade>
+    <Condition Message="A newer version of A S is already installed.">NOT WIX_DOWNGRADE_DETECTED</Condition>
+    <MediaTemplate EmbedCab="yes" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="TransfusionVS" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder" />
+      <Directory Id="CommonAppDataFolder">
+        <Directory Id="PDFOLDER" Name="TransfusionVS" />
+      </Directory>
+    </Directory>
+
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="RunAtLogon" Guid="8F1D3B52-2C3E-4F8E-9D7B-4D3A0C2B6E11" Win64="yes">
+        <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="TransfusionVS" Type="string" Value="&quot;[INSTALLFOLDER]TransfusionVS.exe&quot; --logon" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+    <DirectoryRef Id="ProgramMenuFolder">
+      <Component Id="StartMenu" Guid="1C9E6A0B-7F43-4E6C-A1D2-5B8E9F0A3C22" Win64="yes">
+        <Shortcut Id="AppShortcut" Name="A S" Target="[INSTALLFOLDER]TransfusionVS.exe" WorkingDirectory="INSTALLFOLDER">
+          <ShortcutProperty Key="System.AppUserModel.ID" Value="TransfusionVS" />
+        </Shortcut>
+        <RegistryValue Root="HKLM" Key="Software\TransfusionVS" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+    <DirectoryRef Id="PDFOLDER">
+      <Component Id="MarkerFolder" Guid="5A7B2E19-0D6F-4B3C-8E4A-9F1C2D3B4A33" Win64="yes">
+        <CreateFolder>
+          <util:PermissionEx User="SYSTEM" GenericAll="yes" />
+          <util:PermissionEx User="Administrators" GenericAll="yes" />
+          <util:PermissionEx User="Users" GenericRead="yes" GenericExecute="yes" />
+        </CreateFolder>
+        <RegistryValue Root="HKLM" Key="Software\TransfusionVS" Name="MarkerFolder" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="Main" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="RunAtLogon" />
+      <ComponentRef Id="StartMenu" />
+      <ComponentRef Id="MarkerFolder" />
+    </Feature>
+
+    <!-- Upgrade (inside the old product's removal) and uninstall: stop every running app before any file changes. -->
+    <CustomAction Id="CA_StopForUpgrade" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]TransfusionVS.exe&quot; --installer-stop" Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="CA_StopForUninstall" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]TransfusionVS.exe&quot; --installer-stop --remove-tasks" Execute="deferred" Impersonate="no" Return="ignore" />
+    <!-- The marker is cleared at the end of the install, and by rollback. cmd.exe, since the exe may be gone. -->
+    <CustomAction Id="CA_ClearMarker_Set" Property="CA_ClearMarker" Value="&quot;[System64Folder]cmd.exe&quot; /c del /f /q &quot;[CommonAppDataFolder]TransfusionVS\installing&quot;" />
+    <CustomAction Id="CA_ClearMarker" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="CA_ClearMarkerRollback_Set" Property="CA_ClearMarkerRollback" Value="&quot;[System64Folder]cmd.exe&quot; /c del /f /q &quot;[CommonAppDataFolder]TransfusionVS\installing&quot;" />
+    <CustomAction Id="CA_ClearMarkerRollback" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="rollback" Impersonate="no" Return="ignore" />
+    <!-- Spike only: a forced failure after the stop, to prove rollback leaves no valid marker. -->
+    <CustomAction Id="CA_SpikeFail_Set" Property="CA_SpikeFail" Value="&quot;[System64Folder]cmd.exe&quot; /c exit 1" />
+    <CustomAction Id="CA_SpikeFail" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Impersonate="no" Return="check" />
+
+    <InstallExecuteSequence>
+      <Custom Action="CA_ClearMarker_Set" Before="InstallInitialize" />
+      <Custom Action="CA_ClearMarkerRollback_Set" Before="InstallInitialize" />
+      <Custom Action="CA_SpikeFail_Set" Before="InstallInitialize">SPIKE_FAIL="1"</Custom>
+      <Custom Action="CA_ClearMarkerRollback" Sequence="1502">NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="CA_StopForUpgrade" Sequence="1503">REMOVE~="ALL" AND UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="CA_StopForUninstall" Sequence="1504">REMOVE~="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <RemoveExistingProducts Sequence="1510" />
+      <Custom Action="CA_SpikeFail" After="InstallFiles">SPIKE_FAIL="1"</Custom>
+      <Custom Action="CA_ClearMarker" Before="InstallFinalize">NOT UPGRADINGPRODUCTCODE</Custom>
+    </InstallExecuteSequence>
+  </Product>
+</Wix>

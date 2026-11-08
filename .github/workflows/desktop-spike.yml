@@ -1,0 +1,158 @@
+name: Desktop spike
+
+# Step 0 of docs/DESKTOP_APP.md §7 (desktop/docs/CHANGE_PLAN.md §12). Runs only with [spike] in the commit message.
+# Deleted, with desktop/spike/, before the final full run.
+
+on:
+  push:
+    branches: [desktop]
+
+permissions:
+  contents: read
+
+jobs:
+  jvm:
+    if: contains(github.event.head_commit.message, '[spike]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6
+        with:
+          gradle-version: "9.6.1"
+
+      - name: "Item 1: the reference ui/ and alarm composables, unchanged (every compile error)"
+        continue-on-error: true
+        run: |
+          mkdir -p spike-out
+          gradle --no-daemon -p desktop/spike :port:compileKotlin --continue > spike-out/port-compile.txt 2>&1 || true
+          grep -E '^e: ' spike-out/port-compile.txt > spike-out/port-errors.txt || true
+          echo "compile errors: $(wc -l < spike-out/port-errors.txt)"
+          sed -E 's#^e: file://[^ ]*/reference/app/transfusionvs/([^:]*):.*#\1#' spike-out/port-errors.txt | sort | uniq -c | sort -rn | tee spike-out/port-errors-per-file.txt
+          tail -40 spike-out/port-compile.txt
+
+      - name: "Item 11: Room on a Kotlin JVM module (bundled driver), the Room plugin, Compose Desktop API probes"
+        continue-on-error: true
+        run: gradle --no-daemon -p desktop/spike :room:test :roomplugin:compileKotlin :probe:test --continue 2>&1 | tee spike-out/jvm-tests.txt
+
+      - name: Collect
+        if: always()
+        run: |
+          cp -r desktop/spike/room/build/schemas spike-out/room-schemas 2>/dev/null || true
+          cp -r desktop/spike/roomplugin/build/schemas spike-out/roomplugin-schemas 2>/dev/null || true
+          cp desktop/spike/probe/build/spike-font.png spike-out/ 2>/dev/null || true
+          for m in room probe; do cp -r desktop/spike/$m/build/test-results spike-out/$m-test-results 2>/dev/null || true; done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: spike-jvm
+          path: spike-out/
+
+  windows:
+    if: contains(github.event.head_commit.message, '[spike]')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    env:
+      SPIKE_OUT: ${{ github.workspace }}\spike-out
+      SPIKE_MSI: C:\spike-msi
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6
+        with:
+          gradle-version: "9.6.1"
+
+      - name: Build the spike app image
+        run: gradle --no-daemon -p desktop/spike :win:createDistributable
+
+      - name: Room and probes on Windows too
+        continue-on-error: true
+        run: gradle --no-daemon -p desktop/spike :room:test :probe:test --continue
+
+      - name: "Item 2: MSIs 1.0.0, 1.0.1, 1.0.2 from the custom WiX template (one app image)"
+        run: |
+          $img = 'desktop\spike\win\build\compose\binaries\main\app\TransfusionVS'
+          New-Item -ItemType Directory -Force $env:SPIKE_OUT | Out-Null
+          Get-ChildItem $img -Recurse -File | ForEach-Object { "$($_.Length)`t$($_.FullName.Substring((Resolve-Path $img).Path.Length))" } | Set-Content "$env:SPIKE_OUT\app-image-files.txt"
+          ./desktop/spike/ps/build-msi.ps1 -Image (Resolve-Path $img).Path -Out $env:SPIKE_MSI
+
+      - name: "Phase env (audio device attempt)"
+        if: always()
+        timeout-minutes: 8
+        run: ./desktop/spike/ps/run-spike.ps1 -Phase env
+      - name: Phase install
+        if: always()
+        timeout-minutes: 5
+        run: ./desktop/spike/ps/run-spike.ps1 -Phase install
+      - name: "Phase launch (standard user, tasks, power, modules, hidden window, Core Audio)"
+        if: always()
+        timeout-minutes: 5
+        run: ./desktop/spike/ps/run-spike.ps1 -Phase launch
+      - name: "Phase clock (the only step that moves the clock; try/finally, <= 2 h, <= 10 min)"
+        if: always()
+        timeout-minutes: 10
+        run: ./desktop/spike/ps/run-spike.ps1 -Phase clock
+      - name: Phase shutdown reason
+        if: always()
+        timeout-minutes: 3
+        run: ./desktop/spike/ps/run-spike.ps1 -Phase shutdown
+      - name: Phase alarm window
+        if: always()
+        timeout-minutes: 8
+        run: ./desktop/spike/ps/run-spike.ps1 -Phase alarm
+      - name: Phase render API
+        if: always()
+        timeout-minutes: 5
+        run: ./desktop/spike/ps/run-spike.ps1 -Phase render
+      - name: Phase IT modes
+        if: always()
+        timeout-minutes: 5
+        run: ./desktop/spike/ps/run-spike.ps1 -Phase itmodes
+      - name: Phase crash file
+        if: always()
+        timeout-minutes: 5
+        run: ./desktop/spike/ps/run-spike.ps1 -Phase crash
+      - name: "Phase restart, ping, takeover"
+        if: always()
+        timeout-minutes: 8
+        run: ./desktop/spike/ps/run-spike.ps1 -Phase restart
+      - name: Phase upgrade
+        if: always()
+        timeout-minutes: 8
+        run: ./desktop/spike/ps/run-spike.ps1 -Phase upgrade
+      - name: Phase failed installs
+        if: always()
+        timeout-minutes: 10
+        run: ./desktop/spike/ps/run-spike.ps1 -Phase failure
+      - name: Phase uninstall
+        if: always()
+        timeout-minutes: 5
+        run: ./desktop/spike/ps/run-spike.ps1 -Phase uninstall
+
+      - name: Summary
+        if: always()
+        run: Get-Content "$env:SPIKE_OUT\results.md" -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: spike-${{ matrix.os }}
+          path: |
+            spike-out/
+            desktop/spike/room/build/test-results/
+            desktop/spike/probe/build/test-results/
+            C:\spike-msi\wix-version.txt
+          if-no-files-found: warn
